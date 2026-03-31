@@ -1,0 +1,5 @@
+{
+  "installCommand": "npm install --prefix src/web-app",
+  "buildCommand": "npm --prefix src/web-app run build",
+  "devCommand": "npm --prefix src/web-app run dev"
+}
