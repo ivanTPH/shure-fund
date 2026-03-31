@@ -102,7 +102,19 @@ export default function TaskListPanel({
                   ) : null}
                 </div>
                 <div className="mt-1 text-base font-semibold text-slate-950">{item.title}</div>
-                <p className="mt-1 text-sm text-slate-600">{item.summary}</p>
+                <div className="mt-1 text-sm text-slate-600">
+  <div><strong>Blocked by:</strong> {item.summary}</div>
+  <div className="text-slate-500">
+    <strong>To unlock:</strong>{" "}
+    {item.summary?.toLowerCase().includes("funding")
+      ? "Allocate funds or approve release"
+      : item.summary?.toLowerCase().includes("approval")
+      ? "Complete approval"
+      : item.summary?.toLowerCase().includes("evidence")
+      ? "Review and accept evidence"
+      : "Resolve blocking issue"}
+  </div>
+</div>
                 {isFinancialAction(item) && typeof item.amount === "number" ? (
                   <div className="mt-2 text-sm font-semibold text-slate-900">Amount: {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(item.amount)}</div>
                 ) : null}
