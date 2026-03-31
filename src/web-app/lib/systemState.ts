@@ -1283,11 +1283,11 @@ export function deriveHomeTaskSections(
   const sortByPriority = (items: HomeTaskItem[]) =>
     [...items].sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority]);
 
-  return {
-    needsMyActionNow: sortByPriority(aggregateItems(needsMyActionNow)),
-    waitingOnOthers: sortByPriority(aggregateItems(waitingOnOthers)),
-    awaitingMyApproval: sortByPriority(aggregateItems(awaitingMyApproval)),
-  };
+return {
+  needsMyActionNow: sortByPriority(aggregateItems(needsMyActionNow)),
+  waitingOnOthers: sortByPriority(aggregateItems(waitingOnOthers)),
+  awaitingMyApproval: sortByPriority(aggregateItems(awaitingMyApproval)),
+};
 }
 
 function getAuditEntryRole(entry: AuditLogEntry): ApprovalRole | null {
