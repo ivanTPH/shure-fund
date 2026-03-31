@@ -123,7 +123,13 @@ export default function TaskListPanel({
 
               <div className="flex items-center md:justify-end">
                 <span className="inline-flex min-h-11 items-center justify-center gap-1 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-all duration-150 ease-out group-active:scale-[0.98]">
-                  {item.nextActionLabel ?? ctaLabel}
+                 {item.summary?.toLowerCase().includes("funding")
+  ? "Resolve funding gap"
+  : item.summary?.toLowerCase().includes("approval")
+  ? "Approve release"
+  : item.summary?.toLowerCase().includes("evidence")
+  ? "Review evidence"
+  : item.nextActionLabel ?? ctaLabel}
                   <ChevronRight size={14} />
                 </span>
               </div>
