@@ -207,26 +207,33 @@ export default function TaskFirstWorkspace({
                       : "Settings"}
                   </div>
                   <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-                    {activeAppView === "home"
-                      ? "What needs your attention"
-                      : activeAppView === "projects"
-                      ? projectDetailMode
-                        ? activeProject.name
-                        : "Projects"
-                      : activeAppView === "contracts"
-                      ? "Contract setup and stage breakdown"
-                      : activeAppView === "funding"
-                      ? "Funding cover and cash control"
-                      : activeAppView === "reviews"
-                      ? "Evidence and review work"
-                      : activeAppView === "approvals"
-                      ? "Approval queue"
-                      : activeAppView === "payments"
-                      ? "Payment release control"
-                      : activeAppView === "audit"
-                      ? "Audit log"
-                      : "Settings"}
-                  </h1>
+  {activeAppView === "home"
+    ? "What needs your attention"
+    : activeAppView === "projects"
+    ? projectDetailMode
+      ? activeProject.name
+      : "Projects"
+    : activeAppView === "contracts"
+    ? "Contract setup and stage breakdown"
+    : activeAppView === "funding"
+    ? "Funding cover and cash control"
+    : activeAppView === "reviews"
+    ? "Evidence and review work"
+    : activeAppView === "approvals"
+    ? "Approval queue"
+    : activeAppView === "payments"
+    ? "Payment release control"
+    : activeAppView === "audit"
+    ? "Audit log"
+    : "Settings"}
+</h1>
+
+<div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+  <strong>System status:</strong>{" "}
+  £450k blocked across 3 stages · 2 approvals required · 1 evidence review pending
+</div>
+
+<p className="mt-2 max-w-3xl text-sm text-slate-500">
                   <p className="mt-2 max-w-3xl text-sm text-slate-500">
                     {activeAppView === "home"
                       ? "Start with what needs attention now, what is waiting for your sign-off, and what has already been finished."
