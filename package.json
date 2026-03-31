@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix src/web-app run dev",
-    "build": "npm --prefix src/web-app run build",
+    "build": "rm -rf .next && npm --prefix src/web-app run build && cp -R src/web-app/.next .next",
     "start": "npm --prefix src/web-app run start"
   }
 }
