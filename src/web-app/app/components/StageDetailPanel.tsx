@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 import type { ApprovalRole, EvidenceStatus, EvidenceType, FundingSourceType } from "@/lib/shureFundModels";
 import { getStageDecisionPack, type StageDetailModel } from "@/lib/systemState";
 
@@ -25,8 +29,134 @@ function formatRelativeTime(timestamp?: string | null) {
   return `${days}d ago`;
 }
 
+function SectionActionHeader({
+  title,
+  guidance,
+}: {
+  title: string;
+  guidance: StageDetailModel["sectionGuidance"][keyof StageDetailModel["sectionGuidance"]];
+}) {
+  const toneClass =
+    guidance.state === "act_now"
+      ? "border-teal-200 bg-teal-50 text-teal-950"
+      : guidance.state === "waiting"
+        ? "border-slate-200 bg-slate-100 text-slate-900"
+        : guidance.state === "blocked"
+          ? "border-amber-200 bg-amber-50 text-amber-950"
+          : "border-slate-200 bg-white text-slate-900";
+
+  return (
+    <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+          <p className="mt-1 text-sm text-slate-600">{guidance.summary}</p>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${toneClass}`}>
+          {guidance.status}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What happens next</p>
+          <p className="mt-1 text-sm font-medium text-slate-950">{guidance.nextStep}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recommended next action</p>
+          <p className="mt-1 text-sm font-medium text-slate-950">{guidance.recommendedAction}</p>
+          <p className="mt-1 text-xs text-slate-500">Owned by {guidance.ownerLabel}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getActionButtonClass(kind: "primary" | "secondary" | "warning", disabled: boolean) {
+  if (kind === "primary") {
+    return disabled
+      ? "min-h-12 rounded-2xl bg-slate-300 px-4 py-3 text-sm font-medium text-white"
+      : "min-h-12 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white";
+  }
+
+  if (kind === "warning") {
+    return disabled
+      ? "min-h-12 rounded-2xl bg-teal-200 px-4 py-3 text-sm font-medium text-white"
+      : "min-h-12 rounded-2xl bg-teal-700 px-4 py-3 text-sm font-medium text-white";
+  }
+
+  return disabled
+    ? "min-h-12 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-medium text-slate-400"
+    : "min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900";
+}
+
+function getActionPriorityTone(priority: "Primary action" | "Secondary action" | "Unavailable") {
+  if (priority === "Primary action") {
+    return "bg-slate-900 text-white";
+  }
+
+  if (priority === "Secondary action") {
+    return "bg-slate-100 text-slate-700";
+  }
+
+  return "bg-slate-50 text-slate-500";
+}
+
+function ActionControlCard({
+  label,
+  priority,
+  reason,
+  owner,
+  disabled,
+  kind,
+  onClick,
+}: {
+  label: string;
+  priority: "Primary action" | "Secondary action" | "Unavailable";
+  reason: string;
+  owner?: string;
+  disabled: boolean;
+  kind: "primary" | "secondary" | "warning";
+  onClick: () => void;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        priority === "Primary action"
+          ? "border-slate-900/10 bg-slate-50"
+          : priority === "Unavailable"
+            ? "border-slate-200 bg-slate-50/80"
+            : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${getActionPriorityTone(priority)}`}
+        >
+          {priority}
+        </p>
+        {owner ? <p className="text-xs text-slate-500">Owned by {owner}</p> : null}
+      </div>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`mt-3 w-full disabled:cursor-not-allowed ${getActionButtonClass(kind, disabled)}`}
+      >
+        {label}
+      </button>
+      <p className="mt-2 text-sm text-slate-600">{reason}</p>
+    </div>
+  );
+}
+
 type StageDetailPanelProps = {
   detail: StageDetailModel;
+  focusedSection: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
+  actionFeedback: {
+    tone: "success" | "warning";
+    title: string;
+    detail: string;
+  } | null;
   overrideReason: string;
   evidenceTitle: string;
   evidenceType: EvidenceType;
@@ -63,6 +193,8 @@ type StageDetailPanelProps = {
 
 export default function StageDetailPanel({
   detail,
+  focusedSection,
+  actionFeedback,
   overrideReason,
   evidenceTitle,
   evidenceType,
@@ -97,14 +229,87 @@ export default function StageDetailPanel({
   onActivateVariation,
 }: StageDetailPanelProps) {
   const decisionPack = getStageDecisionPack(detail);
+  const overviewRef = useRef<HTMLElement | null>(null);
+  const fundingRef = useRef<HTMLDivElement | null>(null);
+  const releaseRef = useRef<HTMLDivElement | null>(null);
+  const evidenceRef = useRef<HTMLDivElement | null>(null);
+  const approvalsRef = useRef<HTMLDivElement | null>(null);
+  const disputeRef = useRef<HTMLElement | null>(null);
+  const variationRef = useRef<HTMLElement | null>(null);
   const stageWipTotal = detail.releaseDecision.releasableAmount + detail.releaseDecision.frozenAmount + detail.releaseDecision.blockedAmount;
+  const parsedDisputeAmount = Number(disputeAmount);
+  const parsedVariationAmount = Number(variationAmount);
+  const canFundStage = detail.availableActions.fundStage && detail.funding.gapToRequiredCover > 0;
+  const canReleaseStage = detail.availableActions.release && detail.releaseDecision.releasable;
+  const canApplyOverride = detail.availableActions.applyOverride && overrideReason.trim().length > 0;
+  const canOpenDispute =
+    detail.availableActions.openDispute &&
+    disputeTitle.trim().length > 0 &&
+    disputeReason.trim().length > 0 &&
+    Number.isFinite(parsedDisputeAmount) &&
+    parsedDisputeAmount > 0;
+  const canCreateVariation =
+    detail.availableActions.createVariation &&
+    variationTitle.trim().length > 0 &&
+    variationReason.trim().length > 0 &&
+    Number.isFinite(parsedVariationAmount) &&
+    parsedVariationAmount !== 0;
+  const fundReason = canFundStage
+    ? "Allocates the remaining amount and updates this work package immediately."
+    : detail.availableActions.fundStage
+      ? detail.sectionGuidance.funding.recommendedAction
+      : detail.availableActions.fundStageReason;
+  const releaseReason = canReleaseStage
+    ? "Releases the approved value and updates drawdown, blockers, and history immediately."
+    : detail.availableActions.release
+      ? detail.sectionGuidance.release.recommendedAction
+      : detail.availableActions.releaseReason;
+  const overrideReasonText = canApplyOverride
+    ? "Applies a governed treasury override with the reason recorded in the audit trail."
+    : overrideReason.trim().length === 0
+      ? "Enter an override reason before this control can be used."
+      : detail.availableActions.applyOverrideReason;
+  const openDisputeReasonText = canOpenDispute
+    ? "Raises a dispute and freezes only the affected value."
+    : detail.availableActions.openDispute
+      ? detail.sectionGuidance.dispute.recommendedAction
+      : detail.availableActions.openDisputeReason;
+  const createVariationReasonText = canCreateVariation
+    ? "Records the proposal and updates variation review state immediately."
+    : detail.availableActions.createVariation
+      ? detail.sectionGuidance.variation.recommendedAction
+      : detail.availableActions.createVariationReason;
+
+  useEffect(() => {
+    const refMap = {
+      overview: overviewRef,
+      funding: fundingRef,
+      release: releaseRef,
+      evidence: evidenceRef,
+      approvals: approvalsRef,
+      dispute: disputeRef,
+      variation: variationRef,
+    } as const;
+
+    refMap[focusedSection]?.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [detail.stage.id, focusedSection]);
+
+  function getSectionClass(section: typeof focusedSection) {
+    return focusedSection === section
+      ? "scroll-mt-28 rounded-2xl ring-2 ring-teal-200/80 transition"
+      : "scroll-mt-28";
+  }
 
   return (
-    <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
+    <section ref={overviewRef} className={`rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] ${getSectionClass("overview")}`}>
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-slate-900">Work Package Detail</h2>
         <p className="mt-1 text-sm text-slate-500">{detail.projectName} · {detail.stage.name}</p>
         <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+          <span>Acting role {detail.actingRole.label}</span>
           {detail.notificationCue ? (
             <span
               className={`rounded-full px-2 py-1 font-semibold ${
@@ -122,6 +327,23 @@ export default function StageDetailPanel({
           <span>Last decision {formatRelativeTime(detail.lastDecisionAt)}</span>
         </div>
       </div>
+
+      {actionFeedback ? (
+        <div
+          className={`mb-4 rounded-2xl border px-4 py-3 ${
+            actionFeedback.tone === "success"
+              ? "border-teal-200 bg-teal-50"
+              : "border-amber-200 bg-amber-50"
+          }`}
+        >
+          <p className={`text-sm font-medium ${actionFeedback.tone === "success" ? "text-teal-950" : "text-amber-950"}`}>
+            {actionFeedback.title}
+          </p>
+          <p className={`mt-1 text-xs ${actionFeedback.tone === "success" ? "text-teal-900" : "text-amber-900"}`}>
+            {actionFeedback.detail}
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-slate-50 p-4">
@@ -164,7 +386,8 @@ export default function StageDetailPanel({
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div ref={fundingRef} className={`mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("funding")}`}>
+        <SectionActionHeader title="Funding" guidance={detail.sectionGuidance.funding} />
         <p className="text-sm font-semibold text-slate-900">Control Summary</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-2xl bg-white p-3">
@@ -264,6 +487,7 @@ export default function StageDetailPanel({
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <SectionActionHeader title="Funding Position" guidance={detail.sectionGuidance.funding} />
         <h3 className="text-sm font-semibold text-slate-900">Funding</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-2xl bg-white p-4">
@@ -320,6 +544,21 @@ export default function StageDetailPanel({
           </div>
         </div>
 
+        {!detail.actingRole.readOnly ? (
+          <div className="mt-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Funding control</p>
+            <ActionControlCard
+              label="Fund Work Package"
+              priority={detail.sectionGuidance.funding.state === "act_now" ? "Primary action" : canFundStage ? "Secondary action" : "Unavailable"}
+              reason={fundReason}
+              owner="Treasury"
+              disabled={!canFundStage}
+              kind={detail.sectionGuidance.funding.state === "act_now" ? "primary" : "secondary"}
+              onClick={onFundStage}
+            />
+          </div>
+        ) : null}
+
         <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-slate-900">Activity</p>
@@ -353,7 +592,8 @@ export default function StageDetailPanel({
         ) : null}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div ref={releaseRef} className={`mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("release")}`}>
+        <SectionActionHeader title="Release" guidance={detail.sectionGuidance.release} />
         <p className="text-sm font-semibold text-slate-900">Drawdown Decision</p>
         <div className="mt-2 grid gap-2">
           <p className="text-sm text-slate-600">{detail.releaseDecision.explanation.reason}</p>
@@ -374,33 +614,35 @@ export default function StageDetailPanel({
             </p>
           ))}
         </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <button
-          type="button"
-          onClick={onFundStage}
-          disabled={!detail.availableActions.fundStage}
-          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 font-medium text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
-        >
-          Fund Work Package
-        </button>
-        <button
-          type="button"
-          onClick={onRelease}
-          disabled={!detail.availableActions.release}
-          className="min-h-12 rounded-2xl bg-slate-900 px-4 py-3 font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          Drawdown
-        </button>
-        <button
-          type="button"
-          onClick={onApplyOverride}
-          disabled={!detail.availableActions.applyOverride}
-          className="min-h-12 rounded-2xl bg-teal-700 px-4 py-3 font-medium text-white disabled:cursor-not-allowed disabled:bg-teal-200"
-        >
-          Apply Override
-        </button>
+        {!detail.actingRole.readOnly ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="sm:col-span-2 xl:col-span-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Release controls</p>
+            </div>
+            <ActionControlCard
+              label="Release Funds"
+              priority={detail.sectionGuidance.release.state === "act_now" ? "Primary action" : canReleaseStage ? "Secondary action" : "Unavailable"}
+              reason={releaseReason}
+              owner="Treasury"
+              disabled={!canReleaseStage}
+              kind="primary"
+              onClick={onRelease}
+            />
+            <ActionControlCard
+              label="Apply Override"
+              priority={canApplyOverride ? "Secondary action" : "Unavailable"}
+              reason={overrideReasonText}
+              owner="Treasury"
+              disabled={!canApplyOverride}
+              kind="warning"
+              onClick={onApplyOverride}
+            />
+          </div>
+        ) : (
+          <div className="sm:col-span-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            {detail.actingRole.label} view is read-only. Treasury and control actions remain visible through the decision and audit summaries only.
+          </div>
+        )}
       </div>
 
       <div className="mt-3 rounded-2xl border border-dashed border-teal-200 bg-teal-50 p-4">
@@ -410,25 +652,33 @@ export default function StageDetailPanel({
           className="mt-3 min-h-24 w-full rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm"
           placeholder="Override reason"
           value={overrideReason}
+          disabled={!detail.availableActions.applyOverride}
           onChange={(event) => onOverrideReasonChange(event.target.value)}
         />
       </div>
 
       <div className="mt-5 grid gap-6 xl:grid-cols-2">
-        <EvidencePanel
-          detail={detail}
-          evidenceTitle={evidenceTitle}
-          evidenceType={evidenceType}
-          onEvidenceTitleChange={onEvidenceTitleChange}
-          onEvidenceTypeChange={onEvidenceTypeChange}
-          onAddEvidence={onAddEvidence}
-          onUpdateEvidenceStatus={onUpdateEvidenceStatus}
-        />
-        <ApprovalPanel detail={detail} onApprove={onApprove} onReject={onReject} />
+        <div ref={evidenceRef} className={getSectionClass("evidence")}>
+          <SectionActionHeader title="Evidence" guidance={detail.sectionGuidance.evidence} />
+          <EvidencePanel
+            detail={detail}
+            evidenceTitle={evidenceTitle}
+            evidenceType={evidenceType}
+            onEvidenceTitleChange={onEvidenceTitleChange}
+            onEvidenceTypeChange={onEvidenceTypeChange}
+            onAddEvidence={onAddEvidence}
+            onUpdateEvidenceStatus={onUpdateEvidenceStatus}
+          />
+        </div>
+        <div ref={approvalsRef} className={getSectionClass("approvals")}>
+          <SectionActionHeader title="Approvals" guidance={detail.sectionGuidance.approvals} />
+          <ApprovalPanel detail={detail} onApprove={onApprove} onReject={onReject} />
+        </div>
       </div>
 
       <div className="mt-5 grid gap-6 xl:grid-cols-2">
-        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <section ref={disputeRef} className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("dispute")}`}>
+          <SectionActionHeader title="Dispute" guidance={detail.sectionGuidance.dispute} />
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Disputes</h3>
             <p className="mt-1 text-sm text-slate-500">Freeze only the affected value while undisputed value can continue through control checks.</p>
@@ -438,12 +688,14 @@ export default function StageDetailPanel({
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
               placeholder="Dispute title"
               value={disputeTitle}
+              disabled={!detail.availableActions.openDispute}
               onChange={(event) => onDisputeTitleChange(event.target.value)}
             />
             <textarea
               className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
               placeholder="Reason for dispute"
               value={disputeReason}
+              disabled={!detail.availableActions.openDispute}
               onChange={(event) => onDisputeReasonChange(event.target.value)}
             />
             <input
@@ -451,16 +703,21 @@ export default function StageDetailPanel({
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
               placeholder="Frozen value amount"
               value={disputeAmount}
+              disabled={!detail.availableActions.openDispute}
               onChange={(event) => onDisputeAmountChange(event.target.value)}
             />
-            <button
-              type="button"
-              onClick={onOpenDispute}
-              disabled={!detail.availableActions.openDispute}
-              className="min-h-12 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              Raise Dispute
-            </button>
+            <div>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dispute control</p>
+              <ActionControlCard
+                label="Raise Dispute"
+                priority={detail.sectionGuidance.dispute.state === "act_now" ? "Primary action" : canOpenDispute ? "Secondary action" : "Unavailable"}
+                reason={openDisputeReasonText}
+                owner={detail.sectionGuidance.dispute.ownerLabel}
+                disabled={!canOpenDispute}
+                kind="primary"
+                onClick={onOpenDispute}
+              />
+            </div>
           </div>
           <div className="mt-4 grid gap-3">
             {detail.disputes.map((dispute) => (
@@ -474,14 +731,17 @@ export default function StageDetailPanel({
                     </p>
                   </div>
                   {dispute.status === "open" ? (
-                    <button
-                      type="button"
-                      onClick={() => onResolveDispute(dispute.id)}
-                      disabled={!dispute.canResolve}
-                      className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
-                    >
-                      Resolve
-                    </button>
+                    <div className="grid gap-2 min-w-[15rem]">
+                      <ActionControlCard
+                        label="Resolve Dispute"
+                        priority={dispute.canResolve ? "Primary action" : "Unavailable"}
+                        reason={dispute.canResolve ? "Resolves the dispute and restores a cleaner payment position." : detail.availableActions.resolveDisputeReason}
+                        owner="Commercial"
+                        disabled={!dispute.canResolve}
+                        kind="secondary"
+                        onClick={() => onResolveDispute(dispute.id)}
+                      />
+                    </div>
                   ) : null}
                 </div>
               </article>
@@ -492,7 +752,8 @@ export default function StageDetailPanel({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <section ref={variationRef} className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("variation")}`}>
+          <SectionActionHeader title="Variation" guidance={detail.sectionGuidance.variation} />
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Variations</h3>
             <p className="mt-1 text-sm text-slate-500">Variations must be reviewed and funding-confirmed before activation.</p>
@@ -502,12 +763,14 @@ export default function StageDetailPanel({
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
               placeholder="Variation title"
               value={variationTitle}
+              disabled={!detail.availableActions.createVariation}
               onChange={(event) => onVariationTitleChange(event.target.value)}
             />
             <textarea
               className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
               placeholder="Reason for variation"
               value={variationReason}
+              disabled={!detail.availableActions.createVariation}
               onChange={(event) => onVariationReasonChange(event.target.value)}
             />
             <input
@@ -515,16 +778,21 @@ export default function StageDetailPanel({
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
               placeholder="Variation amount delta"
               value={variationAmount}
+              disabled={!detail.availableActions.createVariation}
               onChange={(event) => onVariationAmountChange(event.target.value)}
             />
-            <button
-              type="button"
-              onClick={onCreateVariation}
-              disabled={!detail.availableActions.createVariation}
-              className="min-h-12 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              Propose Variation
-            </button>
+            <div>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variation control</p>
+              <ActionControlCard
+                label="Propose Variation"
+                priority={detail.sectionGuidance.variation.state === "act_now" ? "Primary action" : canCreateVariation ? "Secondary action" : "Unavailable"}
+                reason={createVariationReasonText}
+                owner={detail.sectionGuidance.variation.ownerLabel}
+                disabled={!canCreateVariation}
+                kind="primary"
+                onClick={onCreateVariation}
+              />
+            </div>
           </div>
           <div className="mt-4 grid gap-3">
             {detail.variations.map((variation) => (
@@ -540,33 +808,59 @@ export default function StageDetailPanel({
                   <div className="grid gap-2 sm:flex">
                     {variation.status === "pending" ? (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => onApproveVariation(variation.id)}
-                          disabled={!variation.canApprove}
-                          className="min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                        >
-                          Approve Variation
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onRejectVariation(variation.id)}
-                          disabled={!variation.canReject}
-                          className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
-                        >
-                          Reject
-                        </button>
+                        <div className="grid gap-2">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            {variation.canApprove ? "Primary action" : "Unavailable"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onApproveVariation(variation.id)}
+                            disabled={!variation.canApprove}
+                            className={`disabled:cursor-not-allowed ${getActionButtonClass("primary", !variation.canApprove)}`}
+                          >
+                            Approve Variation
+                          </button>
+                          <p className="text-xs text-slate-500">
+                            {variation.canApprove ? "Approves the variation and moves it toward activation." : detail.availableActions.reviewVariationReason}
+                          </p>
+                        </div>
+                        <div className="grid gap-2">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            {variation.canReject ? "Secondary action" : "Unavailable"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onRejectVariation(variation.id)}
+                            disabled={!variation.canReject}
+                            className={`disabled:cursor-not-allowed ${getActionButtonClass("secondary", !variation.canReject)}`}
+                          >
+                            Reject
+                          </button>
+                          {!variation.canReject ? (
+                            <p className="text-xs text-slate-500">{detail.availableActions.reviewVariationReason}</p>
+                          ) : (
+                            <p className="text-xs text-slate-500">Rejects the variation and leaves the current scope unchanged.</p>
+                          )}
+                        </div>
                       </>
                     ) : null}
                     {variation.status === "approved" ? (
-                      <button
-                        type="button"
-                        onClick={() => onActivateVariation(variation.id)}
-                        disabled={!variation.canActivate}
-                        className="min-h-11 rounded-2xl bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-teal-200"
-                      >
-                        Activate
-                      </button>
+                      <div className="grid gap-2">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          {variation.canActivate ? "Primary action" : "Unavailable"}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onActivateVariation(variation.id)}
+                          disabled={!variation.canActivate}
+                          className={`disabled:cursor-not-allowed ${getActionButtonClass("warning", !variation.canActivate)}`}
+                        >
+                          Activate
+                        </button>
+                        <p className="text-xs text-slate-500">
+                          {variation.canActivate ? "Activates the approved change into the live payment controls." : detail.availableActions.activateVariationReason}
+                        </p>
+                      </div>
                     ) : null}
                   </div>
                 </div>
