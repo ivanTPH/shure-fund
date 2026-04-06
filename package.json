@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "npm --prefix src/web-app run dev",
     "build": "rm -rf .next && npm --prefix src/web-app run build && cp -R src/web-app/.next .next",
-    "start": "npm --prefix src/web-app run start"
+    "start": "npm --prefix src/web-app run start",
+    "check:logic-drift": "node scripts/check-logic-drift.mjs"
   }
 }

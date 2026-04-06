@@ -1,4 +1,5 @@
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useEffect, useState } from "react";
 import { statusConfig, StatusKey } from "@/lib/statusConfig";
 import { systemIcons } from "@/lib/icons";

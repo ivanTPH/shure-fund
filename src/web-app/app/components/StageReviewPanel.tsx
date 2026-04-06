@@ -20,8 +20,10 @@ type StageReviewPanelProps = {
   onClose: () => void;
 };
 
+const reviewTabs = ["overview", "evidence", "approvals", "blockers", "audit"] as const;
+
 function StageReviewPanel({ stage, onClose }: StageReviewPanelProps) {
-  const [tab, setTab] = useState<'overview' | 'evidence' | 'approvals' | 'blockers' | 'audit'>('overview');
+  const [tab, setTab] = useState<(typeof reviewTabs)[number]>("overview");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const { stages } = useStageStore();
   if (!stage) return null;
@@ -93,11 +95,11 @@ function StageReviewPanel({ stage, onClose }: StageReviewPanelProps) {
 
         {/* Tabs */}
         <div className="flex gap-1 px-8 pt-2 border-b border-neutral-800 bg-neutral-950/70">
-          {['overview', 'evidence', 'approvals', 'blockers', 'audit'].map(t => (
+          {reviewTabs.map((t) => (
             <button
               key={t}
               className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors duration-150 ${tab === t ? 'bg-neutral-900 text-blue-300 shadow' : 'text-neutral-400 hover:text-blue-200'}`}
-              onClick={() => setTab(t as any)}
+              onClick={() => setTab(t)}
             >
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>

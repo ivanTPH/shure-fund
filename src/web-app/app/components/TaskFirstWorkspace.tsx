@@ -233,29 +233,28 @@ export default function TaskFirstWorkspace({
   £450k blocked across 3 stages · 2 approvals required · 1 evidence review pending
 </div>
 
-<p className="mt-2 max-w-3xl text-sm text-slate-500">
-                  <p className="mt-2 max-w-3xl text-sm text-slate-500">
-                    {activeAppView === "home"
-                      ? "Start with what needs attention now, what is waiting for your sign-off, and what has already been finished."
-                      : activeAppView === "projects"
-                      ? projectDetailMode
-                        ? "Open one stage at a time to see its status, what is holding it up, and what to do next."
-                        : "Choose a project to open its workspace."
-                      : activeAppView === "contracts"
-                      ? "Review contracts, stage plans, and changes."
-                      : activeAppView === "funding"
-                      ? "Check ringfenced funds, cover needed, and any missing funding information."
-                      : activeAppView === "reviews"
-                      ? "Review the items holding work in review."
-                      : activeAppView === "approvals"
-                      ? "See only the approvals that need your decision."
-                      : activeAppView === "payments"
-                      ? "See what is ready to release, what is blocked, and what has already been paid."
-                      : activeAppView === "audit"
-                      ? "See a clear record of what changed and when."
-                      : "Adjust your view and workspace settings."}
-                  </p>
-                </div>
+                <p className="mt-2 max-w-3xl text-sm text-slate-500">
+                  {activeAppView === "home"
+                    ? "Start with what needs attention now, what is waiting for your sign-off, and what has already been finished."
+                    : activeAppView === "projects"
+                    ? projectDetailMode
+                      ? "Open one stage at a time to see its status, what is holding it up, and what to do next."
+                      : "Choose a project to open its workspace."
+                    : activeAppView === "contracts"
+                    ? "Review contracts, stage plans, and changes."
+                    : activeAppView === "funding"
+                    ? "Check ringfenced funds, cover needed, and any missing funding information."
+                    : activeAppView === "reviews"
+                    ? "Review the items holding work in review."
+                    : activeAppView === "approvals"
+                    ? "See only the approvals that need your decision."
+                    : activeAppView === "payments"
+                    ? "See what is ready to release, what is blocked, and what has already been paid."
+                    : activeAppView === "audit"
+                    ? "See a clear record of what changed and when."
+                    : "Adjust your view and workspace settings."}
+                </p>
+              </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm text-slate-600">
                     Current role

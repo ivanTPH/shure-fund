@@ -1,5 +1,25 @@
 import type { ActionType } from "./actionConfig";
 import type { PriorityKey } from "./priorityConfig";
+import type {
+  ActionPriority,
+  ApprovalStatus as FundingApprovalStatus,
+  ApprovalRole as FundingApprovalRole,
+  AuditLogRecord,
+  DisputeRecord,
+  EvidenceRequirementRecord,
+  EvidenceRecord,
+  EvidenceStatus,
+  EvidenceType,
+  FundingSourceType,
+  LedgerAccountRecord,
+  LedgerEntryRecord,
+  QueueActionType,
+  SystemStageRecord,
+  SystemStateRecord,
+  UserRecord,
+  UserRole as FundingUserRole,
+  VariationRecord,
+} from "./shureFundModels";
 import {
   type AuditLogEntry,
   type AppUser,
@@ -16,7 +36,7 @@ import {
   type UserRole,
 } from "./stageStore";
 
-export type Role = Exclude<UserRole, "admin"> | "All";
+export type Role = Exclude<UserRole, "admin"> | "delivery" | "All";
 
 export interface RoleViewConfig {
   focus: string[];
@@ -1659,13 +1679,18 @@ export interface ProjectControlSummaryInput {
   }) => FundingPosition;
 }
 
-export function getActionQueue({
-  stages,
-  project,
-  calculateFundingPosition,
-}: ActionQueueInput): ActionQueueItem[] {
-  const funding = calculateFundingPosition(project);
-  return deriveReleaseControlModel(stages as StageRecord[], funding).actionQueue;
+export function getActionQueue(input: ActionQueueInput): ActionQueueItem[];
+export function getActionQueue(state: SystemStateRecord, projectId?: string): FundingActionQueueItem[];
+export function getActionQueue(
+  input: ActionQueueInput | SystemStateRecord,
+  projectId?: string,
+): ActionQueueItem[] | FundingActionQueueItem[] {
+  if ("project" in input && "calculateFundingPosition" in input) {
+    const funding = input.calculateFundingPosition(input.project);
+    return deriveReleaseControlModel(input.stages as StageRecord[], funding).actionQueue;
+  }
+
+  return deriveFundingActionQueue(input, projectId);
 }
 
 export function deriveReleaseControlModel(stages: StageRecord[], funding: FundingPosition): ReleaseControlModel {
@@ -2222,3 +2247,1657 @@ export const demoStages = [
     approved: false
   }
 ];
+
+// Phase 1 funding control engine
+
+export interface FundingStageSummary {
+  stageId: string;
+  stageName: string;
+  totalBalance: number;
+  allocatedFunds: number;
+  requiredFunds: number;
+  releasableFunds: number;
+  gapToRequiredCover: number;
+}
+
+export interface FundingSummary {
+  projectId: string;
+  projectName: string;
+  totalBalance: number;
+  allocatedFunds: number;
+  reserveBuffer: number;
+  ringfencedFunds: number;
+  requiredFunds: number;
+  releasableFunds: number;
+  gapToRequiredCover: number;
+  availableProjectFunds: number;
+  stageSummaries: FundingStageSummary[];
+}
+
+export interface StageBlocker {
+  code: "funding" | "evidence" | "approvals" | "disputed" | "on_hold" | "variation";
+  label: string;
+  priority: ActionPriority;
+}
+
+export interface ReleaseDecisionReason {
+  type: StageBlocker["code"] | "override";
+  message: string;
+}
+
+export interface ReleaseDecisionCard {
+  projectId: string;
+  stageId: string;
+  stageName: string;
+  status: SystemStageRecord["status"];
+  releasable: boolean;
+  overridden: boolean;
+  reasons: ReleaseDecisionReason[];
+  overriddenBlockers: StageBlocker[];
+}
+
+export interface FundingActionGroup {
+  actionType: QueueActionType;
+  priority: ActionPriority;
+  actionableBy: FundingApprovalRole | "system";
+  count: number;
+  title: string;
+  detail: string;
+}
+
+export interface FundingActionQueueItem {
+  id: string;
+  projectId: string;
+  projectName: string;
+  stageId: string;
+  stageName: string;
+  priority: ActionPriority;
+  actionCount: number;
+  groupedActions: FundingActionGroup[];
+}
+
+export interface OperationalSummary {
+  blocked: number;
+  in_review: number;
+  ready: number;
+  partially_approved: number;
+  approved: number;
+  partially_released: number;
+  released: number;
+  disputed: number;
+  on_hold: number;
+  releasable: number;
+}
+
+export interface LedgerTransactionItem {
+  id: string;
+  timestamp: string;
+  accountName: string;
+  workPackageName?: string;
+  reference: string;
+  type: LedgerEntryRecord["type"];
+  amount: number;
+  sourceType?: FundingSourceType;
+  restrictedUse: boolean;
+}
+
+export interface ApprovalPanelItem {
+  id: string;
+  role: FundingApprovalRole;
+  status: FundingApprovalStatus;
+  canAct: boolean;
+  sequenceBlocked: boolean;
+}
+
+export interface StageDetailModel {
+  projectName: string;
+  stage: SystemStageRecord;
+  blockers: StageBlocker[];
+  releaseDecision: ReleaseDecisionCard;
+  funding: FundingStageSummary;
+  certifiedValue: number;
+  payableValue: number;
+  frozenValue: number;
+  evidenceState: DerivedEvidenceState;
+  approvalState: "blocked" | "ready" | "partially_approved" | "approved" | "rejected";
+  fundingState: "funded" | "shortfall";
+  disputes: Array<
+    DisputeRecord & {
+      canResolve: boolean;
+    }
+  >;
+  variations: Array<
+    VariationRecord & {
+      canApprove: boolean;
+      canReject: boolean;
+      canActivate: boolean;
+    }
+  >;
+  evidence: Array<
+    EvidenceRequirementRecord & {
+      record: EvidenceRecord | null;
+    }
+  >;
+  approvals: ApprovalPanelItem[];
+  ledgerTransactions: LedgerTransactionItem[];
+  availableActions: {
+    addEvidence: boolean;
+    fundStage: boolean;
+    applyOverride: boolean;
+    release: boolean;
+    openDispute: boolean;
+    resolveDispute: boolean;
+    createVariation: boolean;
+    reviewVariation: boolean;
+    activateVariation: boolean;
+  };
+}
+
+export interface RoleJourneySummary {
+  role: FundingUserRole;
+  heading: string;
+  attentionCount: number;
+  blockedCount: number;
+  payableValue: number;
+  frozenValue: number;
+  items: Array<{
+    stageId: string;
+    stageName: string;
+    summary: string;
+    tone: "attention" | "blocked" | "payable" | "frozen";
+  }>;
+}
+
+type DerivedEvidenceState = "missing" | "in_review" | "accepted";
+
+function cloneSystemState(state: SystemStateRecord): SystemStateRecord {
+  return structuredClone(state);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function randomId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getUserRecord(state: SystemStateRecord, userId = state.currentUserId): UserRecord {
+  const user = state.users.find((entry) => entry.id === userId);
+
+  if (!user) {
+    throw new Error(`Unknown user ${userId}`);
+  }
+
+  return user;
+}
+
+function getProjectRecord(state: SystemStateRecord, projectId: string) {
+  const project = state.projects.find((entry) => entry.id === projectId);
+
+  if (!project) {
+    throw new Error(`Unknown project ${projectId}`);
+  }
+
+  return project;
+}
+
+function getProjectAccount(state: SystemStateRecord, projectId: string): LedgerAccountRecord {
+  const account = state.ledgerAccounts.find((entry) => entry.projectId === projectId && !entry.stageId);
+
+  if (!account) {
+    throw new Error(`Missing project account for ${projectId}`);
+  }
+
+  return account;
+}
+
+function getStageAccount(state: SystemStateRecord, stageId: string): LedgerAccountRecord {
+  const account = state.ledgerAccounts.find((entry) => entry.stageId === stageId);
+
+  if (!account) {
+    throw new Error(`Missing stage account for ${stageId}`);
+  }
+
+  return account;
+}
+
+function getEvidenceViews(state: SystemStateRecord, stageId: string) {
+  return state.evidenceRequirements
+    .filter((entry) => entry.stageId === stageId)
+    .map((requirement) => ({
+      ...requirement,
+      record: state.evidence.find((evidence) => evidence.requirementId === requirement.id) ?? null,
+    }));
+}
+
+function getApprovalRecords(state: SystemStateRecord, stageId: string, roles: FundingApprovalRole[]) {
+  return roles.map((role) => state.approvals.find((entry) => entry.stageId === stageId && entry.role === role) ?? null);
+}
+
+function approvalsComplete(state: SystemStateRecord, stage: SystemStageRecord) {
+  return getApprovalRecords(state, stage.id, stage.requiredApprovalRoles).every((approval) => approval?.status === "approved");
+}
+
+function approvalRejected(state: SystemStateRecord, stage: SystemStageRecord) {
+  return getApprovalRecords(state, stage.id, stage.requiredApprovalRoles).some((approval) => approval?.status === "rejected");
+}
+
+function getApprovedCount(state: SystemStateRecord, stage: SystemStageRecord) {
+  return getApprovalRecords(state, stage.id, stage.requiredApprovalRoles).filter((approval) => approval?.status === "approved")
+    .length;
+}
+
+function getPendingApprovalRoles(state: SystemStateRecord, stage: SystemStageRecord) {
+  return stage.requiredApprovalRoles.filter((role) => {
+    const approval = state.approvals.find((entry) => entry.stageId === stage.id && entry.role === role);
+    return approval?.status !== "approved";
+  });
+}
+
+function getNextApprovalRole(stage: SystemStageRecord, pendingRoles: FundingApprovalRole[]) {
+  if (!stage.approvalSequence?.length) {
+    return null;
+  }
+
+  return stage.approvalSequence.find((role) => pendingRoles.includes(role)) ?? null;
+}
+
+function canApprovalRoleAct(
+  state: SystemStateRecord,
+  stage: SystemStageRecord,
+  role: FundingApprovalRole,
+) {
+  if (getEvidenceState(state, stage.id) !== "accepted") {
+    return false;
+  }
+
+  if (stage.approvalSequence?.length) {
+    const nextRole = getNextApprovalRole(stage, getPendingApprovalRoles(state, stage));
+    return nextRole === role;
+  }
+
+  return true;
+}
+
+function getEvidenceState(state: SystemStateRecord, stageId: string): DerivedEvidenceState {
+  const evidenceViews = getEvidenceViews(state, stageId).filter((entry) => entry.required);
+
+  if (evidenceViews.some((entry) => entry.record === null)) {
+    return "missing";
+  }
+
+  if (evidenceViews.every((entry) => entry.record?.status === "accepted")) {
+    return "accepted";
+  }
+
+  return "in_review";
+}
+
+function getOpenDisputes(stage: SystemStageRecord) {
+  return (stage.disputes ?? []).filter((entry) => entry.status === "open");
+}
+
+function getPendingVariations(stage: SystemStageRecord) {
+  return (stage.variations ?? []).filter((entry) => entry.status === "pending");
+}
+
+function getFrozenValue(stage: SystemStageRecord) {
+  const remainingValue = Math.max(stage.requiredAmount - stage.releasedAmount, 0);
+  const disputedValue = getOpenDisputes(stage).reduce((total, dispute) => total + dispute.disputedAmount, 0);
+  return Math.min(disputedValue, remainingValue);
+}
+
+function getPayableValue(stage: SystemStageRecord) {
+  const remainingValue = Math.max(stage.requiredAmount - stage.releasedAmount, 0);
+  return Math.max(remainingValue - getFrozenValue(stage), 0);
+}
+
+function getReleasableFundsForStage(state: SystemStateRecord, stage: SystemStageRecord, allocatedFunds: number) {
+  return approvalsComplete(state, stage) && getEvidenceState(state, stage.id) === "accepted"
+    ? Math.min(allocatedFunds, getPayableValue(stage))
+    : 0;
+}
+
+function getDerivedStageStatus(
+  state: SystemStateRecord,
+  stage: SystemStageRecord,
+): SystemStageRecord["status"] {
+  if (stage.onHold) {
+    return "on_hold";
+  }
+
+  if (getOpenDisputes(stage).length > 0) {
+    return "disputed";
+  }
+
+  if (stage.releasedAmount >= stage.requiredAmount) {
+    return "released";
+  }
+
+  if (stage.releasedAmount > 0) {
+    return "partially_released";
+  }
+
+  const stageFunding = getStageAccount(state, stage.id).balance;
+  const funded = stageFunding >= getPayableValue(stage);
+  const evidenceState = getEvidenceState(state, stage.id);
+  const approvedCount = getApprovedCount(state, stage);
+  const allApproved = approvalsComplete(state, stage);
+  const anyRejected = approvalRejected(state, stage);
+  const hasPendingVariation = getPendingVariations(stage).length > 0;
+
+  if (!funded || evidenceState === "missing") {
+    return "blocked";
+  }
+
+  if (anyRejected || hasPendingVariation) {
+    return "blocked";
+  }
+
+  if (evidenceState === "in_review") {
+    return "in_review";
+  }
+
+  if (allApproved) {
+    return "approved";
+  }
+
+  if (approvedCount > 0) {
+    return "partially_approved";
+  }
+
+  return "ready";
+}
+
+function recomputeLedgerBalances(state: SystemStateRecord) {
+  state.ledgerAccounts = state.ledgerAccounts.map((account) => ({
+    ...account,
+    balance: state.ledgerEntries
+      .filter((entry) => entry.accountId === account.id)
+      .reduce((total, entry) => total + entry.amount, 0),
+  }));
+}
+
+function appendAuditLog(
+  state: SystemStateRecord,
+  userId: string,
+  eventType: AuditLogRecord["eventType"],
+  action: AuditLogRecord["action"],
+  entity: AuditLogRecord["entity"],
+  entityId: string,
+  beforeState: unknown,
+  afterState: unknown,
+) {
+  const user = getUserRecord(state, userId);
+  const nextEntry: AuditLogRecord = {
+    id: randomId("audit"),
+    eventType,
+    entity,
+    entityId,
+    action,
+    beforeState,
+    afterState,
+    user: user.name,
+    timestamp: nowIso(),
+  };
+
+  state.auditLog = [nextEntry, ...state.auditLog];
+}
+
+function reconcileSystemState(state: SystemStateRecord, auditUserId?: string) {
+  const previousStages = new Map(
+    state.stages.map((stage) => [stage.id, { status: stage.status, overrideActive: Boolean(stage.overrideActive) }]),
+  );
+
+  recomputeLedgerBalances(state);
+  state.stages = state.stages.map((stage) => {
+    const overrideActive = Boolean(stage.override?.active);
+    return {
+      ...stage,
+      status: getDerivedStageStatus(state, stage),
+      overrideActive,
+    };
+  });
+
+  if (auditUserId) {
+    state.stages.forEach((stage) => {
+      const previous = previousStages.get(stage.id);
+      if (!previous || (previous.status === stage.status && previous.overrideActive === Boolean(stage.overrideActive))) {
+        return;
+      }
+
+      appendAuditLog(
+        state,
+        auditUserId,
+        "STATE_CHANGE",
+        previous.overrideActive !== Boolean(stage.overrideActive) ? "override_applied" : "approval_given",
+        "stage",
+        stage.id,
+        previous,
+        { status: stage.status, overrideActive: Boolean(stage.overrideActive) },
+      );
+    });
+  }
+}
+
+function getStageFundingSummary(state: SystemStateRecord, stage: SystemStageRecord): FundingStageSummary {
+  const allocatedFunds = getStageAccount(state, stage.id).balance;
+  const requiredFunds = getPayableValue(stage);
+  const releasableFunds = getReleasableFundsForStage(state, stage, allocatedFunds);
+
+  return {
+    stageId: stage.id,
+    stageName: stage.name,
+    totalBalance: allocatedFunds,
+    allocatedFunds,
+    requiredFunds,
+    releasableFunds,
+    gapToRequiredCover: Math.max(requiredFunds - allocatedFunds, 0),
+  };
+}
+
+function getApprovalStateSummary(state: SystemStateRecord, stage: SystemStageRecord) {
+  if (approvalRejected(state, stage)) {
+    return "rejected" as const;
+  }
+
+  if (approvalsComplete(state, stage)) {
+    return "approved" as const;
+  }
+
+  if (getApprovedCount(state, stage) > 0) {
+    return "partially_approved" as const;
+  }
+
+  return getEvidenceState(state, stage.id) === "accepted" ? ("ready" as const) : ("blocked" as const);
+}
+
+export function getLedgerTransactions(
+  state: SystemStateRecord,
+  projectId: string,
+  stageId?: string,
+): LedgerTransactionItem[] {
+  const stagesById = Object.fromEntries(state.stages.map((stage) => [stage.id, stage]));
+  const accountsById = Object.fromEntries(state.ledgerAccounts.map((account) => [account.id, account]));
+
+  return state.ledgerEntries
+    .filter((entry) => {
+      const account = accountsById[entry.accountId];
+      if (!account || account.projectId !== projectId) {
+        return false;
+      }
+
+      if (!stageId) {
+        return true;
+      }
+
+      return entry.stageId === stageId || account.stageId === stageId;
+    })
+    .map((entry) => ({
+      id: entry.id,
+      timestamp: entry.timestamp,
+      accountName: accountsById[entry.accountId]?.name ?? "Unknown account",
+      workPackageName: entry.stageId ? stagesById[entry.stageId]?.name : undefined,
+      reference: entry.reference,
+      type: entry.type,
+      amount: entry.amount,
+      sourceType: entry.sourceType,
+      restrictedUse: Boolean(entry.restrictedUse),
+    }))
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+}
+
+export function initializeSystemState(state: SystemStateRecord): SystemStateRecord {
+  const nextState = cloneSystemState(state);
+  reconcileSystemState(nextState);
+  return nextState;
+}
+
+export function getFundingSummary(state: SystemStateRecord, projectId: string): FundingSummary {
+  const project = getProjectRecord(state, projectId);
+  const stageSummaries = state.stages
+    .filter((stage) => stage.projectId === projectId)
+    .map((stage) => getStageFundingSummary(state, stage));
+  const availableProjectFunds = getProjectAccount(state, projectId).balance;
+  const allocatedFunds = stageSummaries.reduce((total, summary) => total + summary.allocatedFunds, 0);
+  const totalBalance = availableProjectFunds + allocatedFunds;
+  const reserveBuffer = project.reserveBuffer;
+  const ringfencedFunds = Math.max(totalBalance - reserveBuffer, 0);
+  const requiredFunds = stageSummaries.reduce((total, summary) => total + summary.requiredFunds, 0);
+  const releasableFunds = stageSummaries.reduce((total, summary) => total + summary.releasableFunds, 0);
+
+  return {
+    projectId,
+    projectName: project.name,
+    totalBalance,
+    allocatedFunds,
+    reserveBuffer,
+    ringfencedFunds,
+    requiredFunds,
+    releasableFunds,
+    gapToRequiredCover: Math.max(requiredFunds - ringfencedFunds, 0),
+    availableProjectFunds,
+    stageSummaries,
+  };
+}
+
+export function getStageBlockers(state: SystemStateRecord, stageId: string): StageBlocker[] {
+  const stage = state.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    throw new Error(`Unknown stage ${stageId}`);
+  }
+
+  if (stage.releasedAmount >= stage.requiredAmount) {
+    return [];
+  }
+
+  const blockers: StageBlocker[] = [];
+  const fundingSummary = getStageFundingSummary(state, stage);
+  const evidenceState = getEvidenceState(state, stage.id);
+  const pendingApprovals = getPendingApprovalRoles(state, stage);
+  const hasRejectedApproval = approvalRejected(state, stage);
+  const frozenValue = getFrozenValue(stage);
+  const payableValue = getPayableValue(stage);
+  const pendingVariations = getPendingVariations(stage);
+
+  if (stage.onHold) {
+    blockers.push({
+      code: "on_hold",
+      label: "Work Package is on hold and cannot progress.",
+      priority: "critical",
+    });
+  }
+
+  if (frozenValue > 0 && payableValue === 0) {
+    blockers.push({
+      code: "disputed",
+      label: `Frozen value of £${frozenValue.toLocaleString("en-GB")} is under dispute.`,
+      priority: "critical",
+    });
+  }
+
+  if (pendingVariations.length > 0) {
+    blockers.push({
+      code: "variation",
+      label: `${pendingVariations.length} pending variation${pendingVariations.length === 1 ? "" : "s"} require approval and funding cover.`,
+      priority: "high",
+    });
+  }
+
+  if (fundingSummary.gapToRequiredCover > 0) {
+    blockers.push({
+      code: "funding",
+      label: `Funding gap of £${fundingSummary.gapToRequiredCover.toLocaleString("en-GB")} remains.`,
+      priority: "critical",
+    });
+  }
+
+  if (evidenceState !== "accepted") {
+    blockers.push({
+      code: "evidence",
+      label:
+        evidenceState === "missing"
+          ? "Required evidence is missing."
+          : "Required evidence is still in review.",
+      priority: evidenceState === "missing" ? "critical" : "high",
+    });
+  }
+
+  if (hasRejectedApproval || pendingApprovals.length > 0) {
+    blockers.push({
+      code: "approvals",
+      label: hasRejectedApproval
+        ? "Required approvals include a rejected decision."
+        : `Required approvals are incomplete: ${pendingApprovals.join(", ")}.`,
+      priority: "high",
+    });
+  }
+
+  return blockers;
+}
+
+export function getReleaseDecisions(
+  state: SystemStateRecord,
+  projectId?: string,
+): ReleaseDecisionCard[] {
+  return state.stages
+    .filter((stage) => !projectId || stage.projectId === projectId)
+    .map((stage) => {
+      const blockers = getStageBlockers(state, stage.id);
+      const overridden = Boolean(stage.override?.active);
+      const frozenValue = getFrozenValue(stage);
+      const advisoryReasons: ReleaseDecisionReason[] = frozenValue > 0
+        ? [
+            {
+              type: "disputed",
+              message: `Frozen value of £${frozenValue.toLocaleString("en-GB")} remains outside payable drawdown.`,
+            },
+          ]
+        : [];
+
+      return {
+        projectId: stage.projectId,
+        stageId: stage.id,
+        stageName: stage.name,
+        status: getDerivedStageStatus(state, stage),
+        releasable: blockers.length === 0 || overridden,
+        overridden,
+        overriddenBlockers: overridden
+          ? (stage.override?.overriddenBlockers ?? blockers.map((blocker) => blocker.label)).map((label) => {
+              const matchingBlocker = blockers.find((blocker) => blocker.label === label);
+              return matchingBlocker ?? {
+                code: "funding",
+                label,
+                priority: "critical",
+              };
+            })
+          : [],
+        reasons: overridden
+          ? [
+              {
+                type: "override",
+                message: `Treasury override applied: ${stage.override?.reason ?? "Reason not recorded."}`,
+              },
+              ...advisoryReasons,
+              ...blockers.map((blocker) => ({ type: blocker.code, message: blocker.label })),
+            ]
+          : [...advisoryReasons, ...blockers.map((blocker) => ({ type: blocker.code, message: blocker.label }))],
+      };
+    });
+}
+
+export function getOperationalSummary(
+  state: SystemStateRecord,
+  projectId?: string,
+): OperationalSummary {
+  return getReleaseDecisions(state, projectId).reduce(
+    (summary, decision) => {
+      summary[decision.status] += 1;
+      if (decision.releasable) {
+        summary.releasable += 1;
+      }
+      return summary;
+    },
+    {
+      blocked: 0,
+      in_review: 0,
+      ready: 0,
+      partially_approved: 0,
+      approved: 0,
+      partially_released: 0,
+      released: 0,
+      disputed: 0,
+      on_hold: 0,
+      releasable: 0,
+    } satisfies OperationalSummary,
+  );
+}
+
+function pushGroupedStageAction(
+  groups: Map<string, FundingActionGroup>,
+  action: Omit<FundingActionGroup, "count">,
+) {
+  const existing = groups.get(action.actionType);
+
+  if (existing) {
+    existing.count += 1;
+    return;
+  }
+
+  groups.set(action.actionType, {
+    ...action,
+    count: 1,
+  });
+}
+
+function deriveFundingActionQueue(
+  state: SystemStateRecord,
+  projectId?: string,
+): FundingActionQueueItem[] {
+  const items = state.stages
+    .filter((stage) => !projectId || stage.projectId === projectId)
+    .map((stage) => {
+      const project = state.projects.find((entry) => entry.id === stage.projectId);
+
+      if (!project || stage.releasedAmount >= stage.requiredAmount) {
+        return null;
+      }
+
+      const groups = new Map<string, FundingActionGroup>();
+      const blockers = getStageBlockers(state, stage.id);
+      const stageFunding = getStageFundingSummary(state, stage);
+      const evidenceViews = getEvidenceViews(state, stage.id).filter((entry) => entry.required);
+      const pendingEvidenceCount = evidenceViews.filter((entry) => entry.record?.status !== "accepted").length;
+      const pendingApprovals = getPendingApprovalRoles(state, stage);
+      const stageStatus = getDerivedStageStatus(state, stage);
+      const openDisputes = getOpenDisputes(stage);
+      const pendingVariations = getPendingVariations(stage);
+
+      if (stageFunding.gapToRequiredCover > 0) {
+        pushGroupedStageAction(groups, {
+          actionType: "fund_stage",
+          actionableBy: "treasury",
+          priority: "critical",
+          title: `Fund ${stage.name} Work Package`,
+          detail: `Allocate £${stageFunding.gapToRequiredCover.toLocaleString("en-GB")} to meet required cover.`,
+        });
+      }
+
+      if (pendingEvidenceCount > 0) {
+        pushGroupedStageAction(groups, {
+          actionType: "review_evidence",
+          actionableBy: "professional",
+          priority: evidenceViews.some((entry) => entry.record === null) ? "critical" : "high",
+          title: `Review supporting items for ${stage.name}`,
+          detail: `${pendingEvidenceCount} supporting item${pendingEvidenceCount === 1 ? "" : "s"} need attention.`,
+        });
+      }
+
+      if (
+        stageStatus === "ready" ||
+        stageStatus === "partially_approved" ||
+        (stageStatus === "disputed" && getPayableValue(stage) > 0)
+      ) {
+        pendingApprovals.forEach((role) => {
+          pushGroupedStageAction(groups, {
+            actionType: "approve_stage",
+            actionableBy: role,
+            priority: "high",
+            title: `Approve ${stage.name} Work Package`,
+            detail: `${role.charAt(0).toUpperCase()}${role.slice(1)} approval is required.`,
+          });
+        });
+      }
+
+      if (openDisputes.length > 0) {
+        pushGroupedStageAction(groups, {
+          actionType: "review_dispute",
+          actionableBy: "commercial",
+          priority: "high",
+          title: `Review dispute for ${stage.name}`,
+          detail: `${openDisputes.length} dispute item${openDisputes.length === 1 ? "" : "s"} are freezing value.`,
+        });
+      }
+
+      if (pendingVariations.length > 0) {
+        const treasuryReviewPending = pendingVariations.some(
+          (variation) => Boolean(variation.commercialApprovedAt) && !variation.treasuryApprovedAt,
+        );
+        const variationNeedsFunding = pendingVariations.some(
+          (variation) =>
+            Boolean(variation.commercialApprovedAt) &&
+            variation.amountDelta > 0 &&
+            stageFunding.gapToRequiredCover > 0,
+        );
+        pushGroupedStageAction(groups, {
+          actionType: variationNeedsFunding ? "activate_variation" : "review_variation",
+          actionableBy: variationNeedsFunding || treasuryReviewPending ? "treasury" : "commercial",
+          priority: variationNeedsFunding ? "critical" : "high",
+          title: `Review variation for ${stage.name}`,
+          detail: variationNeedsFunding
+            ? "Variation needs funding cover before activation."
+            : treasuryReviewPending
+              ? "Variation is ready for treasury review."
+              : `${pendingVariations.length} variation item${pendingVariations.length === 1 ? "" : "s"} require commercial review.`,
+        });
+      }
+
+      if (blockers.length > 0) {
+        pushGroupedStageAction(groups, {
+          actionType: "resolve_blockers",
+          actionableBy: "system",
+          priority: blockers.some((blocker) => blocker.priority === "critical") ? "critical" : "medium",
+          title: `Resolve blockers for ${stage.name} Work Package`,
+          detail: blockers.map((blocker) => blocker.label).join(" "),
+        });
+      }
+
+      const groupedActions = Array.from(groups.values());
+
+      if (groupedActions.length === 0) {
+        return null;
+      }
+
+      const priorityOrder: Record<ActionPriority, number> = { critical: 0, high: 1, medium: 2 };
+      const priority = groupedActions.reduce(
+        (current, group) =>
+          priorityOrder[group.priority] < priorityOrder[current] ? group.priority : current,
+        groupedActions[0].priority,
+      );
+
+      return {
+        id: `${stage.id}-grouped-actions`,
+        projectId: project.id,
+        projectName: project.name,
+        stageId: stage.id,
+        stageName: stage.name,
+        priority,
+        actionCount: groupedActions.reduce((total, group) => total + group.count, 0),
+        groupedActions,
+      } satisfies FundingActionQueueItem;
+    })
+    .filter((item): item is FundingActionQueueItem => item !== null);
+
+  const priorityOrder: Record<ActionPriority, number> = { critical: 0, high: 1, medium: 2 };
+  return items.sort((left, right) => priorityOrder[left.priority] - priorityOrder[right.priority]);
+}
+
+export function getStageDetail(state: SystemStateRecord, stageId: string, userId = state.currentUserId): StageDetailModel {
+  const stage = state.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    throw new Error(`Unknown stage ${stageId}`);
+  }
+
+  const project = state.projects.find((entry) => entry.id === stage.projectId);
+  const funding = getStageFundingSummary(state, stage);
+  const user = getUserRecord(state, userId);
+
+  if (!project) {
+    throw new Error(`Unable to derive stage detail for ${stageId}`);
+  }
+
+  return {
+    projectName: project.name,
+    stage,
+    blockers: getStageBlockers(state, stageId),
+    releaseDecision: getReleaseDecisions(state, stage.projectId).find((entry) => entry.stageId === stageId)!,
+    funding,
+    certifiedValue: stage.requiredAmount,
+    payableValue: getPayableValue(stage),
+    frozenValue: getFrozenValue(stage),
+    evidenceState: getEvidenceState(state, stageId),
+    approvalState: getApprovalStateSummary(state, stage),
+    fundingState: funding.gapToRequiredCover === 0 ? "funded" : "shortfall",
+    disputes: (stage.disputes ?? []).map((dispute) => ({
+      ...dispute,
+      canResolve: dispute.status === "open" && ["commercial", "treasury"].includes(user.role),
+    })),
+    variations: (stage.variations ?? []).map((variation) => ({
+      ...variation,
+      canApprove:
+        variation.status === "pending" &&
+        ((user.role === "commercial" && !variation.commercialApprovedAt) ||
+          (user.role === "treasury" && Boolean(variation.commercialApprovedAt) && !variation.treasuryApprovedAt)),
+      canReject:
+        variation.status === "pending" &&
+        ((user.role === "commercial" && !variation.commercialApprovedAt) ||
+          (user.role === "treasury" && Boolean(variation.commercialApprovedAt) && !variation.treasuryApprovedAt)),
+      canActivate: variation.status === "approved" && user.role === "treasury",
+    })),
+    evidence: getEvidenceViews(state, stageId),
+    approvals: stage.requiredApprovalRoles.map((role) => {
+      const approval = state.approvals.find((entry) => entry.stageId === stageId && entry.role === role);
+
+      return {
+        id: approval?.id ?? `${stageId}-${role}`,
+        role,
+        status: approval?.status ?? "pending",
+        canAct: user.role === role && canApprovalRoleAct(state, stage, role) && approval?.status !== "approved",
+        sequenceBlocked: Boolean(stage.approvalSequence?.length) && !canApprovalRoleAct(state, stage, role),
+      };
+    }),
+    ledgerTransactions: getLedgerTransactions(state, stage.projectId, stageId),
+    availableActions: {
+      addEvidence: ["contractor", "subcontractor", "professional", "commercial"].includes(user.role),
+      fundStage: user.role === "treasury",
+      applyOverride: user.role === "treasury",
+      release: user.role === "treasury",
+      openDispute: ["contractor", "commercial"].includes(user.role),
+      resolveDispute: ["commercial", "treasury"].includes(user.role),
+      createVariation: ["contractor", "commercial"].includes(user.role),
+      reviewVariation: ["commercial", "treasury"].includes(user.role),
+      activateVariation: user.role === "treasury",
+    },
+  };
+}
+
+export function getRoleJourneySummary(
+  state: SystemStateRecord,
+  projectId: string,
+  role: FundingUserRole = getUserRecord(state).role,
+): RoleJourneySummary {
+  const stageDetails = state.stages
+    .filter((stage) => stage.projectId === projectId)
+    .map((stage) => getStageDetail(state, stage.id));
+
+  const items = stageDetails.flatMap((detail) => {
+    const stageItems: RoleJourneySummary["items"] = [];
+
+    if (detail.frozenValue > 0 && ["commercial", "contractor", "funder", "subcontractor"].includes(role)) {
+      stageItems.push({
+        stageId: detail.stage.id,
+        stageName: detail.stage.name,
+        summary: `Frozen value ${detail.frozenValue.toLocaleString("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 })} is under dispute.`,
+        tone: "frozen",
+      });
+    }
+
+    if (detail.releaseDecision.releasable && detail.payableValue > 0 && ["treasury", "funder", "commercial"].includes(role)) {
+      stageItems.push({
+        stageId: detail.stage.id,
+        stageName: detail.stage.name,
+        summary: `Payable value ${detail.payableValue.toLocaleString("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 })} is ready for controlled drawdown.`,
+        tone: "payable",
+      });
+    }
+
+    if (detail.blockers.length > 0) {
+      const primaryBlocker = detail.blockers[0];
+      const attentionRoles: FundingUserRole[] =
+        primaryBlocker.code === "funding"
+          ? ["treasury", "funder"]
+          : primaryBlocker.code === "evidence"
+            ? ["contractor", "subcontractor", "professional"]
+            : primaryBlocker.code === "approvals"
+              ? ["commercial", "professional", "treasury"]
+              : primaryBlocker.code === "variation"
+                ? ["commercial", "treasury", "contractor"]
+                : ["commercial", "contractor", "funder"];
+
+      if (attentionRoles.includes(role)) {
+        stageItems.push({
+          stageId: detail.stage.id,
+          stageName: detail.stage.name,
+          summary: primaryBlocker.label,
+          tone: primaryBlocker.priority === "critical" ? "blocked" : "attention",
+        });
+      }
+    }
+
+    return stageItems;
+  });
+
+  return {
+    role,
+    heading:
+      role === "treasury"
+        ? "Treasury Control Journey"
+        : role === "funder"
+          ? "Funder Review Journey"
+          : role === "contractor"
+            ? "Contractor Operational Journey"
+            : role === "subcontractor"
+              ? "Subcontractor Visibility"
+              : `${role.charAt(0).toUpperCase()}${role.slice(1)} Journey`,
+    attentionCount: items.filter((item) => item.tone === "attention").length,
+    blockedCount: items.filter((item) => item.tone === "blocked").length,
+    payableValue: stageDetails.reduce((total, detail) => total + (detail.releaseDecision.releasable ? detail.payableValue : 0), 0),
+    frozenValue: stageDetails.reduce((total, detail) => total + detail.frozenValue, 0),
+    items,
+  };
+}
+
+export function setCurrentUser(state: SystemStateRecord, userId: string): SystemStateRecord {
+  const nextState = cloneSystemState(state);
+  getUserRecord(nextState, userId);
+  nextState.currentUserId = userId;
+  return nextState;
+}
+
+export function depositFunds(
+  state: SystemStateRecord,
+  projectId: string,
+  amount: number,
+  sourceType: FundingSourceType,
+  stageId?: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  if (amount <= 0 || getUserRecord(state, userId).role !== "treasury") {
+    return state;
+  }
+
+  if (sourceType === "contractor" && !stageId) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const beforeState = stageId ? getStageDetail(nextState, stageId) : getFundingSummary(nextState, projectId);
+  const timestamp = nowIso();
+  const isRestrictedUse = sourceType === "contractor";
+
+  if (isRestrictedUse && stageId) {
+    nextState.ledgerEntries.push({
+      id: randomId("entry"),
+      accountId: getStageAccount(nextState, stageId).id,
+      amount,
+      type: "deposit",
+      reference: "Contractor supplementary contribution",
+      timestamp,
+      sourceType,
+      restrictedUse: true,
+      stageId,
+    });
+  } else {
+    nextState.ledgerEntries.push({
+      id: randomId("entry"),
+      accountId: getProjectAccount(nextState, projectId).id,
+      amount,
+      type: "deposit",
+      reference: "Funder drawdown",
+      timestamp,
+      sourceType,
+      restrictedUse: false,
+      stageId,
+    });
+  }
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "funding_added",
+    stageId ? "stage" : "ledger",
+    stageId ?? projectId,
+    beforeState,
+    stageId ? getStageDetail(nextState, stageId) : getFundingSummary(nextState, projectId),
+  );
+  return nextState;
+}
+
+export function allocateStageFunds(
+  state: SystemStateRecord,
+  stageId: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  if (getUserRecord(state, userId).role !== "treasury") {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const stage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    return state;
+  }
+
+  const stageFunding = getStageFundingSummary(nextState, stage);
+  const availableProjectFunds = Math.max(getProjectAccount(nextState, stage.projectId).balance - getProjectRecord(nextState, stage.projectId).reserveBuffer, 0);
+  const transferAmount = Math.min(stageFunding.gapToRequiredCover, availableProjectFunds);
+
+  if (transferAmount <= 0) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, stageId);
+  const timestamp = nowIso();
+  nextState.ledgerEntries.push({
+    id: randomId("entry"),
+    accountId: getProjectAccount(nextState, stage.projectId).id,
+    amount: -transferAmount,
+    type: "allocation_out",
+    reference: `Allocate ${stage.name}`,
+    timestamp,
+    stageId,
+  });
+  nextState.ledgerEntries.push({
+    id: randomId("entry"),
+    accountId: getStageAccount(nextState, stageId).id,
+    amount: transferAmount,
+    type: "allocation_in",
+    reference: `Allocate ${stage.name}`,
+    timestamp,
+    stageId,
+    sourceType: "funder",
+    restrictedUse: false,
+  });
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "funding_added",
+    "stage",
+    stageId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function updateEvidenceStatus(
+  state: SystemStateRecord,
+  requirementId: string,
+  status: EvidenceStatus,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  if (getUserRecord(state, userId).role !== "professional") {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const requirement = nextState.evidenceRequirements.find((entry) => entry.id === requirementId);
+
+  if (!requirement) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, requirement.stageId);
+  const existing = nextState.evidence.find((entry) => entry.requirementId === requirementId);
+
+  if (existing) {
+    existing.status = status;
+    existing.submittedAt = nowIso();
+  } else {
+    nextState.evidence.push({
+      id: randomId("evidence"),
+      stageId: requirement.stageId,
+      type: requirement.type,
+      status,
+      requirementId,
+      name: requirement.label,
+      submittedAt: nowIso(),
+    });
+  }
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "evidence_updated",
+    "evidence",
+    requirementId,
+    beforeState,
+    getStageDetail(nextState, requirement.stageId),
+  );
+  return nextState;
+}
+
+export function addEvidence(
+  state: SystemStateRecord,
+  stageId: string,
+  type: EvidenceType,
+  title: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const actor = getUserRecord(state, userId);
+
+  if (!["contractor", "professional", "commercial", "subcontractor"].includes(actor.role)) {
+    return state;
+  }
+
+  if (!title.trim()) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const beforeState = getStageDetail(nextState, stageId);
+  const requiredRequirement = nextState.evidenceRequirements.find(
+    (entry) =>
+      entry.stageId === stageId &&
+      entry.type === type &&
+      !nextState.evidence.some((evidence) => evidence.requirementId === entry.id),
+  );
+  const requirementId = requiredRequirement?.id ?? randomId("requirement");
+
+  if (!requiredRequirement) {
+    nextState.evidenceRequirements.push({
+      id: requirementId,
+      stageId,
+      label: title.trim(),
+      type,
+      required: false,
+    });
+  }
+
+  nextState.evidence.push({
+    id: randomId("evidence"),
+    stageId,
+    type,
+    status: "pending",
+    requirementId,
+    name: title.trim(),
+    submittedAt: nowIso(),
+  });
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "evidence_updated",
+    "evidence",
+    requirementId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function openDispute(
+  state: SystemStateRecord,
+  stageId: string,
+  title: string,
+  reason: string,
+  disputedAmount: number,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const actor = getUserRecord(state, userId);
+  const stage = state.stages.find((entry) => entry.id === stageId);
+
+  if (!stage || !["contractor", "commercial"].includes(actor.role) || !title.trim() || !reason.trim() || disputedAmount <= 0) {
+    return state;
+  }
+
+  const remainingValue = Math.max(stage.requiredAmount - stage.releasedAmount, 0);
+  const availableToFreeze = Math.max(remainingValue - getFrozenValue(stage), 0);
+
+  if (availableToFreeze <= 0) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const beforeState = getStageDetail(nextState, stageId);
+  const nextStage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!nextStage) {
+    return state;
+  }
+
+  nextStage.disputes = [
+    ...(nextStage.disputes ?? []),
+    {
+      id: randomId("dispute"),
+      stageId,
+      title: title.trim(),
+      reason: reason.trim(),
+      disputedAmount: Math.min(disputedAmount, availableToFreeze),
+      status: "open",
+      openedBy: userId,
+      openedAt: nowIso(),
+    },
+  ];
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "dispute_opened",
+    "dispute",
+    nextStage.disputes[nextStage.disputes.length - 1].id,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function resolveDispute(
+  state: SystemStateRecord,
+  stageId: string,
+  disputeId: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const actor = getUserRecord(state, userId);
+
+  if (!["commercial", "treasury"].includes(actor.role)) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const stage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    return state;
+  }
+
+  const dispute = (stage.disputes ?? []).find((entry) => entry.id === disputeId && entry.status === "open");
+
+  if (!dispute) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, stageId);
+  dispute.status = "resolved";
+  dispute.resolvedBy = userId;
+  dispute.resolvedAt = nowIso();
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "dispute_resolved",
+    "dispute",
+    disputeId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function createVariation(
+  state: SystemStateRecord,
+  stageId: string,
+  title: string,
+  reason: string,
+  amountDelta: number,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const actor = getUserRecord(state, userId);
+
+  if (!["contractor", "commercial"].includes(actor.role) || !title.trim() || !reason.trim() || amountDelta === 0) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const stage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, stageId);
+  stage.variations = [
+    ...(stage.variations ?? []),
+    {
+      id: randomId("variation"),
+      stageId,
+      title: title.trim(),
+      reason: reason.trim(),
+      amountDelta,
+      status: "pending",
+      createdBy: userId,
+      createdAt: nowIso(),
+    },
+  ];
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "variation_created",
+    "variation",
+    stage.variations[stage.variations.length - 1].id,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function reviewVariation(
+  state: SystemStateRecord,
+  stageId: string,
+  variationId: string,
+  decision: "approved" | "rejected",
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const actor = getUserRecord(state, userId);
+
+  if (!["commercial", "treasury"].includes(actor.role)) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const stage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    return state;
+  }
+
+  const variation = (stage.variations ?? []).find((entry) => entry.id === variationId && entry.status === "pending");
+
+  if (!variation) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, stageId);
+
+  if (decision === "rejected") {
+    variation.status = "rejected";
+  } else if (actor.role === "commercial") {
+    variation.commercialApprovedBy = userId;
+    variation.commercialApprovedAt = nowIso();
+  } else {
+    if (!variation.commercialApprovedAt) {
+      return state;
+    }
+    variation.treasuryApprovedBy = userId;
+    variation.treasuryApprovedAt = nowIso();
+    variation.status = "approved";
+  }
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    decision === "approved" ? "variation_approved" : "variation_rejected",
+    "variation",
+    variationId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function activateVariation(
+  state: SystemStateRecord,
+  stageId: string,
+  variationId: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  if (getUserRecord(state, userId).role !== "treasury") {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const stage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!stage) {
+    return state;
+  }
+
+  const variation = (stage.variations ?? []).find((entry) => entry.id === variationId && entry.status === "approved");
+
+  if (!variation) {
+    return state;
+  }
+
+  const proposedRequiredAmount = stage.requiredAmount + variation.amountDelta;
+  if (proposedRequiredAmount < stage.releasedAmount) {
+    return state;
+  }
+
+  const projectAccount = getProjectAccount(nextState, stage.projectId);
+  const projectReserve = getProjectRecord(nextState, stage.projectId).reserveBuffer;
+  const confirmedFunding = getStageAccount(nextState, stageId).balance + Math.max(projectAccount.balance - projectReserve, 0);
+  const proposedStage = { ...stage, requiredAmount: proposedRequiredAmount };
+
+  if (variation.amountDelta > 0 && confirmedFunding < getPayableValue(proposedStage)) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, stageId);
+  stage.requiredAmount = proposedRequiredAmount;
+  variation.status = "active";
+  variation.activatedBy = userId;
+  variation.activatedAt = nowIso();
+
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "variation_activated",
+    "variation",
+    variationId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function decideApproval(
+  state: SystemStateRecord,
+  stageId: string,
+  role: FundingApprovalRole,
+  decision: Extract<FundingApprovalStatus, "approved" | "rejected">,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const actor = getUserRecord(state, userId);
+  const stage = state.stages.find((entry) => entry.id === stageId);
+  const stageStatus = stage ? getDerivedStageStatus(state, stage) : null;
+
+  if (
+    !stage ||
+    actor.role !== role ||
+    !["ready", "partially_approved", "disputed"].includes(stageStatus ?? "") ||
+    !canApprovalRoleAct(state, stage, role)
+  ) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const beforeState = getStageDetail(nextState, stageId);
+  const approval = nextState.approvals.find((entry) => entry.stageId === stageId && entry.role === role);
+
+  if (!approval) {
+    return state;
+  }
+
+  approval.status = decision;
+  if (decision === "approved") {
+    approval.approvedAt = nowIso();
+    approval.approvedBy = userId;
+    approval.rejectedAt = undefined;
+    approval.rejectedBy = undefined;
+  } else {
+    approval.rejectedAt = nowIso();
+    approval.rejectedBy = userId;
+    approval.approvedAt = undefined;
+    approval.approvedBy = undefined;
+  }
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "approval_given",
+    "approval",
+    approval.id,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function giveApproval(
+  state: SystemStateRecord,
+  stageId: string,
+  role: FundingApprovalRole,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  return decideApproval(state, stageId, role, "approved", userId);
+}
+
+export function rejectApproval(
+  state: SystemStateRecord,
+  stageId: string,
+  role: FundingApprovalRole,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  return decideApproval(state, stageId, role, "rejected", userId);
+}
+
+export function applyOverride(
+  state: SystemStateRecord,
+  stageId: string,
+  reason: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  if (getUserRecord(state, userId).role !== "treasury" || !reason.trim()) {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const beforeState = getStageDetail(nextState, stageId);
+  nextState.stages = nextState.stages.map((stage) =>
+    stage.id === stageId
+        ? {
+          ...stage,
+          overrideActive: true,
+          override: {
+            active: true,
+            reason: reason.trim(),
+            userId,
+            timestamp: nowIso(),
+            overriddenBlockers: beforeState.blockers.map((blocker) => blocker.label),
+          },
+        }
+      : stage,
+  );
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "override_applied",
+    "stage",
+    stageId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}
+
+export function releaseStage(
+  state: SystemStateRecord,
+  stageId: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  if (getUserRecord(state, userId).role !== "treasury") {
+    return state;
+  }
+
+  const nextState = cloneSystemState(state);
+  const decision = getReleaseDecisions(nextState).find((entry) => entry.stageId === stageId);
+  const stage = nextState.stages.find((entry) => entry.id === stageId);
+
+  if (!decision || !stage || !decision.releasable) {
+    return state;
+  }
+
+  const beforeState = getStageDetail(nextState, stageId);
+  const stageAccountBalance = getStageAccount(nextState, stageId).balance;
+  const releaseAmount = Math.min(stageAccountBalance, getPayableValue(stage));
+
+  if (releaseAmount <= 0) {
+    return state;
+  }
+
+  nextState.ledgerEntries.push({
+    id: randomId("entry"),
+    accountId: getStageAccount(nextState, stageId).id,
+    amount: -releaseAmount,
+    type: "release",
+    reference: decision.overridden ? `Override release ${stage.name}` : `Release ${stage.name}`,
+    timestamp: nowIso(),
+    stageId,
+    restrictedUse: Boolean(stage.override?.active),
+  });
+  nextState.stages = nextState.stages.map((entry) =>
+    entry.id === stageId
+      ? {
+          ...entry,
+          releasedAmount: Math.min(entry.releasedAmount + releaseAmount, entry.requiredAmount),
+        }
+      : entry,
+  );
+  reconcileSystemState(nextState, userId);
+  appendAuditLog(
+    nextState,
+    userId,
+    "USER_ACTION",
+    "stage_released",
+    "stage",
+    stageId,
+    beforeState,
+    getStageDetail(nextState, stageId),
+  );
+  return nextState;
+}

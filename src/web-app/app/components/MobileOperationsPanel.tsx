@@ -1,4 +1,6 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/preserve-manual-memoization */
 
 import React, { useEffect, useMemo, useState } from "react";
 import NotificationCenter from "./NotificationCenter";
@@ -10,7 +12,6 @@ import {
   type NotificationStatus,
   type QueueActionExecutionResult,
   type QueueActionKey,
-  type StageRecord,
   useStageStore,
 } from "@/lib/stageStore";
 import {

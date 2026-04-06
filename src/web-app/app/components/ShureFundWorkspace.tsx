@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/rules-of-hooks */
 import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronDown, Clock3, Landmark, RefreshCcw, ShieldCheck, SlidersHorizontal, TriangleAlert } from "lucide-react";

@@ -1,12 +1,5 @@
-import { Suspense } from "react";
-
-import ShureFundWorkspace from "./components/ShureFundWorkspace";
-import WorkspaceRouteFallback from "./components/WorkspaceRouteFallback";
+import ShureFundDashboard from "./components/ShureFundDashboard";
 
 export default function HomePage() {
-  return (
-    <Suspense fallback={<WorkspaceRouteFallback />}>
-      <ShureFundWorkspace routeView="home" />
-    </Suspense>
-  );
+  return <ShureFundDashboard />;
 }
