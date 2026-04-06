@@ -260,4 +260,5 @@ export const initialSystemState: SystemStateRecord = {
     },
   ],
   auditLog: [],
+  eventHistory: [],
 };

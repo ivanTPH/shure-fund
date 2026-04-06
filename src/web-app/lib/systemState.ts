@@ -14,6 +14,7 @@ import type {
   LedgerAccountRecord,
   LedgerEntryRecord,
   QueueActionType,
+  SystemEventRecord,
   SystemStageRecord,
   SystemStateRecord,
   UserRecord,
@@ -2266,16 +2267,12 @@ export interface FundingSummary {
   projectBalance: number;
   totalBalance: number;
   allocatedFunds: number;
-  ringfencedFunds: number;
-  projectedWip30Days: number;
-  reserveBuffer: number;
-  requiredCover: number;
+  wipTotal: number;
   frozenFunds: number;
-  availableFunds: number;
-  requiredFunds: number;
+  inProgressFunds: number;
+  surplusCash: number;
   releasableFunds: number;
   shortfall: number;
-  gapToRequiredCover: number;
   availableProjectFunds: number;
   stageSummaries: FundingStageSummary[];
 }
@@ -2283,14 +2280,12 @@ export interface FundingSummary {
 export interface FundingSummaryMetrics {
   projectBalance: number;
   allocatedFunds: number;
-  ringfencedFunds: number;
-  projectedWip30Days: number;
-  reserveBuffer: number;
-  requiredCover: number;
+  wipTotal: number;
   frozenFunds: number;
+  inProgressFunds: number;
+  surplusCash: number;
   releasableFunds: number;
   shortfall: number;
-  availableFunds: number;
 }
 
 export interface StageBlocker {
@@ -2305,7 +2300,7 @@ export interface ReleaseDecisionReason {
 }
 
 export interface ReleaseDecisionExplanation {
-  label: "Can release" | "Can partially release" | "Partially blocked" | "Cannot release";
+  label: "Can release" | "Partially blocked" | "Cannot release";
   reason: string;
   tone: "positive" | "warning" | "blocked";
   decisionBasis: string;
@@ -2418,15 +2413,31 @@ export interface DashboardDecisionPack {
   blockerThemeLine: string;
   treasuryConfidenceLine: string;
   disputeExposureLine: string;
+  latestMaterialActivityLine: string;
   keyDecisionBasis: string;
+}
+
+export interface ActivityCue {
+  label: "New" | "Updated" | "Ready now" | "New blocker";
+  tone: "positive" | "warning" | "neutral";
+}
+
+export interface ActivityEventView extends SystemEventRecord {
+  stageName?: string;
+}
+
+export interface ProjectActivitySummary {
+  recentEvents: ActivityEventView[];
+  lastActivityAt: string | null;
 }
 
 export interface DashboardDecisionSnapshot {
   balance: number;
-  protectedFunds: number;
-  allocatedForWip: number;
+  wip: number;
   frozen: number;
   releasable: number;
+  inProgress: number;
+  surplus: number;
   shortfall: number;
   releaseReadyCount: number;
   blockedCount: number;
@@ -2439,9 +2450,11 @@ export interface StageDecisionPack {
   releaseStatus: string;
   releasable: number;
   frozen: number;
-  blocked: number;
+  inProgress: number;
   principalBlocker: string;
   nextActionOwner: string;
+  decisionBasis: string;
+  latestActivity: string;
 }
 
 export interface LedgerTransactionItem {
@@ -2472,9 +2485,12 @@ export interface StageDetailModel {
   releaseDecision: ReleaseDecisionCard;
   treasuryReadiness: TreasuryReadinessSummary;
   funding: FundingStageSummary;
-  fundingStatusLabel: "Funded" | "Partially funded" | "Blocked";
-  contributesToRequiredCover: boolean;
+  fundingStatusLabel: "Covered by balance" | "Overcommitted";
   blockingRelease: boolean;
+  lastUpdatedAt: string | null;
+  lastDecisionAt: string | null;
+  notificationCue: ActivityCue | null;
+  recentEvents: ActivityEventView[];
   certifiedValue: number;
   payableValue: number;
   frozenValue: number;
@@ -2482,7 +2498,6 @@ export interface StageDetailModel {
   variationSummary: VariationOperationalSummary;
   evidenceState: DerivedEvidenceState;
   approvalState: "blocked" | "ready" | "partially_approved" | "approved" | "rejected";
-  fundingState: "funded" | "shortfall";
   disputes: Array<
     DisputeRecord & {
       canResolve: boolean;
@@ -2545,6 +2560,55 @@ function randomId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function sortEventsNewestFirst<T extends { timestamp: string }>(events: T[]) {
+  return [...events].sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+}
+
+function appendSystemEvent(
+  state: SystemStateRecord,
+  event: Omit<SystemEventRecord, "id">,
+) {
+  state.eventHistory = sortEventsNewestFirst([
+    {
+      id: randomId("event"),
+      ...event,
+    },
+    ...(state.eventHistory ?? []),
+  ]);
+}
+
+function getStageIdFromSnapshot(snapshot: unknown): string | undefined {
+  if (!snapshot || typeof snapshot !== "object") {
+    return undefined;
+  }
+
+  if ("stageId" in snapshot && typeof snapshot.stageId === "string") {
+    return snapshot.stageId;
+  }
+
+  if ("stage" in snapshot && snapshot.stage && typeof snapshot.stage === "object" && "id" in snapshot.stage && typeof snapshot.stage.id === "string") {
+    return snapshot.stage.id;
+  }
+
+  return undefined;
+}
+
+function getProjectIdFromSnapshot(snapshot: unknown): string | undefined {
+  if (!snapshot || typeof snapshot !== "object") {
+    return undefined;
+  }
+
+  if ("projectId" in snapshot && typeof snapshot.projectId === "string") {
+    return snapshot.projectId;
+  }
+
+  if ("stage" in snapshot && snapshot.stage && typeof snapshot.stage === "object" && "projectId" in snapshot.stage && typeof snapshot.stage.projectId === "string") {
+    return snapshot.stage.projectId;
+  }
+
+  return undefined;
+}
+
 function getUserRecord(state: SystemStateRecord, userId = state.currentUserId): UserRecord {
   const user = state.users.find((entry) => entry.id === userId);
 
@@ -2583,6 +2647,180 @@ function getStageAccount(state: SystemStateRecord, stageId: string): LedgerAccou
   }
 
   return account;
+}
+
+function buildInitialEventHistory(state: SystemStateRecord): SystemEventRecord[] {
+  const accountById = Object.fromEntries(state.ledgerAccounts.map((account) => [account.id, account]));
+  const stageById = Object.fromEntries(state.stages.map((stage) => [stage.id, stage]));
+  const userById = Object.fromEntries(state.users.map((user) => [user.id, user]));
+  const events: SystemEventRecord[] = [];
+
+  state.ledgerEntries.forEach((entry) => {
+    if (entry.type === "allocation_out") {
+      return;
+    }
+
+    const stage = entry.stageId ? stageById[entry.stageId] : undefined;
+    const account = accountById[entry.accountId];
+    const projectId = account?.projectId ?? stage?.projectId;
+    const summary =
+      entry.type === "release"
+        ? `${stage?.name ?? "Work Package"} released.`
+        : entry.type === "allocation_in"
+          ? `Funding allocated to ${stage?.name ?? "Work Package"}.`
+          : "Project funding added.";
+
+    events.push({
+      id: `seed-ledger-${entry.id}`,
+      timestamp: entry.timestamp,
+      stageId: entry.stageId,
+      eventType: entry.type === "release" ? "release" : "funding",
+      actor: undefined,
+      summary,
+      details: {
+        amount: Math.abs(entry.amount),
+        projectId: projectId ?? null,
+      },
+    });
+  });
+
+  state.evidence.forEach((entry) => {
+    const stage = stageById[entry.stageId];
+    events.push({
+      id: `seed-evidence-${entry.id}`,
+      timestamp: entry.submittedAt ?? nowIso(),
+      stageId: entry.stageId,
+      eventType: "evidence",
+      actor: undefined,
+      summary: `Evidence updated for ${stage?.name ?? "Work Package"}.`,
+      details: {
+        projectId: stage?.projectId ?? null,
+        status: entry.status,
+        evidenceName: entry.name,
+      },
+    });
+  });
+
+  state.approvals.forEach((entry) => {
+    const timestamp = entry.approvedAt ?? entry.rejectedAt;
+    const actorId = entry.approvedBy ?? entry.rejectedBy;
+    const stage = stageById[entry.stageId];
+
+    if (!timestamp) {
+      return;
+    }
+
+    events.push({
+      id: `seed-approval-${entry.id}`,
+      timestamp,
+      stageId: entry.stageId,
+      eventType: "approval",
+      actor: actorId ? userById[actorId]?.role : undefined,
+      summary: `${entry.role[0].toUpperCase()}${entry.role.slice(1)} approval ${entry.status} for ${stage?.name ?? "Work Package"}.`,
+      details: {
+        projectId: stage?.projectId ?? null,
+        role: entry.role,
+        decision: entry.status,
+      },
+    });
+  });
+
+  state.stages.forEach((stage) => {
+    (stage.disputes ?? []).forEach((dispute) => {
+      events.push({
+        id: `seed-dispute-open-${dispute.id}`,
+        timestamp: dispute.openedAt,
+        stageId: stage.id,
+        eventType: "dispute",
+        actor: userById[dispute.openedBy]?.role,
+        summary: `Dispute raised for ${stage.name}.`,
+        details: {
+          projectId: stage.projectId,
+          amount: dispute.disputedAmount,
+          status: dispute.status,
+        },
+      });
+
+      if (dispute.resolvedAt) {
+        events.push({
+          id: `seed-dispute-resolved-${dispute.id}`,
+          timestamp: dispute.resolvedAt,
+          stageId: stage.id,
+          eventType: "dispute",
+          actor: dispute.resolvedBy ? userById[dispute.resolvedBy]?.role : undefined,
+          summary: `Dispute resolved for ${stage.name}.`,
+          details: {
+            projectId: stage.projectId,
+            amount: dispute.disputedAmount,
+            status: "resolved",
+          },
+        });
+      }
+    });
+
+    (stage.variations ?? []).forEach((variation) => {
+      events.push({
+        id: `seed-variation-created-${variation.id}`,
+        timestamp: variation.createdAt,
+        stageId: stage.id,
+        eventType: "variation",
+        actor: userById[variation.createdBy]?.role,
+        summary: `Variation created for ${stage.name}.`,
+        details: {
+          projectId: stage.projectId,
+          amountDelta: variation.amountDelta,
+          status: variation.status,
+        },
+      });
+
+      if (variation.commercialApprovedAt) {
+        events.push({
+          id: `seed-variation-commercial-${variation.id}`,
+          timestamp: variation.commercialApprovedAt,
+          stageId: stage.id,
+          eventType: "variation",
+          actor: variation.commercialApprovedBy ? userById[variation.commercialApprovedBy]?.role : undefined,
+          summary: `Variation approved by commercial for ${stage.name}.`,
+          details: {
+            projectId: stage.projectId,
+            status: variation.status,
+          },
+        });
+      }
+
+      if (variation.treasuryApprovedAt) {
+        events.push({
+          id: `seed-variation-treasury-${variation.id}`,
+          timestamp: variation.treasuryApprovedAt,
+          stageId: stage.id,
+          eventType: "variation",
+          actor: variation.treasuryApprovedBy ? userById[variation.treasuryApprovedBy]?.role : undefined,
+          summary: `Variation approved by treasury for ${stage.name}.`,
+          details: {
+            projectId: stage.projectId,
+            status: variation.status,
+          },
+        });
+      }
+
+      if (variation.activatedAt) {
+        events.push({
+          id: `seed-variation-activated-${variation.id}`,
+          timestamp: variation.activatedAt,
+          stageId: stage.id,
+          eventType: "variation",
+          actor: variation.activatedBy ? userById[variation.activatedBy]?.role : undefined,
+          summary: `Variation activated for ${stage.name}.`,
+          details: {
+            projectId: stage.projectId,
+            status: "active",
+          },
+        });
+      }
+    });
+  });
+
+  return sortEventsNewestFirst(events);
 }
 
 function getEvidenceViews(state: SystemStateRecord, stageId: string) {
@@ -2679,20 +2917,34 @@ function getFrozenValue(stage: SystemStageRecord) {
   return Math.min(disputedValue, remainingValue);
 }
 
+function getWipValue(stage: SystemStageRecord) {
+  return Math.max(stage.requiredAmount - stage.releasedAmount, 0);
+}
+
+function getApprovedReleasableValue(state: SystemStateRecord, stage: SystemStageRecord) {
+  return approvalsComplete(state, stage) && getEvidenceState(state, stage.id) === "accepted"
+    ? Math.max(getWipValue(stage) - getFrozenValue(stage), 0)
+    : 0;
+}
+
+function getInProgressValue(state: SystemStateRecord, stage: SystemStageRecord) {
+  return Math.max(getWipValue(stage) - getApprovedReleasableValue(state, stage) - getFrozenValue(stage), 0);
+}
+
 function getPayableValue(stage: SystemStageRecord) {
-  const remainingValue = Math.max(stage.requiredAmount - stage.releasedAmount, 0);
+  const remainingValue = getWipValue(stage);
   return Math.max(remainingValue - getFrozenValue(stage), 0);
 }
 
-function getDisputeOperationalSummary(stage: SystemStageRecord): DisputeOperationalSummary {
-  const remainingValue = Math.max(stage.requiredAmount - stage.releasedAmount, 0);
+function getDisputeOperationalSummary(state: SystemStateRecord, stage: SystemStageRecord): DisputeOperationalSummary {
+  const remainingValue = getWipValue(stage);
   const disputedValue = Math.min(
     getOpenDisputes(stage).reduce((total, dispute) => total + dispute.disputedAmount, 0),
     remainingValue,
   );
   const frozenValue = getFrozenValue(stage);
   const undisputedValue = Math.max(remainingValue - disputedValue, 0);
-  const releasableValue = getPayableValue(stage);
+  const releasableValue = getApprovedReleasableValue(state, stage);
 
   if (frozenValue <= 0) {
     return {
@@ -2802,7 +3054,7 @@ function getTreasuryReadinessSummary({
   if (releasableAmount > 0 || frozenAmount > 0) {
     return {
       label: "Treasury ready",
-      reason: "Based on approvals, evidence acceptance, and available funds.",
+      reason: "Based on approvals, evidence acceptance, and the current WIP position.",
       tone: "positive",
     };
   }
@@ -2876,7 +3128,6 @@ function getOperationalStageStatus(state: SystemStateRecord, stage: SystemStageR
   const evidenceState = getEvidenceState(state, stage.id);
   const approvalState = getApprovalStateSummary(state, stage);
   const frozenValue = getFrozenValue(stage);
-  const stageFunding = getStageFundingSummary(state, stage);
   const variationSummary = getVariationOperationalSummary(stage);
 
   if (stage.releasedAmount >= stage.requiredAmount) {
@@ -2885,15 +3136,6 @@ function getOperationalStageStatus(state: SystemStateRecord, stage: SystemStageR
       reason: "This Work Package has already been released.",
       nextStep: "No action needed.",
       tone: "neutral",
-    };
-  }
-
-  if (stageFunding.gapToRequiredCover > 0) {
-    return {
-      label: "Funding blocked",
-      reason: "Insufficient available funds after WIP allocation.",
-      nextStep: "Fund the Work Package or add project funds.",
-      tone: "blocked",
     };
   }
 
@@ -3099,7 +3341,11 @@ export function getLedgerTransactions(
 
 export function initializeSystemState(state: SystemStateRecord): SystemStateRecord {
   const nextState = cloneSystemState(state);
+  nextState.eventHistory = nextState.eventHistory ?? [];
   reconcileSystemState(nextState);
+  if (nextState.eventHistory.length === 0) {
+    nextState.eventHistory = buildInitialEventHistory(nextState);
+  }
   return nextState;
 }
 
@@ -3113,35 +3359,22 @@ export function deriveFundingSummaryMetrics(
   const allocatedFunds = projectStages.reduce((total, stage) => total + getStageAccount(state, stage.id).balance, 0);
   const projectBalance = projectAccountBalance + allocatedFunds;
   const reserveBuffer = project.reserveBuffer;
-  const projectedWip30Days = projectStages.reduce((total, stage) => total + getPayableValue(stage), 0);
+  const wipTotal = projectStages.reduce((total, stage) => total + getWipValue(stage), 0);
+  const releasableFunds = projectStages.reduce((total, stage) => total + getApprovedReleasableValue(state, stage), 0);
   const frozenFunds = projectStages.reduce((total, stage) => total + getFrozenValue(stage), 0);
-
-  // Ringfenced funds are the protected client funds available to the project after reserving the buffer.
-  const ringfencedFunds = Math.max(projectBalance - reserveBuffer, 0);
-
-  // Required cover holds the upcoming work package requirement plus the reserve buffer.
-  const requiredCover = projectedWip30Days + reserveBuffer;
-
-  // Available funds are the unallocated protected funds remaining after work package allocations and reserve.
-  const availableFunds = Math.max(projectBalance - allocatedFunds - reserveBuffer, 0);
-
-  // Certified payable is the true surplus after WIP cover and frozen disputed value are accounted for.
-  const releasableFunds = Math.max(0, projectBalance - requiredCover - frozenFunds);
-
-  // Shortfall appears only when total cash is below the locked requirement of WIP cover plus frozen value.
-  const shortfall = Math.max(0, requiredCover + frozenFunds - projectBalance);
+  const inProgressFunds = Math.max(wipTotal - releasableFunds - frozenFunds, 0);
+  const surplusCash = Math.max(0, projectBalance - wipTotal);
+  const shortfall = Math.max(0, wipTotal - projectBalance);
 
   return {
     projectBalance,
     allocatedFunds,
-    ringfencedFunds,
-    projectedWip30Days,
-    reserveBuffer,
-    requiredCover,
+    wipTotal,
     frozenFunds,
+    inProgressFunds,
+    surplusCash,
     releasableFunds,
     shortfall,
-    availableFunds,
   };
 }
 
@@ -3159,19 +3392,28 @@ export function getFundingSummary(state: SystemStateRecord, projectId: string): 
     projectBalance: metrics.projectBalance,
     totalBalance: metrics.projectBalance,
     allocatedFunds: metrics.allocatedFunds,
-    ringfencedFunds: metrics.ringfencedFunds,
-    projectedWip30Days: metrics.projectedWip30Days,
-    reserveBuffer: metrics.reserveBuffer,
-    requiredCover: metrics.requiredCover,
+    wipTotal: metrics.wipTotal,
     frozenFunds: metrics.frozenFunds,
-    availableFunds: metrics.availableFunds,
-    requiredFunds: metrics.requiredCover,
+    inProgressFunds: metrics.inProgressFunds,
+    surplusCash: metrics.surplusCash,
     releasableFunds: metrics.releasableFunds,
     shortfall: metrics.shortfall,
-    gapToRequiredCover: metrics.shortfall,
     availableProjectFunds,
     stageSummaries,
   };
+}
+
+const dashboardCurrency = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+  maximumFractionDigits: 0,
+});
+
+export function getFundingSummarySentence(fundingSummary: FundingSummary) {
+  const balanceDelta = fundingSummary.shortfall > 0 ? fundingSummary.shortfall : fundingSummary.surplusCash;
+  const balanceDeltaLabel = fundingSummary.shortfall > 0 ? "shortfall" : "surplus";
+
+  return `${dashboardCurrency.format(fundingSummary.wipTotal)} of work this period: ${dashboardCurrency.format(fundingSummary.releasableFunds)} ready to release, ${dashboardCurrency.format(fundingSummary.frozenFunds)} disputed, ${dashboardCurrency.format(fundingSummary.inProgressFunds)} in progress. ${dashboardCurrency.format(fundingSummary.projectBalance)} cash held, ${dashboardCurrency.format(balanceDelta)} ${balanceDeltaLabel}.`;
 }
 
 export function getStageBlockers(state: SystemStateRecord, stageId: string): StageBlocker[] {
@@ -3186,12 +3428,10 @@ export function getStageBlockers(state: SystemStateRecord, stageId: string): Sta
   }
 
   const blockers: StageBlocker[] = [];
-  const fundingSummary = getStageFundingSummary(state, stage);
-  const projectFundingSummary = getFundingSummary(state, stage.projectId);
   const evidenceState = getEvidenceState(state, stage.id);
   const pendingApprovals = getPendingApprovalRoles(state, stage);
   const hasRejectedApproval = approvalRejected(state, stage);
-  const disputeSummary = getDisputeOperationalSummary(stage);
+  const disputeSummary = getDisputeOperationalSummary(state, stage);
   const variationSummary = getVariationOperationalSummary(stage);
 
   if (stage.onHold) {
@@ -3214,17 +3454,6 @@ export function getStageBlockers(state: SystemStateRecord, stageId: string): Sta
     blockers.push({
       code: "variation",
       label: "Variation review is holding the stage.",
-      priority: "critical",
-    });
-  }
-
-  if (
-    fundingSummary.gapToRequiredCover > 0 ||
-    (disputeSummary.releasableValue > 0 && projectFundingSummary.releasableFunds < disputeSummary.releasableValue)
-  ) {
-    blockers.push({
-      code: "funding",
-      label: "Insufficient available funds after WIP allocation.",
       priority: "critical",
     });
   }
@@ -3255,22 +3484,22 @@ export function getStageBlockers(state: SystemStateRecord, stageId: string): Sta
 
 function getReleaseDecisionExplanation({
   blockers,
-  releasable,
+  releasableAmount,
   overridden,
   disputeSummary,
   variationSummary,
 }: {
   blockers: StageBlocker[];
-  releasable: boolean;
+  releasableAmount: number;
   overridden: boolean;
   disputeSummary: DisputeOperationalSummary;
   variationSummary: VariationOperationalSummary;
 }): ReleaseDecisionExplanation {
-  const hasFundingBlocker = blockers.some((blocker) => blocker.code === "funding");
   const hasDisputeBlocker = blockers.some((blocker) => blocker.code === "disputed");
   const hasVariationBlocker = blockers.some((blocker) => blocker.code === "variation");
   const hasEvidenceBlocker = blockers.some((blocker) => blocker.code === "evidence");
   const hasApprovalBlocker = blockers.some((blocker) => blocker.code === "approvals");
+  const hasBlockingConditions = blockers.length > 0;
 
   if (overridden && blockers.length > 0) {
     return {
@@ -3281,21 +3510,30 @@ function getReleaseDecisionExplanation({
     };
   }
 
-  if (releasable && disputeSummary.frozenValue > 0) {
+  if (releasableAmount > 0 && disputeSummary.frozenValue > 0) {
     return {
-      label: "Can partially release",
+      label: "Partially blocked",
       reason: "Undisputed approved value can release while the disputed amount stays frozen.",
-      tone: "positive",
+      tone: "warning",
       decisionBasis: "Partially releasable; disputed amount remains held.",
     };
   }
 
-  if (releasable) {
+  if (releasableAmount > 0 && !hasBlockingConditions) {
     return {
       label: "Can release",
-      reason: "Funding, evidence, and approvals are all clear.",
+      reason: "Approved value within WIP is ready to release.",
       tone: "positive",
-      decisionBasis: "Based on approvals, evidence acceptance, and available funds.",
+      decisionBasis: "Based on approvals, evidence acceptance, and approved value within WIP.",
+    };
+  }
+
+  if (releasableAmount > 0) {
+    return {
+      label: "Partially blocked",
+      reason: blockers[0]?.label ?? "Release needs one more control step.",
+      tone: "warning",
+      decisionBasis: "Approved value exists within WIP, but another control step still blocks release.",
     };
   }
 
@@ -3310,54 +3548,45 @@ function getReleaseDecisionExplanation({
 
   if (hasVariationBlocker) {
     return {
-      label: "Partially blocked",
-      reason: variationSummary.reason,
-      tone: "warning",
-      decisionBasis: "Variation review is still changing the release position.",
-    };
-  }
-
-  if (hasFundingBlocker) {
-    return {
       label: "Cannot release",
-      reason: "Insufficient available funds after WIP allocation.",
+      reason: variationSummary.reason,
       tone: "blocked",
-      decisionBasis: "Blocked by available-funds control after WIP allocation.",
+      decisionBasis: "Variation review is holding the release position.",
     };
   }
 
   if (hasEvidenceBlocker && hasApprovalBlocker) {
     return {
-      label: "Partially blocked",
+      label: "Cannot release",
       reason: "Evidence and approvals still need to clear.",
-      tone: "warning",
-      decisionBasis: "Treasury is waiting on evidence acceptance and approvals.",
+      tone: "blocked",
+      decisionBasis: "Release is blocked until evidence acceptance and approvals are complete.",
     };
   }
 
   if (hasEvidenceBlocker) {
     return {
-      label: "Partially blocked",
-      reason: "Required evidence is still incomplete.",
-      tone: "warning",
-      decisionBasis: "Treasury is waiting on evidence acceptance.",
+      label: "Cannot release",
+      reason: "Evidence incomplete.",
+      tone: "blocked",
+      decisionBasis: "Release is blocked until evidence acceptance is complete.",
     };
   }
 
   if (hasApprovalBlocker) {
     return {
-      label: "Partially blocked",
-      reason: "Required approvals are still incomplete.",
-      tone: "warning",
-      decisionBasis: "Treasury is waiting on approvals.",
+      label: "Cannot release",
+      reason: "Approval incomplete.",
+      tone: "blocked",
+      decisionBasis: "Release is blocked until approvals are complete.",
     };
   }
 
   return {
     label: "Cannot release",
-    reason: blockers[0]?.label ?? "Release is blocked.",
+    reason: blockers[0]?.label ?? "No approved value is ready to release within WIP.",
     tone: "blocked",
-    decisionBasis: "Blocked by current control state.",
+    decisionBasis: "No approved value is currently releasable within WIP.",
   };
 }
 
@@ -3370,7 +3599,7 @@ export function getReleaseDecisions(
     .map((stage) => {
       const blockers = getStageBlockers(state, stage.id);
       const overridden = Boolean(stage.override?.active);
-      const disputeSummary = getDisputeOperationalSummary(stage);
+      const disputeSummary = getDisputeOperationalSummary(state, stage);
       const variationSummary = getVariationOperationalSummary(stage);
       const advisoryReasons: ReleaseDecisionReason[] = disputeSummary.frozenValue > 0
         ? [
@@ -3380,9 +3609,9 @@ export function getReleaseDecisions(
             },
           ]
         : [];
-      const releasable = blockers.length === 0 || overridden;
-      const releasableAmount = releasable ? disputeSummary.releasableValue : 0;
-      const blockedAmount = Math.max(stage.requiredAmount - stage.releasedAmount - releasableAmount, 0);
+      const releasableAmount = disputeSummary.releasableValue;
+      const releasable = (releasableAmount > 0 && blockers.length === 0) || overridden;
+      const blockedAmount = getInProgressValue(state, stage);
       const treasuryReadiness = getTreasuryReadinessSummary({
         blockers,
         releasableAmount,
@@ -3405,7 +3634,7 @@ export function getReleaseDecisions(
         treasuryReadiness,
         explanation: getReleaseDecisionExplanation({
           blockers,
-          releasable,
+          releasableAmount,
           overridden,
           disputeSummary,
           variationSummary,
@@ -3522,7 +3751,7 @@ export function getDashboardSummaryStrip(state: SystemStateRecord, projectId?: s
 
   return decisions.reduce(
     (summary, decision) => {
-      if (decision.explanation.label === "Can release" || decision.explanation.label === "Can partially release") {
+      if (decision.explanation.label === "Can release") {
         summary.releaseReadyPackages += 1;
       }
 
@@ -3560,6 +3789,78 @@ export function getDashboardSummaryStrip(state: SystemStateRecord, projectId?: s
   );
 }
 
+function eventBelongsToProject(state: SystemStateRecord, event: SystemEventRecord, projectId: string) {
+  const eventProjectId = typeof event.details?.projectId === "string"
+    ? event.details.projectId
+    : event.stageId
+      ? state.stages.find((stage) => stage.id === event.stageId)?.projectId
+      : undefined;
+
+  return eventProjectId === projectId;
+}
+
+function mapActivityEventView(state: SystemStateRecord, event: SystemEventRecord): ActivityEventView {
+  return {
+    ...event,
+    stageName: event.stageId ? state.stages.find((stage) => stage.id === event.stageId)?.name : undefined,
+  };
+}
+
+export function getRecentStageEvents(state: SystemStateRecord, stageId: string, limit = 5): ActivityEventView[] {
+  return sortEventsNewestFirst((state.eventHistory ?? []).filter((event) => event.stageId === stageId))
+    .slice(0, limit)
+    .map((event) => mapActivityEventView(state, event));
+}
+
+export function getRecentProjectEvents(state: SystemStateRecord, projectId: string, limit = 5): ActivityEventView[] {
+  return sortEventsNewestFirst((state.eventHistory ?? []).filter((event) => eventBelongsToProject(state, event, projectId)))
+    .slice(0, limit)
+    .map((event) => mapActivityEventView(state, event));
+}
+
+export function getStageLastUpdatedAt(state: SystemStateRecord, stageId: string) {
+  return getRecentStageEvents(state, stageId, 1)[0]?.timestamp ?? null;
+}
+
+export function getStageLastDecisionAt(state: SystemStateRecord, stageId: string) {
+  return getRecentStageEvents(state, stageId, 20)
+    .find((event) => ["approval", "dispute", "variation", "release"].includes(event.eventType))?.timestamp ?? null;
+}
+
+export function getStageActivityCue(state: SystemStateRecord, stageId: string): ActivityCue | null {
+  const latestEvent = getRecentStageEvents(state, stageId, 1)[0];
+
+  if (!latestEvent) {
+    return null;
+  }
+
+  const eventAgeMs = Date.now() - new Date(latestEvent.timestamp).getTime();
+  if (eventAgeMs > 36 * 60 * 60 * 1000) {
+    return null;
+  }
+
+  const releaseDecision = getReleaseDecisions(state).find((decision) => decision.stageId === stageId);
+  const blockers = getStageBlockers(state, stageId);
+
+  if (latestEvent.eventType === "dispute" && blockers.length > 0) {
+    return { label: "New blocker", tone: "warning" };
+  }
+
+  if (releaseDecision?.releasable && ["approval", "evidence", "funding"].includes(latestEvent.eventType)) {
+    return { label: "Ready now", tone: "positive" };
+  }
+
+  return { label: "Updated", tone: "neutral" };
+}
+
+export function getProjectActivitySummary(state: SystemStateRecord, projectId: string): ProjectActivitySummary {
+  const recentEvents = getRecentProjectEvents(state, projectId, 5);
+  return {
+    recentEvents,
+    lastActivityAt: recentEvents[0]?.timestamp ?? null,
+  };
+}
+
 export function getDashboardDecisionSnapshot(state: SystemStateRecord, projectId: string): DashboardDecisionSnapshot {
   const fundingSummary = getFundingSummary(state, projectId);
   const summaryStrip = getDashboardSummaryStrip(state, projectId);
@@ -3572,10 +3873,11 @@ export function getDashboardDecisionSnapshot(state: SystemStateRecord, projectId
 
   return {
     balance: fundingSummary.projectBalance,
-    protectedFunds: fundingSummary.ringfencedFunds,
-    allocatedForWip: fundingSummary.requiredCover,
+    wip: fundingSummary.wipTotal,
     frozen: fundingSummary.frozenFunds,
     releasable: fundingSummary.releasableFunds,
+    inProgress: fundingSummary.inProgressFunds,
+    surplus: fundingSummary.surplusCash,
     shortfall: fundingSummary.shortfall,
     releaseReadyCount: summaryStrip.releaseReadyPackages,
     blockedCount: summaryStrip.blockedPackages,
@@ -3588,11 +3890,10 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
   const summaryStrip = getDashboardSummaryStrip(state, projectId);
   const releaseDecisions = getReleaseDecisions(state, projectId);
   const fundingSummary = getFundingSummary(state, projectId);
+  const projectActivity = getProjectActivitySummary(state, projectId);
   const topBlockedDecision = releaseDecisions.find((decision) => decision.explanation.label === "Cannot release");
   const topPartialDecision = releaseDecisions.find((decision) => decision.explanation.label === "Partially blocked");
-  const topReadyDecision = releaseDecisions.find(
-    (decision) => decision.explanation.label === "Can release" || decision.explanation.label === "Can partially release",
-  );
+  const topReadyDecision = releaseDecisions.find((decision) => decision.explanation.label === "Can release");
 
   const releasePostureLine =
     summaryStrip.releaseReadyPackages > 0
@@ -3610,7 +3911,7 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
       ? `${summaryStrip.treasuryBlockedPackages} package${summaryStrip.treasuryBlockedPackages === 1 ? "" : "s"} are treasury blocked; confidence is constrained by current control blockers.`
       : summaryStrip.treasuryReviewRequiredPackages > 0
         ? `${summaryStrip.treasuryReviewRequiredPackages} package${summaryStrip.treasuryReviewRequiredPackages === 1 ? "" : "s"} require treasury review; controls are progressing but not fully clear.`
-        : "Treasury confidence is high; current release decisions are supported by approvals, evidence acceptance, and available funds.";
+        : "Treasury confidence is high; current release decisions are supported by approvals, evidence acceptance, and approved value within WIP.";
 
   const disputeExposureLine =
     fundingSummary.frozenFunds > 0
@@ -3621,14 +3922,17 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
         })}, with undisputed value continuing through controls where permitted.`
       : "Dispute exposure is currently nil across the active package set.";
 
+  const latestMaterialActivityLine = projectActivity.recentEvents[0]
+    ? `Latest material activity: ${projectActivity.recentEvents[0].summary}`
+    : "Latest material activity: No recent change recorded.";
+
   return {
-    fundingPositionLine: snapshot.shortfall > 0
-      ? `${snapshot.shortfall.toLocaleString("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 })} shortfall against current WIP and frozen commitments.`
-      : `${snapshot.releasable.toLocaleString("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 })} is currently releasable against a protected funding position.`,
+    fundingPositionLine: getFundingSummarySentence(fundingSummary),
     releasePostureLine,
     blockerThemeLine,
     treasuryConfidenceLine,
     disputeExposureLine,
+    latestMaterialActivityLine,
     keyDecisionBasis: topBlockedDecision?.explanation.decisionBasis ?? topReadyDecision?.explanation.decisionBasis ?? snapshot.keyDecisionBasis,
   };
 }
@@ -3640,12 +3944,14 @@ export function getStageDecisionPack(detail: StageDetailModel): StageDecisionPac
     releaseStatus: detail.releaseDecision.explanation.label,
     releasable: detail.releaseDecision.releasableAmount,
     frozen: detail.releaseDecision.frozenAmount,
-    blocked: detail.releaseDecision.blockedAmount,
+    inProgress: detail.releaseDecision.blockedAmount,
     principalBlocker: detail.blockers[0]?.label ?? "No active blocker.",
     nextActionOwner:
       detail.blockers[0] !== undefined
         ? getBlockerResponsibilityCue(detail.blockers[0].code)
         : "Treasury",
+    decisionBasis: detail.releaseDecision.explanation.decisionBasis,
+    latestActivity: detail.recentEvents[0]?.summary ?? "No recent activity recorded.",
   };
 }
 
@@ -3673,18 +3979,10 @@ function deriveFundingActionQueue(
       const pendingVariations = getPendingVariations(stage);
       const approvedVariations = getApprovedVariations(stage).filter((variation) => variation.status === "approved");
       const operationalStatus = getOperationalStageStatus(state, stage);
-      const disputeSummary = getDisputeOperationalSummary(stage);
+      const disputeSummary = getDisputeOperationalSummary(state, stage);
       const variationSummary = getVariationOperationalSummary(stage);
 
-      if (stageFunding.gapToRequiredCover > 0 || (disputeSummary.releasableValue > 0 && projectFunding.releasableFunds < disputeSummary.releasableValue)) {
-        pushGroupedStageAction(groups, {
-          actionType: "fund_stage",
-          actionableBy: "treasury",
-          priority: "critical",
-          title: `Restore releasable funds for ${stage.name}`,
-          detail: "Insufficient available funds after WIP allocation.",
-        });
-      } else if (openDisputes.length > 0 && disputeSummary.releasableValue === 0) {
+      if (openDisputes.length > 0 && disputeSummary.releasableValue === 0) {
         pushGroupedStageAction(groups, {
           actionType: "review_dispute",
           actionableBy: "commercial",
@@ -3738,7 +4036,7 @@ function deriveFundingActionQueue(
           title: `Resolve blocker for ${stage.name}`,
           detail: blockers[0].label,
         });
-      } else if (getPayableValue(stage) > 0) {
+      } else if (disputeSummary.releasableValue > 0) {
         pushGroupedStageAction(groups, {
           actionType: "release_funding",
           actionableBy: "treasury",
@@ -3802,8 +4100,9 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
   const funding = getStageFundingSummary(state, stage);
   const user = getUserRecord(state, userId);
   const releaseDecision = getReleaseDecisions(state, stage.projectId).find((entry) => entry.stageId === stageId)!;
-  const disputeSummary = getDisputeOperationalSummary(stage);
+  const disputeSummary = getDisputeOperationalSummary(state, stage);
   const variationSummary = getVariationOperationalSummary(stage);
+  const projectFunding = getFundingSummary(state, stage.projectId);
 
   if (!project) {
     throw new Error(`Unable to derive stage detail for ${stageId}`);
@@ -3818,9 +4117,12 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     treasuryReadiness: releaseDecision.treasuryReadiness,
     funding,
     fundingStatusLabel:
-      funding.gapToRequiredCover === 0 ? "Funded" : funding.allocatedFunds > 0 ? "Partially funded" : "Blocked",
-    contributesToRequiredCover: funding.requiredFunds > 0,
+      projectFunding.shortfall === 0 ? "Covered by balance" : "Overcommitted",
     blockingRelease: !releaseDecision.releasable,
+    lastUpdatedAt: getStageLastUpdatedAt(state, stageId),
+    lastDecisionAt: getStageLastDecisionAt(state, stageId),
+    notificationCue: getStageActivityCue(state, stageId),
+    recentEvents: getRecentStageEvents(state, stageId, 5),
     certifiedValue: stage.requiredAmount,
     payableValue: getPayableValue(stage),
     frozenValue: getFrozenValue(stage),
@@ -3828,7 +4130,6 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     variationSummary,
     evidenceState: getEvidenceState(state, stageId),
     approvalState: getApprovalStateSummary(state, stage),
-    fundingState: funding.gapToRequiredCover === 0 ? "funded" : "shortfall",
     disputes: (stage.disputes ?? []).map((dispute) => ({
       ...dispute,
       canResolve: dispute.status === "open" && ["commercial", "treasury"].includes(user.role),
@@ -4008,6 +4309,18 @@ export function depositFunds(
     });
   }
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp,
+    stageId,
+    eventType: "funding",
+    actor: getUserRecord(nextState, userId).role,
+    summary: stageId ? `Funding added for ${getStageDetail(nextState, stageId).stage.name}.` : "Project funding added.",
+    details: {
+      projectId,
+      amount,
+      sourceType,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4068,6 +4381,17 @@ export function allocateStageFunds(
     restrictedUse: false,
   });
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp,
+    stageId,
+    eventType: "funding",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Funding allocated to ${stage.name}.`,
+    details: {
+      projectId: stage.projectId,
+      amount: transferAmount,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4117,6 +4441,18 @@ export function updateEvidenceStatus(
   }
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId: requirement.stageId,
+    eventType: "evidence",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Evidence ${status.replaceAll("_", " ")} for ${getStageDetail(nextState, requirement.stageId).stage.name}.`,
+    details: {
+      projectId: getStageDetail(nextState, requirement.stageId).stage.projectId,
+      requirementId,
+      status,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4178,6 +4514,18 @@ export function addEvidence(
   });
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId,
+    eventType: "evidence",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Evidence submitted for ${getStageDetail(nextState, stageId).stage.name}.`,
+    details: {
+      projectId: getStageDetail(nextState, stageId).stage.projectId,
+      title: title.trim(),
+      evidenceType: type,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4236,6 +4584,18 @@ export function openDispute(
   ];
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId,
+    eventType: "dispute",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Dispute raised for ${nextStage.name}.`,
+    details: {
+      projectId: nextStage.projectId,
+      amount: Math.min(disputedAmount, availableToFreeze),
+      title: title.trim(),
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4280,6 +4640,18 @@ export function resolveDispute(
   dispute.resolvedAt = nowIso();
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: dispute.resolvedAt,
+    stageId,
+    eventType: "dispute",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Dispute resolved for ${stage.name}.`,
+    details: {
+      projectId: stage.projectId,
+      amount: dispute.disputedAmount,
+      disputeId,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4330,6 +4702,18 @@ export function createVariation(
   ];
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId,
+    eventType: "variation",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Variation created for ${stage.name}.`,
+    details: {
+      projectId: stage.projectId,
+      amountDelta,
+      title: title.trim(),
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4386,6 +4770,21 @@ export function reviewVariation(
   }
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId,
+    eventType: "variation",
+    actor: getUserRecord(nextState, userId).role,
+    summary:
+      decision === "approved"
+        ? `Variation approved for ${stage.name}.`
+        : `Variation rejected for ${stage.name}.`,
+    details: {
+      projectId: stage.projectId,
+      variationId,
+      decision,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4443,6 +4842,18 @@ export function activateVariation(
   variation.activatedAt = nowIso();
 
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: variation.activatedAt,
+    stageId,
+    eventType: "variation",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Variation activated for ${stage.name}.`,
+    details: {
+      projectId: stage.projectId,
+      variationId,
+      amountDelta: variation.amountDelta,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4497,6 +4908,18 @@ export function decideApproval(
     approval.approvedBy = undefined;
   }
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId,
+    eventType: "approval",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `${role[0].toUpperCase()}${role.slice(1)} approval ${decision} for ${getStageDetail(nextState, stageId).stage.name}.`,
+    details: {
+      projectId: getStageDetail(nextState, stageId).stage.projectId,
+      role,
+      decision,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4556,6 +4979,18 @@ export function applyOverride(
       : stage,
   );
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nextState.stages.find((stage) => stage.id === stageId)?.override?.timestamp ?? nowIso(),
+    stageId,
+    eventType: "release",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Treasury override applied for ${getStageDetail(nextState, stageId).stage.name}.`,
+    details: {
+      projectId: getStageDetail(nextState, stageId).stage.projectId,
+      reason: reason.trim(),
+      override: true,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,
@@ -4617,6 +5052,19 @@ export function releaseStage(
       : entry,
   );
   reconcileSystemState(nextState, userId);
+  appendSystemEvent(nextState, {
+    timestamp: nowIso(),
+    stageId,
+    eventType: "release",
+    actor: getUserRecord(nextState, userId).role,
+    summary: `Released ${new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(releaseAmount)} for ${stage.name}.`,
+    details: {
+      projectId: stage.projectId,
+      amount: releaseAmount,
+      partialRelease: decision.isPartialRelease,
+      override: decision.overridden,
+    },
+  });
   appendAuditLog(
     nextState,
     userId,

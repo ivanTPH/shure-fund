@@ -198,6 +198,7 @@ type StageStoreSnapshot = {
   users: AppUser[];
   notifications: NotificationRecord[];
   auditLog: AuditLogEntry[];
+  eventHistory: ActivityEventRecord[];
 };
 
 export type QueueActionDefinition = {
@@ -250,6 +251,16 @@ export type AuditLogEntry = {
   newState: StageAuditStateSnapshot | null;
   success: boolean;
   message: string;
+};
+
+export type ActivityEventRecord = {
+  id: string;
+  timestamp: string;
+  stageId: string | null;
+  eventType: "approval" | "evidence" | "funding" | "dispute" | "variation" | "release";
+  actor?: UserRole;
+  summary: string;
+  details?: Record<string, string | number | boolean | null>;
 };
 
 export type NotificationRecord = {
@@ -806,6 +817,7 @@ let snapshot: StageStoreSnapshot = {
   users: initialUsers,
   notifications: [],
   auditLog: [],
+  eventHistory: [],
 };
 
 initialProjectFunding.forEach((funding) => {

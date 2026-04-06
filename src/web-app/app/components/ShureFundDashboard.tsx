@@ -16,8 +16,10 @@ import {
   getDashboardDecisionSnapshot,
   getDashboardSummaryStrip,
   getFundingSummary,
+  getFundingSummarySentence,
   getLedgerTransactions,
   getOperationalSummary,
+  getProjectActivitySummary,
   getResponsibilityCue,
   getReleaseDecisions,
   getRoleJourneySummary,
@@ -89,6 +91,21 @@ function SectionCard({
   );
 }
 
+function formatRelativeTime(timestamp?: string | null) {
+  if (!timestamp) {
+    return "No recent activity";
+  }
+
+  const deltaMs = Math.max(Date.now() - new Date(timestamp).getTime(), 0);
+  const minutes = Math.round(deltaMs / 60000);
+  const hours = Math.round(deltaMs / 3600000);
+  const days = Math.round(deltaMs / 86400000);
+
+  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
 export default function ShureFundDashboard() {
   const [state, setState] = useState<SystemStateRecord>(() => initializeSystemState(initialSystemState));
   const [audienceMode, setAudienceMode] = useState<DashboardAudienceMode>("operations");
@@ -120,12 +137,9 @@ export default function ShureFundDashboard() {
   const summaryStrip = useMemo(() => getDashboardSummaryStrip(state, project.id), [state, project.id]);
   const decisionPack = useMemo(() => getDashboardDecisionPack(state, project.id), [state, project.id]);
   const decisionSnapshot = useMemo(() => getDashboardDecisionSnapshot(state, project.id), [state, project.id]);
-  const lockedFunds = fundingSummary.requiredCover + fundingSummary.frozenFunds;
+  const projectActivity = useMemo(() => getProjectActivitySummary(state, project.id), [state, project.id]);
   const shortfallActive = fundingSummary.shortfall > 0;
-  const fundingSummarySentence =
-    shortfallActive
-      ? `${currency.format(lockedFunds)} required (WIP + frozen) vs ${currency.format(fundingSummary.projectBalance)} available, leaving a ${currency.format(fundingSummary.shortfall)} shortfall`
-      : `${currency.format(lockedFunds)} of ${currency.format(fundingSummary.projectBalance)} is locked (WIP allocation + frozen), leaving ${currency.format(fundingSummary.releasableFunds)} available`;
+  const fundingSummarySentence = getFundingSummarySentence(fundingSummary);
 
   const selectedDecision = releaseDecisions.find((entry) => entry.stageId === selectedStageId)!;
   const primaryAction = actionQueue[0] ?? null;
@@ -217,7 +231,7 @@ export default function ShureFundDashboard() {
       ? "Focus on actions, blockers, approvals, evidence, and the shortest path to release."
       : audienceMode === "treasury"
         ? "Focus on releasable, frozen, and blocked value with treasury readiness and decision basis."
-        : "Focus on balance, protected funds, WIP allocation, frozen value, releasable value, and concise release confidence.";
+        : "Focus on balance, WIP, surplus capacity, frozen value, releasable value, and concise release confidence.";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.14),_transparent_30%),linear-gradient(180deg,#f9fbfc_0%,#f8fafc_46%,#eef5f6_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
@@ -298,50 +312,85 @@ export default function ShureFundDashboard() {
         </div>
 
         <SectionCard
-          title={audienceMode === "executive" ? "Decision Snapshot" : "Decision Pack"}
+          title="Recent Changes"
+          subtitle={`Last activity ${formatRelativeTime(projectActivity.lastActivityAt)}.`}
+        >
+          <div className="grid gap-3 lg:grid-cols-5">
+            {projectActivity.recentEvents.map((event) => (
+              <article key={event.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-900">{event.summary}</p>
+                  <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-slate-600">
+                    {event.eventType}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {(event.actor ?? "system").toString()} · {event.stageName ?? project.name}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">{formatRelativeTime(event.timestamp)}</p>
+              </article>
+            ))}
+            {projectActivity.recentEvents.length === 0 ? (
+              <p className="text-sm text-slate-500">No recent changes recorded.</p>
+            ) : null}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Decision Pack"
           subtitle={
             audienceMode === "executive"
-              ? "A compact board-grade snapshot of current funding and release position."
-              : "A shareable decision snapshot derived from the live operating state."
+              ? "Report-safe summary of current funding, release posture, and control confidence."
+              : "Shareable decision summary derived directly from the live operating state."
           }
         >
-          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Board Commentary</p>
-              <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                <p>{decisionPack.fundingPositionLine}</p>
-                <p>{decisionPack.releasePostureLine}</p>
-                <p>{decisionPack.blockerThemeLine}</p>
-                <p>{decisionPack.treasuryConfidenceLine}</p>
-                <p>{decisionPack.disputeExposureLine}</p>
-              </div>
+          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-2 border-b border-slate-200 pb-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Formal Reporting View</p>
+              <h3 className="text-xl font-semibold text-slate-950">Current Decision Pack</h3>
+              <p className="text-sm text-slate-600">Prepared from the same live funding, release, blocker, and activity state shown elsewhere in the dashboard.</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Decision Snapshot</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">Narrative Summary</p>
+                <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                  <p>{decisionPack.fundingPositionLine}</p>
+                  <p>{decisionPack.releasePostureLine}</p>
+                  <p>{decisionPack.blockerThemeLine}</p>
+                  <p>{decisionPack.treasuryConfidenceLine}</p>
+                  <p>{decisionPack.disputeExposureLine}</p>
+                  <p>{decisionPack.latestMaterialActivityLine}</p>
+                </div>
+                <p className="mt-4 text-xs text-slate-500">Key decision basis: {decisionSnapshot.keyDecisionBasis}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">Decision Snapshot</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-white p-3">
                   <p className="text-xs text-slate-500">Balance</p>
                   <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.balance)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Protected Funds</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.protectedFunds)}</p>
+                  <p className="text-xs text-slate-500">WIP</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.wip)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Allocated for WIP</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.allocatedForWip)}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Frozen</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.frozen)}</p>
+                  <p className="text-xs text-slate-500">{decisionSnapshot.shortfall > 0 ? "Shortfall" : "Surplus"}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">
+                    {currency.format(decisionSnapshot.shortfall > 0 ? decisionSnapshot.shortfall : decisionSnapshot.surplus)}
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-white p-3">
                   <p className="text-xs text-slate-500">Releasable</p>
                   <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.releasable)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Shortfall</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.shortfall)}</p>
+                  <p className="text-xs text-slate-500">Frozen</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.frozen)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">In progress</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.inProgress)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-3">
                   <p className="text-xs text-slate-500">Release-ready</p>
@@ -352,7 +401,17 @@ export default function ShureFundDashboard() {
                   <p className="mt-1 text-sm font-semibold text-slate-950">{decisionSnapshot.blockedCount}</p>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-slate-500">Key decision basis: {decisionSnapshot.keyDecisionBasis}</p>
+                <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Principal blocker</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.blockerThemeLine.replace("Principal blocker theme: ", "")}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Treasury confidence</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryConfidenceLine}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </SectionCard>
@@ -399,9 +458,9 @@ export default function ShureFundDashboard() {
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
                   {audienceMode === "executive" ? (
                     <>
-                      <span className="rounded-full bg-white px-3 py-1">Protected Funds: {currency.format(fundingSummary.ringfencedFunds)}</span>
+                      <span className="rounded-full bg-white px-3 py-1">WIP: {currency.format(fundingSummary.wipTotal)}</span>
                       <span className="rounded-full bg-white px-3 py-1">Frozen: {currency.format(summaryStrip.frozenValue)}</span>
-                      <span className="rounded-full bg-white px-3 py-1">Shortfall: {currency.format(fundingSummary.shortfall)}</span>
+                      <span className="rounded-full bg-white px-3 py-1">{shortfallActive ? "Shortfall" : "Surplus"}: {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}</span>
                     </>
                   ) : (
                     <>
@@ -432,8 +491,9 @@ export default function ShureFundDashboard() {
               <p className="mt-1 text-lg font-semibold text-slate-950">{selectedDecision.explanation.label}</p>
               <p className="mt-2 text-sm text-slate-600">{selectedDecision.explanation.reason}</p>
               <p className="mt-2 text-xs text-slate-500">
-                Releasable {currency.format(selectedDecision.releasableAmount)} · Frozen {currency.format(selectedDecision.frozenAmount)} · Blocked {currency.format(selectedDecision.blockedAmount)}
+                Releasable {currency.format(selectedDecision.releasableAmount)} · Frozen {currency.format(selectedDecision.frozenAmount)} · In progress {currency.format(selectedDecision.blockedAmount)}
               </p>
+              <p className="mt-2 text-xs text-slate-500">Updated {formatRelativeTime(stageDetail.lastUpdatedAt)}</p>
               <p className="mt-2 text-xs text-slate-500">Decision basis: {selectedDecision.explanation.decisionBasis}</p>
               <p className="mt-2 text-xs text-slate-500">Next step: {stageDetail.operationalStatus.nextStep}</p>
             </div>
@@ -489,10 +549,11 @@ export default function ShureFundDashboard() {
             audienceMode === "operations"
               ? "Funding remains visible, but operational progression and blockers stay primary."
               : audienceMode === "treasury"
-                ? "Treasury control position for total cash, protected funds, allocated WIP, frozen value, and releasable value."
-                : "Executive balance view across protected funds, allocated WIP, frozen value, and releasable value."
+                ? "Treasury control position for total cash, WIP, surplus capacity, frozen value, and releasable value."
+                : "Executive balance view across total cash, WIP, surplus capacity, frozen value, and releasable value."
           }
         >
+          <p className="mb-3 text-xs text-slate-500">Updated {formatRelativeTime(projectActivity.lastActivityAt)}</p>
           <div
             className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
               shortfallActive
@@ -506,40 +567,40 @@ export default function ShureFundDashboard() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm text-slate-500">Balance</p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.projectBalance)}</p>
-              <p className="mt-2 text-xs text-slate-500">Total cash</p>
+              <p className="mt-2 text-xs text-slate-500">Cash held in trust</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">Allocated for WIP</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.requiredCover)}</p>
-              <p className="mt-2 text-xs text-slate-500">Reserved to safely deliver work</p>
-            </div>
-            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-4">
-              <p className="text-sm text-slate-700">Frozen</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{currency.format(fundingSummary.frozenFunds)}</p>
-              <p className="mt-2 text-xs text-slate-700">Unavailable</p>
+              <p className="text-sm text-slate-500">WIP</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.wipTotal)}</p>
+              <p className="mt-2 text-xs text-slate-500">Committed work this period</p>
             </div>
             <div
               className={`rounded-2xl border p-4 ${
                 shortfallActive ? "border-slate-200 bg-slate-50" : "border-teal-200 bg-teal-50"
               }`}
             >
-              <p className={`text-sm ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>Releasable</p>
+              <p className={`text-sm ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>{shortfallActive ? "Shortfall" : "Surplus"}</p>
               <p className={`mt-2 text-2xl font-semibold ${shortfallActive ? "text-slate-950" : "text-teal-950"}`}>
-                {currency.format(fundingSummary.releasableFunds)}
+                {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}
               </p>
-              <p className={`mt-2 text-xs ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>Available now</p>
+              <p className={`mt-2 text-xs ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>
+                {shortfallActive ? "Cash below current WIP" : "Cash not yet committed to WIP"}
+              </p>
             </div>
-            {shortfallActive ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm text-amber-900">Shortfall</p>
-                <p className="mt-2 text-2xl font-semibold text-amber-950">{currency.format(fundingSummary.shortfall)}</p>
-                <p className="mt-2 text-xs text-amber-900">Additional cash needed</p>
-              </div>
-            ) : null}
+            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+              <p className="text-sm text-teal-900">Releasable</p>
+              <p className="mt-2 text-2xl font-semibold text-teal-950">{currency.format(fundingSummary.releasableFunds)}</p>
+              <p className="mt-2 text-xs text-teal-900">Approved value within WIP</p>
+            </div>
+            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-4">
+              <p className="text-sm text-slate-700">Frozen</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{currency.format(fundingSummary.frozenFunds)}</p>
+              <p className="mt-2 text-xs text-slate-700">Disputed value within WIP</p>
+            </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">Protected Funds</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</p>
-              <p className="mt-2 text-xs text-slate-500">After reserve buffer</p>
+              <p className="text-sm text-slate-500">In progress</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.inProgressFunds)}</p>
+              <p className="mt-2 text-xs text-slate-500">Committed work not yet approved</p>
             </div>
           </div>
 
@@ -562,31 +623,31 @@ export default function ShureFundDashboard() {
                     <span className="font-medium text-slate-950">{currency.format(fundingSummary.projectBalance)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span>Less reserve</span>
-                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.reserveBuffer)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span>Equals Protected Funds</span>
-                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span>Less Allocated for WIP</span>
-                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.requiredCover)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span>Less Frozen</span>
-                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.frozenFunds)}</span>
+                    <span>Less WIP</span>
+                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.wipTotal)}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-200 pt-3 text-base">
-                    <span className="font-semibold text-slate-900">Equals Releasable</span>
-                    <span className="font-semibold text-teal-950">{currency.format(fundingSummary.releasableFunds)}</span>
+                    <span className="font-semibold text-slate-900">{shortfallActive ? "Shortfall" : "Surplus"}</span>
+                    <span className={`font-semibold ${shortfallActive ? "text-amber-950" : "text-teal-950"}`}>
+                      {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}
+                    </span>
                   </div>
-                  {fundingSummary.shortfall > 0 ? (
-                    <div className="flex items-center justify-between gap-4 pt-1 text-sm text-amber-900">
-                      <span>Shortfall</span>
-                      <span className="font-medium">{currency.format(fundingSummary.shortfall)}</span>
-                    </div>
-                  ) : null}
+                  <div className="mt-2 flex items-center justify-between gap-4 pt-1 text-sm">
+                    <span>WIP breakdown</span>
+                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.wipTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm text-slate-700">
+                    <span>Releasable</span>
+                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.releasableFunds)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm text-slate-700">
+                    <span>Frozen</span>
+                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.frozenFunds)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm text-slate-700">
+                    <span>In progress</span>
+                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.inProgressFunds)}</span>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -633,7 +694,22 @@ export default function ShureFundDashboard() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{summary.stageName}</p>
-                        <span className="text-sm">{detail.operationalStatus.label}</span>
+                        <div className="flex items-center gap-2">
+                          {detail.notificationCue ? (
+                            <span
+                              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                                detail.notificationCue.tone === "positive"
+                                  ? "bg-teal-50 text-teal-900"
+                                  : detail.notificationCue.tone === "warning"
+                                    ? "bg-amber-50 text-amber-900"
+                                    : "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {detail.notificationCue.label}
+                            </span>
+                          ) : null}
+                          <span className="text-sm">{detail.operationalStatus.label}</span>
+                        </div>
                       </div>
                       <p className="mt-2 text-sm opacity-80">
                         {detail.operationalStatus.reason}
@@ -641,6 +717,7 @@ export default function ShureFundDashboard() {
                       <p className="mt-1 text-xs opacity-70">
                         {detail.treasuryReadiness.label} · Releasable {currency.format(detail.releaseDecision.releasableAmount)} · Frozen {currency.format(detail.disputeSummary.frozenValue)}
                       </p>
+                      <p className="mt-1 text-xs opacity-60">Updated {formatRelativeTime(detail.lastUpdatedAt)}</p>
                     </button>
                   );
                 })}
@@ -803,7 +880,7 @@ export default function ShureFundDashboard() {
                         {decision.explanation.reason}
                       </p>
                       <p className="mt-2 text-xs text-slate-500">
-                        Releasable {currency.format(decision.releasableAmount)} · Frozen {currency.format(decision.frozenAmount)} · Blocked {currency.format(decision.blockedAmount)}
+                        Releasable {currency.format(decision.releasableAmount)} · Frozen {currency.format(decision.frozenAmount)} · In progress {currency.format(decision.blockedAmount)}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">Decision basis: {decision.explanation.decisionBasis}</p>
                     </div>
@@ -881,7 +958,7 @@ export default function ShureFundDashboard() {
                 <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm text-slate-500">Complete</p>
                   <div className="mt-2 grid gap-2 text-sm text-slate-700">
-                    <p>{stageDetail.fundingState === "funded" ? "Funding ready" : "Funding pending"}</p>
+                    <p>{stageDetail.fundingStatusLabel === "Covered by balance" ? "Balance covers current WIP" : "Balance is below current WIP"}</p>
                     <p>{stageDetail.evidenceState === "accepted" ? "Evidence ready" : "Evidence pending"}</p>
                     <p>{stageDetail.approvalState === "approved" ? "Approval ready" : "Approval pending"}</p>
                   </div>
@@ -925,20 +1002,20 @@ export default function ShureFundDashboard() {
             </div>
 
             <div className="mt-5">
-              <h3 className="text-sm font-semibold text-slate-900">Immutable Audit Log</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Audit Trail</h3>
               <div className="mt-3 grid gap-3">
-                {state.auditLog.map((entry) => (
+                {projectActivity.recentEvents.map((entry) => (
                   <article key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="font-medium text-slate-900">{entry.action.replaceAll("_", " ")}</p>
+                    <p className="font-medium text-slate-900">{entry.summary}</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {entry.user} · {entry.entity} · {entry.entityId}
+                      {(entry.actor ?? "system").toString()} · {entry.stageName ?? project.name}
                     </p>
                     <p className="mt-2 text-xs text-slate-400">
                       {entry.eventType} · {new Date(entry.timestamp).toLocaleString("en-GB")}
                     </p>
                   </article>
                 ))}
-                {state.auditLog.length === 0 ? <p className="text-sm text-slate-500">No actions recorded yet.</p> : null}
+                {projectActivity.recentEvents.length === 0 ? <p className="text-sm text-slate-500">No actions recorded yet.</p> : null}
               </div>
             </div>
           </SectionCard>

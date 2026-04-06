@@ -164,6 +164,20 @@ export interface AuditLogRecord {
   timestamp: string;
 }
 
+export type SystemEventType = "approval" | "evidence" | "funding" | "dispute" | "variation" | "release";
+
+export type SystemEventDetails = Record<string, string | number | boolean | null>;
+
+export interface SystemEventRecord {
+  id: string;
+  timestamp: string;
+  stageId?: string;
+  eventType: SystemEventType;
+  actor?: UserRole;
+  summary: string;
+  details?: SystemEventDetails;
+}
+
 export interface SystemStageRecord extends StageRecordV2 {
   evidenceRequirementIds: string[];
   requiredApprovalRoles: ApprovalRole[];
@@ -188,4 +202,5 @@ export interface SystemStateRecord {
   ledgerAccounts: LedgerAccountRecord[];
   ledgerEntries: LedgerEntryRecord[];
   auditLog: AuditLogRecord[];
+  eventHistory: SystemEventRecord[];
 }

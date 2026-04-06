@@ -1,5 +1,5 @@
 import type { FundingSourceType } from "@/lib/shureFundModels";
-import type { FundingSummary } from "@/lib/systemState";
+import { getFundingSummarySentence, type FundingSummary } from "@/lib/systemState";
 
 const currency = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -33,39 +33,42 @@ export default function LedgerSummaryCard({
   const fundingSourceSelected = fundingSource === "funder" || fundingSource === "contractor";
   const addFundsEnabled = canAddFunds && validAmount && fundingSourceSelected;
   const shortfallActive = fundingSummary.shortfall > 0;
-  const lockedFunds = fundingSummary.requiredCover + fundingSummary.frozenFunds;
-  const fundingSummarySentence = shortfallActive
-    ? `${currency.format(lockedFunds)} required (WIP + frozen) vs ${currency.format(fundingSummary.projectBalance)} available, leaving a ${currency.format(fundingSummary.shortfall)} shortfall`
-    : `${currency.format(lockedFunds)} of ${currency.format(fundingSummary.projectBalance)} is locked (WIP allocation + frozen), leaving ${currency.format(fundingSummary.releasableFunds)} available`;
+  const fundingSummarySentence = getFundingSummarySentence(fundingSummary);
   const metricCards = [
     {
       label: "Balance",
       value: fundingSummary.projectBalance,
-      helper: "Total cash",
+      helper: "Cash held in trust",
       tone: "default",
     },
     {
-      label: "Allocated for WIP",
-      value: fundingSummary.requiredCover,
-      helper: "Reserved to safely deliver work",
+      label: "WIP",
+      value: fundingSummary.wipTotal,
+      helper: "Committed work this period",
       tone: "default",
+    },
+    {
+      label: shortfallActive ? "Shortfall" : "Surplus",
+      value: shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash,
+      helper: shortfallActive ? "Cash below current WIP" : "Cash not yet committed to WIP",
+      tone: shortfallActive ? "warning" : "positive",
+    },
+    {
+      label: "Releasable",
+      value: fundingSummary.releasableFunds,
+      helper: "Approved value within WIP",
+      tone: "positive",
     },
     {
       label: "Frozen",
       value: fundingSummary.frozenFunds,
-      helper: "Unavailable",
+      helper: "Disputed value within WIP",
       tone: "frozen",
     },
     {
-      label: shortfallActive ? "Shortfall" : "Releasable",
-      value: shortfallActive ? fundingSummary.shortfall : fundingSummary.releasableFunds,
-      helper: shortfallActive ? "Additional cash needed" : "Available now",
-      tone: shortfallActive ? "warning" : "positive",
-    },
-    {
-      label: "Protected Funds",
-      value: fundingSummary.ringfencedFunds,
-      helper: "After reserve buffer",
+      label: "In progress",
+      value: fundingSummary.inProgressFunds,
+      helper: "Committed work not yet approved",
       tone: "default",
     },
   ] as const;
