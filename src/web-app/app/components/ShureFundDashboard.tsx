@@ -11,9 +11,14 @@ import {
   createVariation,
   depositFunds,
   getActionQueue,
+  getBlockerResponsibilityCue,
+  getDashboardDecisionPack,
+  getDashboardDecisionSnapshot,
+  getDashboardSummaryStrip,
   getFundingSummary,
   getLedgerTransactions,
   getOperationalSummary,
+  getResponsibilityCue,
   getReleaseDecisions,
   getRoleJourneySummary,
   getStageBlockers,
@@ -27,6 +32,7 @@ import {
   reviewVariation,
   setCurrentUser,
   updateEvidenceStatus,
+  type DashboardAudienceMode,
 } from "@/lib/systemState";
 import type {
   EvidenceStatus,
@@ -85,6 +91,7 @@ function SectionCard({
 
 export default function ShureFundDashboard() {
   const [state, setState] = useState<SystemStateRecord>(() => initializeSystemState(initialSystemState));
+  const [audienceMode, setAudienceMode] = useState<DashboardAudienceMode>("operations");
   const [selectedStageId, setSelectedStageId] = useState("stage-foundation");
   const [depositAmount, setDepositAmount] = useState("50000");
   const [fundingSource, setFundingSource] = useState<FundingSourceType | "">("");
@@ -110,8 +117,31 @@ export default function ShureFundDashboard() {
   const stageBlockers = useMemo(() => getStageBlockers(state, selectedStageId), [state, selectedStageId]);
   const ledgerTransactions = useMemo(() => getLedgerTransactions(state, project.id), [state, project.id]);
   const journey = useMemo(() => getRoleJourneySummary(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
+  const summaryStrip = useMemo(() => getDashboardSummaryStrip(state, project.id), [state, project.id]);
+  const decisionPack = useMemo(() => getDashboardDecisionPack(state, project.id), [state, project.id]);
+  const decisionSnapshot = useMemo(() => getDashboardDecisionSnapshot(state, project.id), [state, project.id]);
+  const lockedFunds = fundingSummary.requiredCover + fundingSummary.frozenFunds;
+  const shortfallActive = fundingSummary.shortfall > 0;
+  const fundingSummarySentence =
+    shortfallActive
+      ? `${currency.format(lockedFunds)} required (WIP + frozen) vs ${currency.format(fundingSummary.projectBalance)} available, leaving a ${currency.format(fundingSummary.shortfall)} shortfall`
+      : `${currency.format(lockedFunds)} of ${currency.format(fundingSummary.projectBalance)} is locked (WIP allocation + frozen), leaving ${currency.format(fundingSummary.releasableFunds)} available`;
 
   const selectedDecision = releaseDecisions.find((entry) => entry.stageId === selectedStageId)!;
+  const primaryAction = actionQueue[0] ?? null;
+  const primaryActionDetail = useMemo(
+    () => (primaryAction ? getStageDetail(state, primaryAction.stageId) : null),
+    [primaryAction, state],
+  );
+  const primaryResponsibilityCue = primaryAction
+    ? getResponsibilityCue(primaryAction.primaryAction.actionableBy, primaryAction.primaryAction.actionType)
+    : null;
+  const blockerSummaryText =
+    stageBlockers.length === 0
+      ? "No active blockers."
+      : stageBlockers.length === 1
+        ? stageBlockers[0].label
+        : `${stageBlockers[0].label} + ${stageBlockers.length - 1} more blocker${stageBlockers.length - 1 === 1 ? "" : "s"}.`;
   const parsedDepositAmount = Number(depositAmount);
   const canAddFunds =
     !isAddingFunds &&
@@ -176,6 +206,19 @@ export default function ShureFundDashboard() {
     setVariationReason("");
   }
 
+  const modeTitle =
+    audienceMode === "operations"
+      ? "Operations"
+      : audienceMode === "treasury"
+        ? "Treasury"
+        : "Executive";
+  const modeSummary =
+    audienceMode === "operations"
+      ? "Focus on actions, blockers, approvals, evidence, and the shortest path to release."
+      : audienceMode === "treasury"
+        ? "Focus on releasable, frozen, and blocked value with treasury readiness and decision basis."
+        : "Focus on balance, protected funds, WIP allocation, frozen value, releasable value, and concise release confidence.";
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.14),_transparent_30%),linear-gradient(180deg,#f9fbfc_0%,#f8fafc_46%,#eef5f6_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -210,39 +253,294 @@ export default function ShureFundDashboard() {
               </div>
             </div>
           </div>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setAudienceMode(mode)}
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  audienceMode === mode ? "bg-white text-slate-950" : "bg-white/10 text-white"
+                }`}
+              >
+                {mode === "operations" ? "Operations" : mode === "treasury" ? "Treasury" : "Executive"}
+              </button>
+            ))}
+            <p className="text-sm text-slate-300">{modeTitle} view. {modeSummary}</p>
+          </div>
         </section>
 
-        <JourneySummaryCard journey={journey} />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Release-ready</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.releaseReadyPackages}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Partially blocked</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.partiallyBlockedPackages}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Treasury ready</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.treasuryReadyPackages}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Treasury review</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.treasuryReviewRequiredPackages}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Frozen value</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(summaryStrip.frozenValue)}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Releasable now</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(summaryStrip.releasableNow)}</p>
+          </div>
+        </div>
 
-        <SectionCard title="Funding Position" subtitle="A single auditable view of protected funds, required cover, frozen value, and what is currently releasable.">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <SectionCard
+          title={audienceMode === "executive" ? "Decision Snapshot" : "Decision Pack"}
+          subtitle={
+            audienceMode === "executive"
+              ? "A compact board-grade snapshot of current funding and release position."
+              : "A shareable decision snapshot derived from the live operating state."
+          }
+        >
+          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Board Commentary</p>
+              <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                <p>{decisionPack.fundingPositionLine}</p>
+                <p>{decisionPack.releasePostureLine}</p>
+                <p>{decisionPack.blockerThemeLine}</p>
+                <p>{decisionPack.treasuryConfidenceLine}</p>
+                <p>{decisionPack.disputeExposureLine}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Decision Snapshot</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Balance</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.balance)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Protected Funds</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.protectedFunds)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Allocated for WIP</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.allocatedForWip)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Frozen</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.frozen)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Releasable</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.releasable)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Shortfall</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.shortfall)}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Release-ready</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{decisionSnapshot.releaseReadyCount}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <p className="text-xs text-slate-500">Blocked</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{decisionSnapshot.blockedCount}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">Key decision basis: {decisionSnapshot.keyDecisionBasis}</p>
+            </div>
+          </div>
+        </SectionCard>
+
+        {audienceMode === "operations" ? <JourneySummaryCard journey={journey} /> : null}
+
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr_1fr]">
+          {audienceMode !== "treasury" ? (
+          <SectionCard
+            title={audienceMode === "executive" ? "Executive Summary" : "Primary Next Action"}
+            subtitle={
+              audienceMode === "executive"
+                ? "A concise sponsor view of release confidence and cash position."
+                : "The single action most likely to move work forward next."
+            }
+          >
+            {primaryAction ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-500">
+                      {audienceMode === "executive" ? `${summaryStrip.releaseReadyPackages} ready · ${summaryStrip.blockedPackages} blocked` : primaryAction.stageName}
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-slate-950">
+                      {audienceMode === "executive" ? `Releasable now ${currency.format(summaryStrip.releasableNow)}` : primaryAction.primaryAction.title}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {audienceMode === "executive"
+                        ? selectedDecision.explanation.reason
+                        : primaryAction.primaryAction.detail}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Decision basis: {audienceMode === "executive"
+                        ? selectedDecision.explanation.decisionBasis
+                        : primaryActionDetail?.releaseDecision.explanation.decisionBasis ?? "Based on current control state."}
+                    </p>
+                  </div>
+                  {audienceMode !== "executive" ? (
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[primaryAction.priority]}`}>
+                      {primaryAction.priority}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                  {audienceMode === "executive" ? (
+                    <>
+                      <span className="rounded-full bg-white px-3 py-1">Protected Funds: {currency.format(fundingSummary.ringfencedFunds)}</span>
+                      <span className="rounded-full bg-white px-3 py-1">Frozen: {currency.format(summaryStrip.frozenValue)}</span>
+                      <span className="rounded-full bg-white px-3 py-1">Shortfall: {currency.format(fundingSummary.shortfall)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="rounded-full bg-white px-3 py-1">Responsibility: {primaryResponsibilityCue}</span>
+                      <span className="rounded-full bg-white px-3 py-1">{primaryAction.operationalStatus.label}</span>
+                      <span className="rounded-full bg-white px-3 py-1">Next step: {primaryAction.operationalStatus.nextStep}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No immediate action is required.</p>
+            )}
+          </SectionCard>
+          ) : null}
+
+          <SectionCard title="Release Decision" subtitle="Operational release state for the selected Work Package.">
+            <div
+              className={`rounded-2xl border p-4 ${
+                selectedDecision.explanation.tone === "positive"
+                  ? "border-teal-200 bg-teal-50"
+                  : selectedDecision.explanation.tone === "warning"
+                    ? "border-amber-200 bg-amber-50"
+                    : "border-slate-300 bg-slate-100"
+              }`}
+            >
+              <p className="text-sm text-slate-500">{stageDetail.stage.name}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-950">{selectedDecision.explanation.label}</p>
+              <p className="mt-2 text-sm text-slate-600">{selectedDecision.explanation.reason}</p>
+              <p className="mt-2 text-xs text-slate-500">
+                Releasable {currency.format(selectedDecision.releasableAmount)} · Frozen {currency.format(selectedDecision.frozenAmount)} · Blocked {currency.format(selectedDecision.blockedAmount)}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">Decision basis: {selectedDecision.explanation.decisionBasis}</p>
+              <p className="mt-2 text-xs text-slate-500">Next step: {stageDetail.operationalStatus.nextStep}</p>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title={audienceMode === "treasury" ? "Control Confidence" : audienceMode === "executive" ? "Release Confidence" : "Blocker Summary"}
+            subtitle={
+              audienceMode === "treasury"
+                ? "Treasury and control confidence for the selected Work Package."
+                : audienceMode === "executive"
+                  ? "Concise confidence cues for sponsor review."
+                  : "Current blockers and operational ownership for the selected Work Package."
+            }
+          >
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">{stageDetail.treasuryReadiness.label}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-950">{blockerSummaryText}</p>
+              <p className="mt-2 text-sm text-slate-600">{stageDetail.treasuryReadiness.reason}</p>
+              <p className="mt-2 text-xs text-slate-500">Decision basis: {selectedDecision.explanation.decisionBasis}</p>
+              {stageBlockers[0] ? (
+                <p className="mt-2 text-xs text-slate-500">Responsibility: {getBlockerResponsibilityCue(stageBlockers[0].code)}</p>
+              ) : null}
+            </div>
+          </SectionCard>
+
+          {audienceMode === "treasury" ? (
+            <SectionCard title="Primary Next Action" subtitle="The single action most likely to move treasury controls forward next.">
+              {primaryAction ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">{primaryAction.stageName}</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-950">{primaryAction.primaryAction.title}</p>
+                  <p className="mt-2 text-sm text-slate-600">{primaryAction.primaryAction.detail}</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Decision basis: {primaryActionDetail?.releaseDecision.explanation.decisionBasis ?? "Based on current control state."}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-white px-3 py-1">Responsibility: {primaryResponsibilityCue}</span>
+                    <span className="rounded-full bg-white px-3 py-1">{primaryAction.operationalStatus.label}</span>
+                    <span className="rounded-full bg-white px-3 py-1">Next step: {primaryAction.operationalStatus.nextStep}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No immediate treasury action is required.</p>
+              )}
+            </SectionCard>
+          ) : null}
+        </div>
+
+        <SectionCard
+          title="Funding Position"
+          subtitle={
+            audienceMode === "operations"
+              ? "Funding remains visible, but operational progression and blockers stay primary."
+              : audienceMode === "treasury"
+                ? "Treasury control position for total cash, protected funds, allocated WIP, frozen value, and releasable value."
+                : "Executive balance view across protected funds, allocated WIP, frozen value, and releasable value."
+          }
+        >
+          <div
+            className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
+              shortfallActive
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-teal-200 bg-teal-50 text-teal-950"
+            }`}
+          >
+            {fundingSummarySentence}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm text-slate-500">Balance</p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.projectBalance)}</p>
-              <p className="mt-2 text-xs text-slate-500">Total cash held across project and Work Package accounts.</p>
+              <p className="mt-2 text-xs text-slate-500">Total cash</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">Ringfenced</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</p>
-              <p className="mt-2 text-xs text-slate-500">Protected funds held for delivery after the reserve is set aside.</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">Required Cover</p>
+              <p className="text-sm text-slate-500">Allocated for WIP</p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.requiredCover)}</p>
-              <p className="mt-2 text-xs text-slate-500">Projected 30-day work in progress plus the reserve buffer.</p>
+              <p className="mt-2 text-xs text-slate-500">Reserved to safely deliver work</p>
             </div>
-            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
-              <p className="text-sm text-teal-900">Releasable</p>
-              <p className="mt-2 text-2xl font-semibold text-teal-950">{currency.format(fundingSummary.releasableFunds)}</p>
-              <p className="mt-2 text-xs text-teal-900">Excess above required cover, excluding frozen disputed value.</p>
+            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-4">
+              <p className="text-sm text-slate-700">Frozen</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{currency.format(fundingSummary.frozenFunds)}</p>
+              <p className="mt-2 text-xs text-slate-700">Unavailable</p>
             </div>
-            {fundingSummary.shortfall > 0 ? (
+            <div
+              className={`rounded-2xl border p-4 ${
+                shortfallActive ? "border-slate-200 bg-slate-50" : "border-teal-200 bg-teal-50"
+              }`}
+            >
+              <p className={`text-sm ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>Releasable</p>
+              <p className={`mt-2 text-2xl font-semibold ${shortfallActive ? "text-slate-950" : "text-teal-950"}`}>
+                {currency.format(fundingSummary.releasableFunds)}
+              </p>
+              <p className={`mt-2 text-xs ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>Available now</p>
+            </div>
+            {shortfallActive ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm text-amber-900">Shortfall</p>
                 <p className="mt-2 text-2xl font-semibold text-amber-950">{currency.format(fundingSummary.shortfall)}</p>
-                <p className="mt-2 text-xs text-amber-900">Additional protected funds are needed to meet required cover.</p>
+                <p className="mt-2 text-xs text-amber-900">Additional cash needed</p>
               </div>
             ) : null}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Protected Funds</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</p>
+              <p className="mt-2 text-xs text-slate-500">After reserve buffer</p>
+            </div>
           </div>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50">
@@ -268,11 +566,11 @@ export default function ShureFundDashboard() {
                     <span className="font-medium text-slate-950">-{currency.format(fundingSummary.reserveBuffer)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span>Equals Ringfenced</span>
+                    <span>Equals Protected Funds</span>
                     <span className="font-medium text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span>Less Required Cover</span>
+                    <span>Less Allocated for WIP</span>
                     <span className="font-medium text-slate-950">-{currency.format(fundingSummary.requiredCover)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
@@ -297,19 +595,28 @@ export default function ShureFundDashboard() {
 
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
           <div className="grid gap-6">
-            <LedgerSummaryCard
-              fundingSummary={fundingSummary}
-              depositAmount={depositAmount}
-              fundingSource={fundingSource}
-              selectedWorkPackageName={stageDetail.stage.name}
-              onDepositAmountChange={setDepositAmount}
-              onFundingSourceChange={setFundingSource}
-              onAddFunds={handleDeposit}
-              canAddFunds={canAddFunds}
-              addFundsHelperText={addFundsHelperText}
-            />
+            {audienceMode !== "executive" ? (
+              <LedgerSummaryCard
+                fundingSummary={fundingSummary}
+                depositAmount={depositAmount}
+                fundingSource={fundingSource}
+                selectedWorkPackageName={stageDetail.stage.name}
+                onDepositAmountChange={setDepositAmount}
+                onFundingSourceChange={setFundingSource}
+                onAddFunds={handleDeposit}
+                canAddFunds={canAddFunds}
+                addFundsHelperText={addFundsHelperText}
+              />
+            ) : null}
 
-            <SectionCard title="Work Packages" subtitle="Select a Work Package to inspect funding, supporting information, approvals, disputes, variations, and drawdown status.">
+            <SectionCard
+              title={audienceMode === "executive" ? "Package Decisions" : "Work Packages"}
+              subtitle={
+                audienceMode === "executive"
+                  ? "Concise package-level release and block status."
+                  : "Select a Work Package to inspect funding, supporting information, approvals, disputes, variations, and drawdown status."
+              }
+            >
               <div className="grid gap-3">
                 {fundingSummary.stageSummaries.map((summary) => {
                   const detail = getStageDetail(state, summary.stageId);
@@ -326,10 +633,13 @@ export default function ShureFundDashboard() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{summary.stageName}</p>
-                        <span className="text-sm">Shortfall {currency.format(summary.gapToRequiredCover)}</span>
+                        <span className="text-sm">{detail.operationalStatus.label}</span>
                       </div>
                       <p className="mt-2 text-sm opacity-80">
-                        Releasable {currency.format(detail.releaseDecision.releasable ? detail.payableValue : 0)} · Frozen {currency.format(detail.frozenValue)}
+                        {detail.operationalStatus.reason}
+                      </p>
+                      <p className="mt-1 text-xs opacity-70">
+                        {detail.treasuryReadiness.label} · Releasable {currency.format(detail.releaseDecision.releasableAmount)} · Frozen {currency.format(detail.disputeSummary.frozenValue)}
                       </p>
                     </button>
                   );
@@ -337,47 +647,59 @@ export default function ShureFundDashboard() {
               </div>
             </SectionCard>
 
-            <LedgerTransactionsList transactions={ledgerTransactions} />
+            {audienceMode === "treasury" ? <LedgerTransactionsList transactions={ledgerTransactions} /> : null}
 
-            <SectionCard title="Action Queue" subtitle="System-driven actions grouped by Work Package, with counts and priority.">
+            {audienceMode !== "executive" ? (
+            <SectionCard
+              title="Action Queue"
+              subtitle={
+                audienceMode === "treasury"
+                  ? "One clear next control step per Work Package, sorted by treasury impact and urgency."
+                  : "One clear next step per Work Package, sorted by release impact and urgency."
+              }
+            >
               <div className="grid gap-3">
                 {actionQueue.map((item) => (
                   <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-medium text-slate-900">{item.stageName}</p>
-                        <p className="mt-1 text-sm text-slate-500">{item.actionCount} grouped action(s)</p>
+                        <p className="mt-1 text-sm text-slate-500">{item.operationalStatus.label}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>
                         {item.priority}
                       </span>
                     </div>
-                    <div className="mt-3 grid gap-2">
-                      {item.groupedActions.map((group) => (
-                        <div key={`${item.id}-${group.actionType}-${group.actionableBy}`} className="rounded-2xl bg-white p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-medium text-slate-900">{group.title}</p>
-                              <p className="mt-1 text-sm text-slate-500">{group.detail}</p>
-                            </div>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">x{group.count}</span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                            <span className="rounded-full bg-slate-50 px-3 py-1">Owner: {group.actionableBy}</span>
-                            <span className="rounded-full bg-slate-50 px-3 py-1">{group.actionType.replaceAll("_", " ")}</span>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="mt-3 rounded-2xl bg-white p-3">
+                      <p className="text-sm font-medium text-slate-900">{item.primaryAction.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">{item.primaryAction.detail}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="rounded-full bg-slate-50 px-3 py-1">
+                          Responsibility: {getResponsibilityCue(item.primaryAction.actionableBy, item.primaryAction.actionType)}
+                        </span>
+                        <span className="rounded-full bg-slate-50 px-3 py-1">Next step: {item.operationalStatus.nextStep}</span>
+                        {item.groupedActions.length > 1 ? (
+                          <span className="rounded-full bg-slate-50 px-3 py-1">+{item.groupedActions.length - 1} supporting action{item.groupedActions.length - 1 === 1 ? "" : "s"}</span>
+                        ) : null}
+                      </div>
                     </div>
                   </article>
                 ))}
                 {actionQueue.length === 0 ? <p className="text-sm text-slate-500">No pending actions.</p> : null}
               </div>
             </SectionCard>
+            ) : null}
           </div>
 
           <div className="grid gap-6">
-            <SectionCard title="Control Summary" subtitle="Workflow states recomputed from funding, supporting information, approvals, disputes, variations, and release records.">
+            <SectionCard
+              title={audienceMode === "executive" ? "Executive Controls" : "Control Summary"}
+              subtitle={
+                audienceMode === "executive"
+                  ? "Blocked and release-ready package counts in one concise control view."
+                  : "Workflow states recomputed from funding, supporting information, approvals, disputes, variations, and release records."
+              }
+            >
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-slate-100 p-4">
                   <p className="text-sm text-slate-700">Blocked</p>
@@ -432,9 +754,16 @@ export default function ShureFundDashboard() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Drawdown Decisions" subtitle="Drawdown is allowed only when funding, supporting information, and approvals are complete unless treasury override is active. Frozen value remains outside payable drawdown.">
+            <SectionCard
+              title={audienceMode === "executive" ? "Release Confidence" : "Drawdown Decisions"}
+              subtitle={
+                audienceMode === "executive"
+                  ? "Concise decision summaries for current release confidence."
+                  : "Drawdown is allowed only when funding, supporting information, and approvals are complete unless treasury override is active. Frozen value remains outside payable drawdown."
+              }
+            >
               <div className="grid gap-3">
-                {releaseDecisions.map((decision) => (
+                {(audienceMode === "executive" ? releaseDecisions.slice(0, 3) : releaseDecisions).map((decision) => (
                   <article key={decision.stageId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium text-slate-900">{decision.stageName}</p>
@@ -442,10 +771,43 @@ export default function ShureFundDashboard() {
                         {decision.status.replaceAll("_", " ")}
                       </span>
                     </div>
+                    <div
+                      className={`mt-3 rounded-2xl border px-3 py-3 ${
+                        decision.explanation.tone === "positive"
+                          ? "border-teal-200 bg-teal-50"
+                          : decision.explanation.tone === "warning"
+                            ? "border-amber-200 bg-amber-50"
+                            : "border-slate-300 bg-slate-100"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-semibold ${
+                          decision.explanation.tone === "positive"
+                            ? "text-teal-950"
+                            : decision.explanation.tone === "warning"
+                              ? "text-amber-950"
+                              : "text-slate-900"
+                        }`}
+                      >
+                        {decision.explanation.label}
+                      </p>
+                      <p
+                        className={`mt-1 text-sm ${
+                          decision.explanation.tone === "positive"
+                            ? "text-teal-900"
+                            : decision.explanation.tone === "warning"
+                              ? "text-amber-900"
+                              : "text-slate-700"
+                        }`}
+                      >
+                        {decision.explanation.reason}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Releasable {currency.format(decision.releasableAmount)} · Frozen {currency.format(decision.frozenAmount)} · Blocked {currency.format(decision.blockedAmount)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">Decision basis: {decision.explanation.decisionBasis}</p>
+                    </div>
                     <div className="mt-2 grid gap-2">
-                      {decision.releasable && !decision.overridden ? (
-                        <p className="text-sm text-slate-600">Eligible for controlled drawdown.</p>
-                      ) : null}
                       {decision.reasons.map((reason, index) => (
                         <p key={`${decision.stageId}-${reason.type}-${index}`} className="text-sm text-slate-600">
                           <span className="font-medium capitalize text-slate-800">{reason.type.replaceAll("_", " ")}:</span> {reason.message}
@@ -464,6 +826,7 @@ export default function ShureFundDashboard() {
           </div>
         </div>
 
+        {audienceMode !== "executive" ? (
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <StageDetailPanel
             detail={stageDetail}
@@ -508,8 +871,29 @@ export default function ShureFundDashboard() {
             onActivateVariation={(variationId) => commit((current) => activateVariation(current, stageDetail.stage.id, variationId))}
           />
 
-          <SectionCard title="Work Package Blockers" subtitle="Clear release blockers derived from central control logic.">
+          <SectionCard title="Work Package Blockers" subtitle="Shared blocker and control state for the selected Work Package.">
             <div className="grid gap-3">
+              <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">Shortest path</p>
+                <p className="mt-1 font-medium text-slate-900">{stageDetail.operationalStatus.nextStep}</p>
+              </article>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">Complete</p>
+                  <div className="mt-2 grid gap-2 text-sm text-slate-700">
+                    <p>{stageDetail.fundingState === "funded" ? "Funding ready" : "Funding pending"}</p>
+                    <p>{stageDetail.evidenceState === "accepted" ? "Evidence ready" : "Evidence pending"}</p>
+                    <p>{stageDetail.approvalState === "approved" ? "Approval ready" : "Approval pending"}</p>
+                  </div>
+                </article>
+                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">Blocking now</p>
+                  <p className="mt-2 text-sm text-slate-700">{blockerSummaryText}</p>
+                  {stageBlockers[0] ? (
+                    <p className="mt-2 text-xs text-slate-500">Responsibility: {getBlockerResponsibilityCue(stageBlockers[0].code)}</p>
+                  ) : null}
+                </article>
+              </div>
               {stageBlockers.map((blocker) => (
                 <article key={blocker.code} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -559,6 +943,7 @@ export default function ShureFundDashboard() {
             </div>
           </SectionCard>
         </div>
+        ) : null}
       </div>
     </main>
   );

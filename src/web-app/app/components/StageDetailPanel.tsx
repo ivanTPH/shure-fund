@@ -1,5 +1,5 @@
 import type { ApprovalRole, EvidenceStatus, EvidenceType, FundingSourceType } from "@/lib/shureFundModels";
-import type { StageDetailModel } from "@/lib/systemState";
+import { getStageDecisionPack, type StageDetailModel } from "@/lib/systemState";
 
 import ApprovalPanel from "./ApprovalPanel";
 import EvidencePanel from "./EvidencePanel";
@@ -81,6 +81,8 @@ export default function StageDetailPanel({
   onRejectVariation,
   onActivateVariation,
 }: StageDetailPanelProps) {
+  const decisionPack = getStageDecisionPack(detail);
+
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
       <div className="mb-4">
@@ -94,31 +96,123 @@ export default function StageDetailPanel({
           <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.certifiedValue)}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Payable Value</p>
-          <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.payableValue)}</p>
+          <p className="text-sm text-slate-500">Undisputed Value</p>
+          <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.disputeSummary.undisputedValue)}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
           <p className="text-sm text-slate-500">Frozen</p>
-          <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.frozenValue)}</p>
+          <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Drawdown Status</p>
-          <p className="mt-2 text-xl font-semibold capitalize text-slate-950">{detail.releaseDecision.status.replaceAll("_", " ")}</p>
+          <p className="text-sm text-slate-500">Workflow Status</p>
+          <p className="mt-2 text-xl font-semibold text-slate-950">{detail.operationalStatus.label}</p>
+          <p className="mt-1 text-xs text-slate-500">{detail.operationalStatus.reason}</p>
         </div>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Funding Status</p>
-          <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{detail.fundingState}</p>
+          <p className="text-sm text-slate-500">Funding</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {detail.fundingState === "funded" ? "Ready" : "Funding blocked"}
+          </p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Supporting Information Status</p>
-          <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{detail.evidenceState.replaceAll("_", " ")}</p>
+          <p className="text-sm text-slate-500">Evidence</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {detail.evidenceState === "accepted" ? "Ready" : "Awaiting evidence"}
+          </p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Approval Status</p>
-          <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{detail.approvalState.replaceAll("_", " ")}</p>
+          <p className="text-sm text-slate-500">Approval</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {detail.approvalState === "approved" ? "Ready" : "Awaiting approval"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm font-semibold text-slate-900">Control Summary</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Approvals</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{detail.approvalState === "approved" ? "Ready" : "Awaiting approval"}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Evidence</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{detail.evidenceState === "accepted" ? "Ready" : "Awaiting evidence"}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Funding</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{detail.fundingState === "funded" ? "Ready" : "Funding blocked"}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Dispute</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{detail.disputeSummary.status}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Variation</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{detail.variationSummary.status}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Treasury</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{detail.treasuryReadiness.label}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm font-semibold text-slate-900">Decision Pack</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Status</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.status}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Treasury readiness</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryReadiness}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Release status</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.releaseStatus}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Next owner</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.nextActionOwner}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Releasable</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.releasable)}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Frozen</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.frozen)}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Blocked</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.blocked)}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-xs text-slate-500">Principal blocker</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.principalBlocker}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-900">Shortest Path Forward</p>
+          <p className="mt-2 text-sm text-slate-600">{detail.operationalStatus.nextStep}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-900">Release Decision</p>
+          <p className="mt-2 text-sm font-medium text-slate-950">{detail.releaseDecision.explanation.label}</p>
+          <p className="mt-1 text-sm text-slate-600">{detail.releaseDecision.explanation.reason}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Releasable {currency.format(detail.releaseDecision.releasableAmount)} · Frozen {currency.format(detail.releaseDecision.frozenAmount)} · Blocked {currency.format(detail.releaseDecision.blockedAmount)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Decision basis: {detail.releaseDecision.explanation.decisionBasis}</p>
+          <p className="mt-1 text-xs text-slate-500">{detail.treasuryReadiness.label} · {detail.treasuryReadiness.reason}</p>
         </div>
       </div>
 
@@ -132,26 +226,26 @@ export default function StageDetailPanel({
           </div>
           <div className="rounded-2xl bg-white p-4">
             <p className="text-sm text-slate-500">Releasable</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.payableValue)}</p>
-            <p className="mt-1 text-xs text-slate-500">Value currently available to progress if release conditions are met.</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.releasableAmount)}</p>
+            <p className="mt-1 text-xs text-slate-500">Value available to release now.</p>
           </div>
           <div className="rounded-2xl bg-white p-4">
             <p className="text-sm text-slate-500">Frozen</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.frozenValue)}</p>
-            <p className="mt-1 text-xs text-slate-500">Held outside drawdown while the disputed amount remains open.</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
+            <p className="mt-1 text-xs text-slate-500">Held outside drawdown.</p>
           </div>
           <div className="rounded-2xl bg-white p-4">
             <p className="text-sm text-slate-500">Funding Status</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{detail.fundingStatusLabel}</p>
-            <p className="mt-1 text-xs text-slate-500">Based on allocated funds against the payable requirement for this Work Package.</p>
+            <p className="mt-1 text-xs text-slate-500">Based on allocated funds against this Work Package requirement.</p>
           </div>
           <div className="rounded-2xl bg-white p-4">
-            <p className="text-sm text-slate-500">Required Cover</p>
+            <p className="text-sm text-slate-500">Allocated for WIP</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{detail.contributesToRequiredCover ? "Included" : "Cleared"}</p>
             <p className="mt-1 text-xs text-slate-500">
               {detail.contributesToRequiredCover
-                ? "This Work Package still contributes to required cover while payable value remains outstanding."
-                : "This Work Package no longer adds to required cover."}
+                ? "This Work Package still contributes to Allocated for WIP."
+                : "This Work Package no longer adds to Allocated for WIP."}
             </p>
           </div>
           <div className="rounded-2xl bg-white p-4">
@@ -165,9 +259,27 @@ export default function StageDetailPanel({
           </div>
         </div>
 
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">Dispute Position</p>
+            <p className="mt-2 text-sm text-slate-600">{detail.disputeSummary.reason}</p>
+            <div className="mt-3 grid gap-2 text-sm text-slate-700">
+              <p>Disputed value: {currency.format(detail.disputeSummary.disputedValue)}</p>
+              <p>Frozen value: {currency.format(detail.disputeSummary.frozenValue)}</p>
+              <p>Undisputed value: {currency.format(detail.disputeSummary.undisputedValue)}</p>
+              <p>Releasable value: {currency.format(detail.disputeSummary.releasableValue)}</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">Variation Position</p>
+            <p className="mt-2 text-sm font-medium text-slate-950">{detail.variationSummary.status}</p>
+            <p className="mt-1 text-sm text-slate-600">{detail.variationSummary.reason}</p>
+          </div>
+        </div>
+
         {detail.blockingRelease ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-950">Release blockers</p>
+            <p className="text-sm font-semibold text-amber-950">Current blockers</p>
             <div className="mt-2 grid gap-2">
               {detail.releaseDecision.reasons.map((reason, index) => (
                 <p key={`release-blocker-${reason.type}-${index}`} className="text-sm text-amber-900">
@@ -182,11 +294,13 @@ export default function StageDetailPanel({
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <p className="text-sm font-semibold text-slate-900">Drawdown Decision</p>
         <div className="mt-2 grid gap-2">
+          <p className="text-sm text-slate-600">{detail.releaseDecision.explanation.reason}</p>
           <p className="text-sm text-slate-600">
-            {detail.releaseDecision.releasable
-              ? `Payable value of ${currency.format(detail.payableValue)} can proceed to controlled drawdown.`
-              : "Controlled drawdown is blocked until the reasons below are cleared."}
+            {detail.releaseDecision.isPartialRelease
+              ? `Only ${currency.format(detail.releaseDecision.releasableAmount)} can release now. ${currency.format(detail.releaseDecision.frozenAmount)} remains frozen.`
+              : `Release amount available now: ${currency.format(detail.releaseDecision.releasableAmount)}.`}
           </p>
+          <p className="text-sm text-slate-600">Decision basis: {detail.releaseDecision.explanation.decisionBasis}</p>
           {detail.releaseDecision.overridden ? (
             <p className="rounded-2xl bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900">
               Treasury override is active and clearly flagged. Drawdown proceeds as an override, not a normal release.
@@ -255,7 +369,7 @@ export default function StageDetailPanel({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Disputes</h3>
-            <p className="mt-1 text-sm text-slate-500">Freeze only the affected value while undisputed payable value continues through control checks.</p>
+            <p className="mt-1 text-sm text-slate-500">Freeze only the affected value while undisputed value can continue through control checks.</p>
           </div>
           <div className="mt-3 grid gap-3">
             <input
@@ -294,7 +408,7 @@ export default function StageDetailPanel({
                     <p className="font-medium text-slate-900">{dispute.title}</p>
                     <p className="mt-1 text-sm text-slate-500">{dispute.reason}</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {currency.format(dispute.disputedAmount)} · {dispute.status}
+                      Disputed {currency.format(dispute.disputedAmount)} · {dispute.status}
                     </p>
                   </div>
                   {dispute.status === "open" ? (
@@ -319,7 +433,7 @@ export default function StageDetailPanel({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Variations</h3>
-            <p className="mt-1 text-sm text-slate-500">Variations must be approved and funding-confirmed before activation.</p>
+            <p className="mt-1 text-sm text-slate-500">Variations must be reviewed and funding-confirmed before activation.</p>
           </div>
           <div className="mt-3 grid gap-3">
             <input
@@ -358,7 +472,7 @@ export default function StageDetailPanel({
                     <p className="font-medium text-slate-900">{variation.title}</p>
                     <p className="mt-1 text-sm text-slate-500">{variation.reason}</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Delta {currency.format(variation.amountDelta)} · {variation.status}
+                      Delta {currency.format(variation.amountDelta)} · {variation.operationalStatusLabel}
                     </p>
                   </div>
                   <div className="grid gap-2 sm:flex">

@@ -33,50 +33,40 @@ export default function LedgerSummaryCard({
   const fundingSourceSelected = fundingSource === "funder" || fundingSource === "contractor";
   const addFundsEnabled = canAddFunds && validAmount && fundingSourceSelected;
   const shortfallActive = fundingSummary.shortfall > 0;
+  const lockedFunds = fundingSummary.requiredCover + fundingSummary.frozenFunds;
+  const fundingSummarySentence = shortfallActive
+    ? `${currency.format(lockedFunds)} required (WIP + frozen) vs ${currency.format(fundingSummary.projectBalance)} available, leaving a ${currency.format(fundingSummary.shortfall)} shortfall`
+    : `${currency.format(lockedFunds)} of ${currency.format(fundingSummary.projectBalance)} is locked (WIP allocation + frozen), leaving ${currency.format(fundingSummary.releasableFunds)} available`;
   const metricCards = [
     {
       label: "Balance",
       value: fundingSummary.projectBalance,
-      helper: "Total cash currently held for the project across project and Work Package accounts.",
+      helper: "Total cash",
       tone: "default",
     },
     {
-      label: "Allocated",
-      value: fundingSummary.allocatedFunds,
-      helper: "Funds already assigned to specific Work Packages.",
-      tone: "default",
-    },
-    {
-      label: "Ringfenced",
-      value: fundingSummary.ringfencedFunds,
-      helper: "Protected funds held for project use after the reserve is set aside.",
-      tone: "default",
-    },
-    {
-      label: "Required Cover",
+      label: "Allocated for WIP",
       value: fundingSummary.requiredCover,
-      helper: "Projected 30-day work requirement plus the reserve buffer.",
+      helper: "Reserved to safely deliver work",
       tone: "default",
     },
     {
       label: "Frozen",
       value: fundingSummary.frozenFunds,
-      helper: "Funds held back because the related value is disputed and not releasable.",
+      helper: "Unavailable",
       tone: "frozen",
     },
     {
-      label: "Releasable",
-      value: fundingSummary.releasableFunds,
-      helper: "Protected funds currently available for controlled drawdown.",
-      tone: "positive",
+      label: shortfallActive ? "Shortfall" : "Releasable",
+      value: shortfallActive ? fundingSummary.shortfall : fundingSummary.releasableFunds,
+      helper: shortfallActive ? "Additional cash needed" : "Available now",
+      tone: shortfallActive ? "warning" : "positive",
     },
     {
-      label: "Shortfall",
-      value: fundingSummary.shortfall,
-      helper: shortfallActive
-        ? "Additional protected funds are needed to meet required cover."
-        : "No funding shortfall is currently recorded.",
-      tone: shortfallActive ? "warning" : "default",
+      label: "Protected Funds",
+      value: fundingSummary.ringfencedFunds,
+      helper: "After reserve buffer",
+      tone: "default",
     },
   ] as const;
 
@@ -84,9 +74,15 @@ export default function LedgerSummaryCard({
     <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-slate-900">Ledger Summary</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Clear visibility of protected cash, required cover, frozen value, and releasable funds.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">A lighter view of the same funding position for quick reference.</p>
+      </div>
+
+      <div
+        className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
+          shortfallActive ? "border-amber-200 bg-amber-50 text-amber-900" : "border-teal-200 bg-teal-50 text-teal-950"
+        }`}
+      >
+        {fundingSummarySentence}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

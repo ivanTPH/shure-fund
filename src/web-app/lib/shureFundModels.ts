@@ -26,6 +26,7 @@ export type QueueActionType =
   | "fund_stage"
   | "review_evidence"
   | "approve_stage"
+  | "release_funding"
   | "resolve_blockers"
   | "review_dispute"
   | "review_variation"
