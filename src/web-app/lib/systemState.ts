@@ -822,7 +822,7 @@ export function getPaymentDecision(stage: StageRecord, funding?: FundingPosition
   };
 }
 
-export function deriveFundingSummaryMetrics(funding: FundingPosition): FundingSummaryMetric[] {
+export function deriveFundingMetricCards(funding: FundingPosition): FundingSummaryMetric[] {
   return [
     {
       key: "wip",
@@ -2263,15 +2263,34 @@ export interface FundingStageSummary {
 export interface FundingSummary {
   projectId: string;
   projectName: string;
+  projectBalance: number;
   totalBalance: number;
   allocatedFunds: number;
-  reserveBuffer: number;
   ringfencedFunds: number;
+  projectedWip30Days: number;
+  reserveBuffer: number;
+  requiredCover: number;
+  frozenFunds: number;
+  availableFunds: number;
   requiredFunds: number;
   releasableFunds: number;
+  shortfall: number;
   gapToRequiredCover: number;
   availableProjectFunds: number;
   stageSummaries: FundingStageSummary[];
+}
+
+export interface FundingSummaryMetrics {
+  projectBalance: number;
+  allocatedFunds: number;
+  ringfencedFunds: number;
+  projectedWip30Days: number;
+  reserveBuffer: number;
+  requiredCover: number;
+  frozenFunds: number;
+  releasableFunds: number;
+  shortfall: number;
+  availableFunds: number;
 }
 
 export interface StageBlocker {
@@ -2355,6 +2374,9 @@ export interface StageDetailModel {
   blockers: StageBlocker[];
   releaseDecision: ReleaseDecisionCard;
   funding: FundingStageSummary;
+  fundingStatusLabel: "Funded" | "Partially funded" | "Blocked";
+  contributesToRequiredCover: boolean;
+  blockingRelease: boolean;
   certifiedValue: number;
   payableValue: number;
   frozenValue: number;
@@ -2754,29 +2776,72 @@ export function initializeSystemState(state: SystemStateRecord): SystemStateReco
   return nextState;
 }
 
+export function deriveFundingSummaryMetrics(
+  state: SystemStateRecord,
+  projectId: string,
+): FundingSummaryMetrics {
+  const project = getProjectRecord(state, projectId);
+  const projectStages = state.stages.filter((stage) => stage.projectId === projectId);
+  const projectAccountBalance = getProjectAccount(state, projectId).balance;
+  const allocatedFunds = projectStages.reduce((total, stage) => total + getStageAccount(state, stage.id).balance, 0);
+  const projectBalance = projectAccountBalance + allocatedFunds;
+  const reserveBuffer = project.reserveBuffer;
+  const projectedWip30Days = projectStages.reduce((total, stage) => total + getPayableValue(stage), 0);
+  const frozenFunds = projectStages.reduce((total, stage) => total + getFrozenValue(stage), 0);
+
+  // Ringfenced funds are the protected client funds available to the project after reserving the buffer.
+  const ringfencedFunds = Math.max(projectBalance - reserveBuffer, 0);
+
+  // Required cover holds the upcoming work package requirement plus the reserve buffer.
+  const requiredCover = projectedWip30Days + reserveBuffer;
+
+  // Available funds are the unallocated protected funds remaining after work package allocations and reserve.
+  const availableFunds = Math.max(projectBalance - allocatedFunds - reserveBuffer, 0);
+
+  // Certified payable is what remains safely drawable after cover requirements and frozen disputed value.
+  const releasableFunds = Math.max(0, ringfencedFunds - requiredCover - frozenFunds);
+
+  // Shortfall shows how much additional protected funding is needed once frozen value is excluded.
+  const shortfall = Math.max(0, requiredCover - (ringfencedFunds - frozenFunds));
+
+  return {
+    projectBalance,
+    allocatedFunds,
+    ringfencedFunds,
+    projectedWip30Days,
+    reserveBuffer,
+    requiredCover,
+    frozenFunds,
+    releasableFunds,
+    shortfall,
+    availableFunds,
+  };
+}
+
 export function getFundingSummary(state: SystemStateRecord, projectId: string): FundingSummary {
   const project = getProjectRecord(state, projectId);
   const stageSummaries = state.stages
     .filter((stage) => stage.projectId === projectId)
     .map((stage) => getStageFundingSummary(state, stage));
   const availableProjectFunds = getProjectAccount(state, projectId).balance;
-  const allocatedFunds = stageSummaries.reduce((total, summary) => total + summary.allocatedFunds, 0);
-  const totalBalance = availableProjectFunds + allocatedFunds;
-  const reserveBuffer = project.reserveBuffer;
-  const ringfencedFunds = Math.max(totalBalance - reserveBuffer, 0);
-  const requiredFunds = stageSummaries.reduce((total, summary) => total + summary.requiredFunds, 0);
-  const releasableFunds = stageSummaries.reduce((total, summary) => total + summary.releasableFunds, 0);
+  const metrics = deriveFundingSummaryMetrics(state, projectId);
 
   return {
     projectId,
     projectName: project.name,
-    totalBalance,
-    allocatedFunds,
-    reserveBuffer,
-    ringfencedFunds,
-    requiredFunds,
-    releasableFunds,
-    gapToRequiredCover: Math.max(requiredFunds - ringfencedFunds, 0),
+    projectBalance: metrics.projectBalance,
+    totalBalance: metrics.projectBalance,
+    allocatedFunds: metrics.allocatedFunds,
+    ringfencedFunds: metrics.ringfencedFunds,
+    projectedWip30Days: metrics.projectedWip30Days,
+    reserveBuffer: metrics.reserveBuffer,
+    requiredCover: metrics.requiredCover,
+    frozenFunds: metrics.frozenFunds,
+    availableFunds: metrics.availableFunds,
+    requiredFunds: metrics.requiredCover,
+    releasableFunds: metrics.releasableFunds,
+    shortfall: metrics.shortfall,
+    gapToRequiredCover: metrics.shortfall,
     availableProjectFunds,
     stageSummaries,
   };
@@ -3094,6 +3159,7 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
   const project = state.projects.find((entry) => entry.id === stage.projectId);
   const funding = getStageFundingSummary(state, stage);
   const user = getUserRecord(state, userId);
+  const releaseDecision = getReleaseDecisions(state, stage.projectId).find((entry) => entry.stageId === stageId)!;
 
   if (!project) {
     throw new Error(`Unable to derive stage detail for ${stageId}`);
@@ -3103,8 +3169,12 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     projectName: project.name,
     stage,
     blockers: getStageBlockers(state, stageId),
-    releaseDecision: getReleaseDecisions(state, stage.projectId).find((entry) => entry.stageId === stageId)!,
+    releaseDecision,
     funding,
+    fundingStatusLabel:
+      funding.gapToRequiredCover === 0 ? "Funded" : funding.allocatedFunds > 0 ? "Partially funded" : "Blocked",
+    contributesToRequiredCover: funding.requiredFunds > 0,
+    blockingRelease: !releaseDecision.releasable,
     certifiedValue: stage.requiredAmount,
     payableValue: getPayableValue(stage),
     frozenValue: getFrozenValue(stage),

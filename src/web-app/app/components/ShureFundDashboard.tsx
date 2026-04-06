@@ -87,7 +87,9 @@ export default function ShureFundDashboard() {
   const [state, setState] = useState<SystemStateRecord>(() => initializeSystemState(initialSystemState));
   const [selectedStageId, setSelectedStageId] = useState("stage-foundation");
   const [depositAmount, setDepositAmount] = useState("50000");
-  const [fundingSource, setFundingSource] = useState<FundingSourceType>("funder");
+  const [fundingSource, setFundingSource] = useState<FundingSourceType | "">("");
+  const [isAddingFunds, setIsAddingFunds] = useState(false);
+  const [showFundingCalculation, setShowFundingCalculation] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [evidenceTitle, setEvidenceTitle] = useState("");
   const [evidenceType, setEvidenceType] = useState<EvidenceType>("file");
@@ -110,6 +112,23 @@ export default function ShureFundDashboard() {
   const journey = useMemo(() => getRoleJourneySummary(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
 
   const selectedDecision = releaseDecisions.find((entry) => entry.stageId === selectedStageId)!;
+  const parsedDepositAmount = Number(depositAmount);
+  const canAddFunds =
+    !isAddingFunds &&
+    Number.isFinite(parsedDepositAmount) &&
+    parsedDepositAmount > 0 &&
+    (fundingSource === "funder" || fundingSource === "contractor");
+  const addFundsHelperText = isAddingFunds
+    ? "Adding funds."
+    : depositAmount.trim() === ""
+      ? "Enter an amount to add funds."
+      : !Number.isFinite(parsedDepositAmount)
+        ? "Enter a valid number."
+        : parsedDepositAmount <= 0
+          ? "Amount must be greater than zero."
+          : fundingSource !== "funder" && fundingSource !== "contractor"
+            ? "Select a funding source."
+            : "Treasury only.";
 
   function commit(updater: (current: SystemStateRecord) => SystemStateRecord) {
     setState((current) => updater(current));
@@ -117,18 +136,23 @@ export default function ShureFundDashboard() {
 
   function handleDeposit() {
     const amount = Number(depositAmount);
-    if (!Number.isFinite(amount)) {
+    if (!Number.isFinite(amount) || amount <= 0 || (fundingSource !== "funder" && fundingSource !== "contractor")) {
       return;
     }
-    commit((current) =>
-      depositFunds(
-        current,
-        project.id,
-        amount,
-        fundingSource,
-        fundingSource === "contractor" ? selectedStageId : undefined,
-      ),
-    );
+    setIsAddingFunds(true);
+    try {
+      commit((current) =>
+        depositFunds(
+          current,
+          project.id,
+          amount,
+          fundingSource,
+          fundingSource === "contractor" ? selectedStageId : undefined,
+        ),
+      );
+    } finally {
+      setIsAddingFunds(false);
+    }
   }
 
   function handleEvidenceUpdate(requirementId: string, status: EvidenceStatus) {
@@ -190,6 +214,87 @@ export default function ShureFundDashboard() {
 
         <JourneySummaryCard journey={journey} />
 
+        <SectionCard title="Funding Position" subtitle="A single auditable view of protected funds, required cover, frozen value, and what is currently releasable.">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Balance</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.projectBalance)}</p>
+              <p className="mt-2 text-xs text-slate-500">Total cash held across project and Work Package accounts.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Ringfenced</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</p>
+              <p className="mt-2 text-xs text-slate-500">Protected funds held for delivery after the reserve is set aside.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Required Cover</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.requiredCover)}</p>
+              <p className="mt-2 text-xs text-slate-500">Projected 30-day work in progress plus the reserve buffer.</p>
+            </div>
+            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+              <p className="text-sm text-teal-900">Releasable</p>
+              <p className="mt-2 text-2xl font-semibold text-teal-950">{currency.format(fundingSummary.releasableFunds)}</p>
+              <p className="mt-2 text-xs text-teal-900">Excess above required cover, excluding frozen disputed value.</p>
+            </div>
+            {fundingSummary.shortfall > 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-900">Shortfall</p>
+                <p className="mt-2 text-2xl font-semibold text-amber-950">{currency.format(fundingSummary.shortfall)}</p>
+                <p className="mt-2 text-xs text-amber-900">Additional protected funds are needed to meet required cover.</p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50">
+            <button
+              type="button"
+              onClick={() => setShowFundingCalculation((current) => !current)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left"
+            >
+              <span className="text-sm font-semibold text-slate-900">How this is calculated</span>
+              <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                {showFundingCalculation ? "Hide" : "Show"}
+              </span>
+            </button>
+            {showFundingCalculation ? (
+              <div className="border-t border-slate-200 px-4 py-4">
+                <div className="grid gap-2 text-sm text-slate-700">
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Balance</span>
+                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.projectBalance)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Less reserve</span>
+                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.reserveBuffer)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Equals Ringfenced</span>
+                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.ringfencedFunds)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Less Required Cover</span>
+                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.requiredCover)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Less Frozen</span>
+                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.frozenFunds)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-200 pt-3 text-base">
+                    <span className="font-semibold text-slate-900">Equals Releasable</span>
+                    <span className="font-semibold text-teal-950">{currency.format(fundingSummary.releasableFunds)}</span>
+                  </div>
+                  {fundingSummary.shortfall > 0 ? (
+                    <div className="flex items-center justify-between gap-4 pt-1 text-sm text-amber-900">
+                      <span>Shortfall</span>
+                      <span className="font-medium">{currency.format(fundingSummary.shortfall)}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </SectionCard>
+
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
           <div className="grid gap-6">
             <LedgerSummaryCard
@@ -200,7 +305,8 @@ export default function ShureFundDashboard() {
               onDepositAmountChange={setDepositAmount}
               onFundingSourceChange={setFundingSource}
               onAddFunds={handleDeposit}
-              canAddFunds={stageDetail.availableActions.fundStage}
+              canAddFunds={canAddFunds}
+              addFundsHelperText={addFundsHelperText}
             />
 
             <SectionCard title="Work Packages" subtitle="Select a Work Package to inspect funding, supporting information, approvals, disputes, variations, and drawdown status.">
@@ -223,7 +329,7 @@ export default function ShureFundDashboard() {
                         <span className="text-sm">Shortfall {currency.format(summary.gapToRequiredCover)}</span>
                       </div>
                       <p className="mt-2 text-sm opacity-80">
-                        Payable {currency.format(detail.payableValue)} · Frozen {currency.format(detail.frozenValue)}
+                        Releasable {currency.format(detail.releaseDecision.releasable ? detail.payableValue : 0)} · Frozen {currency.format(detail.frozenValue)}
                       </p>
                     </button>
                   );

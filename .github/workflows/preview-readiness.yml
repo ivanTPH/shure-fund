@@ -1,0 +1,32 @@
+name: Preview Readiness
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  preview-readiness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/web-app/package-lock.json
+
+      - name: Install web app dependencies
+        run: npm --prefix src/web-app ci
+
+      - name: Validate Vercel configuration
+        run: test -f vercel.json
+
+      - name: Logic drift check
+        run: node scripts/check-logic-drift.mjs
+
+      - name: Build preview candidate
+        run: npm --prefix src/web-app run build

@@ -15,7 +15,7 @@ type StageDetailPanelProps = {
   overrideReason: string;
   evidenceTitle: string;
   evidenceType: EvidenceType;
-  fundingSource: FundingSourceType;
+  fundingSource: FundingSourceType | "";
   disputeTitle: string;
   disputeReason: string;
   disputeAmount: string;
@@ -98,7 +98,7 @@ export default function StageDetailPanel({
           <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.payableValue)}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Frozen Value</p>
+          <p className="text-sm text-slate-500">Frozen</p>
           <p className="mt-2 text-xl font-semibold text-slate-950">{currency.format(detail.frozenValue)}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4">
@@ -120,6 +120,63 @@ export default function StageDetailPanel({
           <p className="text-sm text-slate-500">Approval Status</p>
           <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{detail.approvalState.replaceAll("_", " ")}</p>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <h3 className="text-sm font-semibold text-slate-900">Funding</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-sm text-slate-500">Stage Value</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.certifiedValue)}</p>
+            <p className="mt-1 text-xs text-slate-500">Current certified value for this Work Package.</p>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-sm text-slate-500">Releasable</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.payableValue)}</p>
+            <p className="mt-1 text-xs text-slate-500">Value currently available to progress if release conditions are met.</p>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-sm text-slate-500">Frozen</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.frozenValue)}</p>
+            <p className="mt-1 text-xs text-slate-500">Held outside drawdown while the disputed amount remains open.</p>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-sm text-slate-500">Funding Status</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{detail.fundingStatusLabel}</p>
+            <p className="mt-1 text-xs text-slate-500">Based on allocated funds against the payable requirement for this Work Package.</p>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-sm text-slate-500">Required Cover</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{detail.contributesToRequiredCover ? "Included" : "Cleared"}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {detail.contributesToRequiredCover
+                ? "This Work Package still contributes to required cover while payable value remains outstanding."
+                : "This Work Package no longer adds to required cover."}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-sm text-slate-500">Blocking Release</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{detail.blockingRelease ? "Yes" : "No"}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {detail.blockingRelease
+                ? "One or more current blockers in the release decision are stopping drawdown."
+                : "This Work Package is not currently blocked from drawdown."}
+            </p>
+          </div>
+        </div>
+
+        {detail.blockingRelease ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-950">Release blockers</p>
+            <div className="mt-2 grid gap-2">
+              {detail.releaseDecision.reasons.map((reason, index) => (
+                <p key={`release-blocker-${reason.type}-${index}`} className="text-sm text-amber-900">
+                  {reason.message}
+                </p>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -172,7 +229,7 @@ export default function StageDetailPanel({
 
       <div className="mt-3 rounded-2xl border border-dashed border-teal-200 bg-teal-50 p-4">
         <p className="text-sm font-semibold text-teal-950">Treasury Override</p>
-        <p className="mt-1 text-xs text-teal-900">Funding source in view: {fundingSource}</p>
+        <p className="mt-1 text-xs text-teal-900">Funding source in view: {fundingSource || "not selected"}</p>
         <textarea
           className="mt-3 min-h-24 w-full rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm"
           placeholder="Override reason"
