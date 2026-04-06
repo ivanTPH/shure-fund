@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install --prefix src/web-app && rm -rf node_modules && cp -R src/web-app/node_modules ./node_modules",
+  "installCommand": "npm install",
   "buildCommand": "npm run build",
   "devCommand": "npm --prefix src/web-app run dev"
 }
