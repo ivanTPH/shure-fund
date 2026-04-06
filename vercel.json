@@ -1,1 +1,3 @@
-{}
+{
+  "buildCommand": "cd src/web-app && npm run build"
+}
