@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { initialSystemState } from "@/lib/demoData";
 import {
   activateVariation,
   addEvidence,
@@ -12,17 +11,13 @@ import {
   createLastActionOutcome,
   depositFunds,
   getActionQueue,
-  getBlockerResponsibilityCue,
   getDashboardDecisionPack,
-  getDashboardDecisionSnapshot,
-  getDashboardSummaryStrip,
   getFundingSummary,
   getFundingSummarySentence,
   getLedgerTransactions,
   getOperationalSummary,
   getProjectActivitySummary,
   getPrimaryActionForRole,
-  getProjectWorkspaceSummary,
   getResponsibilityCue,
   getReleaseDecisions,
   getLastActionOutcome,
@@ -32,14 +27,12 @@ import {
   getStageDetail,
   getUserFacingRoleLabel,
   giveApproval,
-  initializeSystemState,
   openDispute,
   rejectApproval,
   releaseStage,
   recordLastActionOutcome,
   resolveDispute,
   reviewVariation,
-  setCurrentUser,
   updateEvidenceStatus,
   type DashboardAudienceMode,
   type StageDetailSectionKey,
@@ -54,9 +47,8 @@ import type { WorkspaceDecisionCue } from "@/lib/systemState";
 import JourneySummaryCard from "./JourneySummaryCard";
 import LedgerSummaryCard from "./LedgerSummaryCard";
 import LedgerTransactionsList from "./LedgerTransactionsList";
+import { useShureFundShellState, type AppSection } from "./ShureFundAppShell";
 import StageDetailPanel from "./StageDetailPanel";
-
-type AppSection = "overview" | "payments" | "packages" | "activity" | "settings";
 
 const currency = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -102,43 +94,6 @@ function SectionCard({
   );
 }
 
-function ShellNavButton({
-  label,
-  caption,
-  active,
-  badge,
-  onClick,
-}: {
-  label: string;
-  caption: string;
-  active: boolean;
-  badge?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-        active
-          ? "border-slate-900 bg-slate-900 text-white shadow-[0_16px_32px_-24px_rgba(15,23,42,0.75)]"
-          : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{label}</p>
-          <p className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>{caption}</p>
-        </div>
-        {badge ? (
-          <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-700"}`}>
-            {badge}
-          </span>
-        ) : null}
-      </div>
-    </button>
-  );
-}
 
 function ExpandableSection({
   title,
@@ -190,18 +145,31 @@ function formatRelativeTime(timestamp?: string | null) {
   return `${days}d ago`;
 }
 
-export default function ShureFundDashboard() {
-  const [state, setState] = useState<SystemStateRecord>(() => initializeSystemState(initialSystemState));
-  const [audienceMode, setAudienceMode] = useState<DashboardAudienceMode>("operations");
-  const [activeSection, setActiveSection] = useState<AppSection>("overview");
-  const [selectedProjectId, setSelectedProjectId] = useState(initialSystemState.projects[0]?.id ?? "");
-  const [selectedStageId, setSelectedStageId] = useState("stage-foundation");
-  const [selectedStageSection, setSelectedStageSection] = useState<"overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release">("overview");
+export default function ShureFundDashboard({
+  section,
+}: {
+  section: AppSection;
+}) {
+  const {
+    state,
+    setState,
+    audienceMode,
+    setAudienceMode,
+    selectedProjectId,
+    setSelectedProjectId,
+    selectedStageId,
+    setSelectedStageId,
+    selectedStageSection,
+    setSelectedStageSection,
+    showStageDetail,
+    setShowStageDetail,
+    selectedWorkspaceCue,
+    setSelectedWorkspaceCue,
+  } = useShureFundShellState();
   const [depositAmount, setDepositAmount] = useState("50000");
   const [fundingSource, setFundingSource] = useState<FundingSourceType | "">("");
   const [isAddingFunds, setIsAddingFunds] = useState(false);
   const [showFundingCalculation, setShowFundingCalculation] = useState(false);
-  const [showStageDetail, setShowStageDetail] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [evidenceTitle, setEvidenceTitle] = useState("");
   const [evidenceType, setEvidenceType] = useState<EvidenceType>("file");
@@ -211,14 +179,8 @@ export default function ShureFundDashboard() {
   const [variationTitle, setVariationTitle] = useState("");
   const [variationReason, setVariationReason] = useState("");
   const [variationAmount, setVariationAmount] = useState("10000");
-  const [selectedWorkspaceCue, setSelectedWorkspaceCue] = useState<{ stageId: string; cue: WorkspaceDecisionCue } | null>(null);
-
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId)!;
-  const roleSwitchUsers = useMemo(
-    () => state.users.filter((entry) => ["contractor", "commercial", "professional", "treasury", "executive"].includes(entry.role)),
-    [state.users],
-  );
   const projectStages = useMemo(() => state.stages.filter((stage) => stage.projectId === project.id), [state, project.id]);
   const activeStageId = projectStages.some((stage) => stage.id === selectedStageId)
     ? selectedStageId
@@ -232,17 +194,10 @@ export default function ShureFundDashboard() {
   const stageBlockers = useMemo(() => getStageBlockers(state, activeStageId), [state, activeStageId]);
   const ledgerTransactions = useMemo(() => getLedgerTransactions(state, project.id), [state, project.id]);
   const journey = useMemo(() => getRoleJourneySummary(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
-  const summaryStrip = useMemo(() => getDashboardSummaryStrip(state, project.id), [state, project.id]);
   const decisionPack = useMemo(() => getDashboardDecisionPack(state, project.id), [state, project.id]);
-  const decisionSnapshot = useMemo(() => getDashboardDecisionSnapshot(state, project.id), [state, project.id]);
   const projectActivity = useMemo(() => getProjectActivitySummary(state, project.id), [state, project.id]);
-  const activeProjectSummary = useMemo(() => getProjectWorkspaceSummary(state, project.id), [state, project.id]);
   const currentProjectInbox = useMemo(() => getRoleInboxItems(state, currentUser.role, project.id), [state, currentUser.role, project.id]);
   const allProjectInbox = useMemo(() => getRoleInboxItems(state, currentUser.role), [state, currentUser.role]);
-  const portfolioProjects = useMemo(
-    () => state.projects.map((entry) => getProjectWorkspaceSummary(state, entry.id)),
-    [state],
-  );
   const shortfallActive = fundingSummary.shortfall > 0;
   const fundingSummarySentence = getFundingSummarySentence(fundingSummary);
   const crossProjectAttentionCount = allProjectInbox.filter((item) => item.projectId !== project.id).length;
@@ -250,10 +205,6 @@ export default function ShureFundDashboard() {
   const selectedDecision = releaseDecisions.find((entry) => entry.stageId === activeStageId)!;
   const primaryAction = useMemo(() => getPrimaryActionForRole(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
   const projectLeadAction = actionQueue[0] ?? null;
-  const primaryActionDetail = useMemo(
-    () => (primaryAction ? getStageDetail(state, primaryAction.stageId) : null),
-    [primaryAction, state],
-  );
   const primaryResponsibilityCue = primaryAction
     ? getResponsibilityCue(primaryAction.primaryAction.actionableBy, primaryAction.primaryAction.actionType)
     : null;
@@ -343,7 +294,6 @@ export default function ShureFundDashboard() {
     }
 
     setSelectedStageSection(item.deepLinkTarget?.section ?? "overview");
-    setActiveSection("packages");
     setShowStageDetail(true);
   }
 
@@ -500,127 +450,8 @@ export default function ShureFundDashboard() {
       : audienceMode === "treasury"
         ? "Focus on amounts ready to pay, amounts on hold, funder sign-off, and payment conditions."
         : "Focus on payment status, exposure, on-hold value, and concise package updates.";
-  const postureToneClass =
-    activeProjectSummary.postureLabel === "Payment ready"
-      ? "bg-teal-300/20 text-teal-100"
-      : activeProjectSummary.postureLabel === "Waiting on sign-off"
-        ? "bg-amber-300/20 text-amber-100"
-        : "bg-white/12 text-slate-100";
-  const navigationItems: Array<{ key: AppSection; label: string; caption: string; badge?: string }> = [
-    {
-      key: "overview",
-      label: "Overview",
-      caption: "Payment summary and attention items",
-      badge: currentProjectInbox.length > 0 ? String(Math.min(currentProjectInbox.length, 9)) : undefined,
-    },
-    {
-      key: "payments",
-      label: "Payments",
-      caption: "Amounts, payment position, and conditions",
-      badge: summaryStrip.releaseReadyPackages > 0 ? String(summaryStrip.releaseReadyPackages) : undefined,
-    },
-    {
-      key: "packages",
-      label: "Packages",
-      caption: "Package list and payment checks",
-      badge: fundingSummary.stageSummaries.length > 0 ? String(fundingSummary.stageSummaries.length) : undefined,
-    },
-    {
-      key: "activity",
-      label: "Activity",
-      caption: "Recent actions, audit, and task flow",
-      badge: projectActivity.recentEvents.length > 0 ? String(Math.min(projectActivity.recentEvents.length, 9)) : undefined,
-    },
-    {
-      key: "settings",
-      label: "Settings",
-      caption: "Account, organisation, and access",
-    },
-  ];
-  const sectionHeading =
-    activeSection === "overview"
-      ? "Overview"
-      : activeSection === "payments"
-        ? "Payments"
-        : activeSection === "packages"
-          ? "Packages"
-          : activeSection === "activity"
-            ? "Activity"
-            : "Settings";
-  const sectionSubheading =
-    activeSection === "overview"
-      ? "Executive payment view for the selected project."
-      : activeSection === "payments"
-        ? "Amount position, payment readiness, and payment conditions."
-        : activeSection === "packages"
-          ? "Package-level payment status, checks, and actions."
-          : activeSection === "activity"
-            ? "Recent history, task flow, and audit visibility."
-            : "Account, organisation, and access controls.";
-
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.08),_transparent_28%),linear-gradient(180deg,#fbfcfc_0%,#f8fafc_44%,#f1f5f4_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8">
-        <section className="no-print rounded-[36px] bg-slate-950 px-6 py-7 text-white shadow-[0_28px_80px_-48px_rgba(15,23,42,0.75)]">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-teal-300">Shure.Fund</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.02em]">{project.name}</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                Commercial payment control for construction packages, with clear sign-off status, supporting information checks,
-                on-hold value handling, payment readiness, and auditable payment decisions.
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                <span className={`rounded-full px-3 py-1 font-medium ${postureToneClass}`}>{activeProjectSummary.postureLabel}</span>
-                <span>Last activity {formatRelativeTime(projectActivity.lastActivityAt)}</span>
-                <span>{sectionHeading}</span>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl bg-white/8 p-3 text-sm">
-                <span className="mb-2 block text-slate-300">Current project</span>
-                <p className="rounded-xl bg-white/10 px-3 py-3 font-medium">{project.name}</p>
-                <p className="mt-2 text-xs text-slate-400">{activeProjectSummary.postureReason}</p>
-              </div>
-              <label className="rounded-2xl bg-white/8 p-3 text-sm">
-                <span className="mb-2 block text-slate-300">Current role</span>
-                <select
-                  className="w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white"
-                  value={state.currentUserId}
-                  onChange={(event) => commit((current) => setCurrentUser(current, event.target.value))}
-                >
-                  {roleSwitchUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {getUserFacingRoleLabel(user.role)} · {user.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setAudienceMode(mode)}
-                className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  audienceMode === mode ? "bg-white text-slate-950" : "bg-white/8 text-slate-200"
-                }`}
-              >
-                {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={handleShareDecision}
-              className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
-            >
-              Print payment summary
-            </button>
-            <p className="text-sm text-slate-300">{modeTitle} view. {modeSummary}</p>
-          </div>
-        </section>
+    <main className="flex flex-col gap-8 text-slate-900">
 
         <section className="print-only hidden">
           <div className="mx-auto max-w-5xl text-slate-950">
@@ -749,136 +580,30 @@ export default function ShureFundDashboard() {
           </div>
         </section>
 
-        <div className="no-print grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
-          <SectionCard title="Navigation" subtitle="Move between the main product areas.">
-            <div className="grid gap-3">
-              {navigationItems.map((item) => (
-                <ShellNavButton
-                  key={item.key}
-                  label={item.label}
-                  caption={item.caption}
-                  badge={item.badge}
-                  active={activeSection === item.key}
-                  onClick={() => setActiveSection(item.key)}
-                />
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Projects" subtitle="Switch between live project payment views.">
-            <div className="grid gap-3">
-              {portfolioProjects.map((entry) => {
-                const selected = entry.projectId === project.id;
-                return (
-                  <button
-                    key={entry.projectId}
-                    type="button"
-                    onClick={() => setSelectedProjectId(entry.projectId)}
-                    className={`rounded-2xl border p-4 text-left transition ${
-                      selected ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-slate-50 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{entry.projectName}</p>
-                        <p className={`mt-1 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>{entry.postureLabel}</p>
-                      </div>
-                      <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                        selected ? "bg-white/15 text-white" : "bg-white text-slate-600"
-                      }`}>
-                        {entry.releaseReadyCount} ready to pay
-                      </span>
-                    </div>
-                    <p className={`mt-2 text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>{entry.postureReason}</p>
-                    <div className={`mt-3 flex flex-wrap gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
-                      <span>Payment blocked {entry.blockedCount}</span>
-                      <span>On hold {currency.format(entry.frozenValue)}</span>
-                      <span>Ready to pay {currency.format(entry.releasableNow)}</span>
-                    </div>
-                    <p className={`mt-2 text-xs ${selected ? "text-slate-400" : "text-slate-400"}`}>
-                      Updated {formatRelativeTime(entry.lastActivityAt)}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Project snapshot" subtitle="Headline payment position for the selected project.">
-            <div className="grid gap-3">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">Project</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">{project.name}</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">Payment position</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">{activeProjectSummary.postureLabel}</p>
-                <p className="mt-1 text-xs text-slate-500">{activeProjectSummary.postureReason}</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500">Ready to pay</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-950">{summaryStrip.releaseReadyPackages}</p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500">Packages on hold</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-950">{summaryStrip.blockedPackages}</p>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Account and settings" subtitle="Profile, organisation, and access controls.">
-            <div className="grid gap-3">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">Signed in as</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">{currentUser.name}</p>
-                <p className="mt-1 text-xs text-slate-500">{getUserFacingRoleLabel(currentUser.role)}</p>
-              </div>
+        <div className="no-print flex flex-col gap-8">
+          <div className="flex flex-wrap items-center gap-3">
+            {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
               <button
+                key={mode}
                 type="button"
-                onClick={() => setActiveSection("settings")}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-900 transition hover:border-slate-300 hover:bg-slate-50"
+                onClick={() => setAudienceMode(mode)}
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  audienceMode === mode ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"
+                }`}
               >
-                Open settings and organisation controls
+                {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
               </button>
-            </div>
-          </SectionCard>
-        </aside>
-
-        <div className="flex flex-col gap-8">
-        <section className="rounded-[30px] border border-slate-200/70 bg-white/96 p-6 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.35)]">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Workspace</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">{sectionHeading}</h2>
-              <p className="mt-1 text-sm text-slate-600">{sectionSubheading}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setAudienceMode(mode)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium ${
-                    audienceMode === mode ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={handleShareDecision}
-                className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
-              >
-                Print payment summary
-              </button>
-            </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleShareDecision}
+              className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
+            >
+              Print payment summary
+            </button>
+            <p className="text-sm text-slate-500">{modeTitle} view. {modeSummary}</p>
           </div>
-        </section>
-        {activeSection === "overview" ? (
+        {section === "overview" ? (
         <>
         <SectionCard
           title={currentUser.role === "executive" ? "Exceptions Overview" : "What Needs Your Attention"}
@@ -1053,10 +778,10 @@ export default function ShureFundDashboard() {
         </>
         ) : null}
 
-        {(activeSection === "payments" || activeSection === "packages") ? (
-        <div className={`grid gap-6 ${activeSection === "packages" ? "xl:grid-cols-1" : "xl:grid-cols-[1.3fr_0.9fr]"}`}>
+        {(section === "payments" || section === "packages") ? (
+        <div className={`grid gap-6 ${section === "packages" ? "xl:grid-cols-1" : "xl:grid-cols-[1.3fr_0.9fr]"}`}>
           <div className="grid gap-6">
-            {activeSection === "packages" ? (
+            {section === "packages" ? (
             <SectionCard
               title="Packages"
               subtitle={
@@ -1115,10 +840,10 @@ export default function ShureFundDashboard() {
             </SectionCard>
             ) : null}
 
-            {activeSection === "payments" && audienceMode === "treasury" ? <LedgerTransactionsList transactions={ledgerTransactions} /> : null}
+            {section === "payments" && audienceMode === "treasury" ? <LedgerTransactionsList transactions={ledgerTransactions} /> : null}
           </div>
 
-          {activeSection === "payments" ? (
+          {section === "payments" ? (
           <div className="grid gap-6">
             <ExpandableSection
               title="Status summary"
@@ -1256,7 +981,7 @@ export default function ShureFundDashboard() {
         </div>
         ) : null}
 
-        {activeSection === "packages" ? (
+        {section === "packages" ? (
         <div className="grid gap-6">
           {audienceMode !== "executive" ? (
           <ExpandableSection title="Amount breakdown" subtitle="Expanded payment math and funding top-ups.">
@@ -1364,7 +1089,7 @@ export default function ShureFundDashboard() {
         </div>
         ) : null}
 
-        {activeSection === "activity" ? (
+        {section === "activity" ? (
         <div className="grid gap-6">
           <ExpandableSection title="Audit History" subtitle={`Last activity ${formatRelativeTime(projectActivity.lastActivityAt)}.`}>
             <div className="grid gap-3 lg:grid-cols-2">
@@ -1414,7 +1139,7 @@ export default function ShureFundDashboard() {
         </div>
         ) : null}
 
-        {activeSection === "settings" ? (
+        {section === "settings" ? (
         <div className="grid gap-6 xl:grid-cols-2">
           <SectionCard title="Profile and account" subtitle="A clear home for user profile and account controls.">
             <div className="grid gap-3">
@@ -1452,8 +1177,6 @@ export default function ShureFundDashboard() {
         </div>
         ) : null}
         </div>
-      </div>
-      </div>
       <style jsx global>{`
         @media print {
           @page {

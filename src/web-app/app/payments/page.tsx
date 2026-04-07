@@ -1,12 +1,5 @@
-import { Suspense } from "react";
-
-import ShureFundWorkspace from "../components/ShureFundWorkspace";
-import WorkspaceRouteFallback from "../components/WorkspaceRouteFallback";
+import ShureFundDashboard from "../components/ShureFundDashboard";
 
 export default function PaymentsPage() {
-  return (
-    <Suspense fallback={<WorkspaceRouteFallback />}>
-      <ShureFundWorkspace routeView="payments" />
-    </Suspense>
-  );
+  return <ShureFundDashboard section="payments" />;
 }
