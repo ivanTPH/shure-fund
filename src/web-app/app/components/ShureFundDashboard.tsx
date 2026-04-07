@@ -48,6 +48,7 @@ import type {
   FundingSourceType,
   SystemStateRecord,
 } from "@/lib/shureFundModels";
+import type { WorkspaceDecisionCue } from "@/lib/systemState";
 import JourneySummaryCard from "./JourneySummaryCard";
 import LedgerSummaryCard from "./LedgerSummaryCard";
 import LedgerTransactionsList from "./LedgerTransactionsList";
@@ -167,12 +168,19 @@ export default function ShureFundDashboard() {
   const [variationTitle, setVariationTitle] = useState("");
   const [variationReason, setVariationReason] = useState("");
   const [variationAmount, setVariationAmount] = useState("10000");
+  const [selectedWorkspaceCue, setSelectedWorkspaceCue] = useState<{ stageId: string; cue: WorkspaceDecisionCue } | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{
     stageId: string;
     section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
     tone: "success" | "warning";
     title: string;
     detail: string;
+    resultType: "advanced" | "released" | "waiting" | "blocked" | "exception" | "no_change";
+    resultTypeLabel: string;
+    resultHeadline: string;
+    resultSubline: string | null;
+    resultTone: "success" | "info" | "warning" | "neutral";
+    emphasis: "strong" | "normal" | "subtle";
     progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
     stateNowLabel: string;
     stateNowDetail: string;
@@ -249,6 +257,38 @@ export default function ShureFundDashboard() {
           : fundingSource !== "funder" && fundingSource !== "contractor"
             ? "Select a funding source."
             : "Treasury only.";
+  const urgencyTone = (urgency: WorkspaceDecisionCue["decisionUrgency"]) =>
+    urgency === "immediate"
+      ? "bg-red-50 text-red-700"
+      : urgency === "active"
+        ? "bg-amber-50 text-amber-700"
+        : urgency === "outcome"
+          ? "bg-slate-100 text-slate-700"
+          : "bg-blue-50 text-blue-700";
+  const urgencyLabel = (urgency: WorkspaceDecisionCue["decisionUrgency"]) =>
+    urgency === "immediate"
+      ? "Act now"
+      : urgency === "active"
+        ? "Active"
+        : urgency === "outcome"
+          ? "Outcome"
+          : "Monitor";
+  const focusHintLabel = (hint: WorkspaceDecisionCue["detailFocusHint"]) =>
+    hint === "approval"
+      ? "Approval"
+      : hint === "evidence"
+        ? "Evidence"
+        : hint === "funding"
+          ? "Funding"
+          : hint === "release"
+            ? "Release"
+            : hint === "exception"
+              ? "Exception"
+              : hint === "handoff"
+                ? "Handoff"
+                : hint === "outcome"
+                  ? "Outcome"
+                  : "Overview";
 
   useEffect(() => {
     if (projectStages.some((stage) => stage.id === selectedStageId)) {
@@ -261,7 +301,14 @@ export default function ShureFundDashboard() {
     }
     setSelectedStageSection("overview");
     setActionFeedback(null);
+    setSelectedWorkspaceCue(null);
   }, [projectStages, selectedStageId]);
+
+  useEffect(() => {
+    if (selectedWorkspaceCue && selectedWorkspaceCue.stageId !== activeStageId) {
+      setSelectedWorkspaceCue(null);
+    }
+  }, [activeStageId, selectedWorkspaceCue]);
 
   function handleWorkspaceItemSelect(item: (typeof currentProjectInbox)[number]) {
     if (item.deepLinkTarget?.projectId && item.deepLinkTarget.projectId !== project.id) {
@@ -270,6 +317,7 @@ export default function ShureFundDashboard() {
 
     if (item.deepLinkTarget?.stageId) {
       setSelectedStageId(item.deepLinkTarget.stageId);
+      setSelectedWorkspaceCue(item.decisionCue ? { stageId: item.deepLinkTarget.stageId, cue: item.decisionCue } : null);
     }
 
     setSelectedStageSection(item.deepLinkTarget?.section ?? "overview");
@@ -739,24 +787,32 @@ export default function ShureFundDashboard() {
                   <div>
                     <p className="text-sm text-slate-500">{item.stageName ?? item.projectName}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-950">{item.title}</p>
-                    <p className="mt-2 text-sm text-slate-600">{item.reason}</p>
+                    <p className="mt-2 text-sm text-slate-600">{item.decisionCue.primaryCue}</p>
+                    {item.decisionCue.secondaryCue ? (
+                      <p className="mt-1 text-sm text-slate-500">{item.decisionCue.secondaryCue}</p>
+                    ) : null}
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>
-                    {item.priority}
-                  </span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>
+                      {item.priority}
+                    </span>
+                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${urgencyTone(item.decisionCue.decisionUrgency)}`}>
+                      {urgencyLabel(item.decisionCue.decisionUrgency)}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl bg-white p-3">
-                    <p className="text-xs text-slate-500">What happens next</p>
-                    <p className="mt-1 text-sm font-medium text-slate-950">{item.nextStep}</p>
+                    <p className="text-xs text-slate-500">Orientation</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{item.decisionCue.entryOrientationLabel ?? "Overview"}</p>
                   </div>
                   <div className="rounded-2xl bg-white p-3">
                     <p className="text-xs text-slate-500">Owner</p>
-                    <p className="mt-1 text-sm font-medium text-slate-950">{item.ownerLabel}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{item.handoff?.toRoleLabel ?? item.ownerLabel}</p>
                   </div>
                   <div className="rounded-2xl bg-white p-3">
-                    <p className="text-xs text-slate-500">State</p>
-                    <p className="mt-1 text-sm font-medium text-slate-950">{item.readinessState === "actionable" ? "Ready for you" : "Watch"}</p>
+                    <p className="text-xs text-slate-500">Open to</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{focusHintLabel(item.decisionCue.detailFocusHint)}</p>
                   </div>
                 </div>
               </button>
@@ -1135,10 +1191,41 @@ export default function ShureFundDashboard() {
 
           <ExpandableSection
             title="Selected Work Package"
-            subtitle="Detailed controls, evidence, approvals, disputes, and release actions."
+            subtitle={
+              actionFeedback?.stageId === stageDetail.stage.id
+                ? `${actionFeedback.resultHeadline}${actionFeedback.resultSubline ? ` · ${actionFeedback.resultSubline}` : ""}`
+                : "Detailed controls, evidence, approvals, disputes, and release actions."
+            }
             open={showStageDetail}
             onToggle={setShowStageDetail}
           >
+            {actionFeedback?.stageId === stageDetail.stage.id ? (
+              <div
+                className={`mb-4 rounded-2xl border px-4 py-3 ${
+                  actionFeedback.resultTone === "success"
+                    ? "border-teal-200 bg-teal-50"
+                    : actionFeedback.resultTone === "warning"
+                      ? "border-amber-200 bg-amber-50"
+                      : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest governed action</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-950">{actionFeedback.resultHeadline}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {actionFeedback.resultSubline ?? actionFeedback.whatChanged[0] ?? actionFeedback.detail}
+                    </p>
+                    {actionFeedback.nextOwner ? (
+                      <p className="mt-1 text-xs text-slate-500">{actionFeedback.nextOwner} acts next.</p>
+                    ) : null}
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+                    {actionFeedback.resultTypeLabel}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             <StageDetailPanel
               detail={stageDetail}
               focusedSection={selectedStageSection}
@@ -1147,6 +1234,12 @@ export default function ShureFundDashboard() {
                 tone: actionFeedback.tone,
                 title: actionFeedback.title,
                 detail: actionFeedback.detail,
+                resultType: actionFeedback.resultType,
+                resultTypeLabel: actionFeedback.resultTypeLabel,
+                resultHeadline: actionFeedback.resultHeadline,
+                resultSubline: actionFeedback.resultSubline,
+                resultTone: actionFeedback.resultTone,
+                emphasis: actionFeedback.emphasis,
                 progressionStatus: actionFeedback.progressionStatus,
                 stateNowLabel: actionFeedback.stateNowLabel,
                 stateNowDetail: actionFeedback.stateNowDetail,
@@ -1156,6 +1249,7 @@ export default function ShureFundDashboard() {
                 nextOwner: actionFeedback.nextOwner,
                 nextActionLabel: actionFeedback.nextActionLabel,
               } : null}
+              entryCue={selectedWorkspaceCue?.stageId === stageDetail.stage.id ? selectedWorkspaceCue.cue : stageDetail.entryOrientation}
               overrideReason={overrideReason}
               evidenceTitle={evidenceTitle}
               evidenceType={evidenceType}

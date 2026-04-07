@@ -1,16 +1,16 @@
 import type { ApprovalRole } from "@/lib/shureFundModels";
-import type { StageDetailModel } from "@/lib/systemState";
+import type { DerivedActionDescriptor, StageDetailModel } from "@/lib/systemState";
 
-function getActionButtonClass(kind: "primary" | "secondary", disabled: boolean) {
-  if (kind === "primary") {
+function getActionButtonClass(descriptor: DerivedActionDescriptor, disabled: boolean) {
+  if (descriptor.confidence === "high" && descriptor.isPrimary) {
     return disabled
-      ? "min-h-11 rounded-2xl bg-slate-300 px-4 py-2 text-sm font-medium text-white"
-      : "min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white";
+      ? "min-h-11 rounded-2xl bg-slate-300 px-4 py-2 text-left text-sm font-medium text-white"
+      : "min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-left text-sm font-medium text-white";
   }
 
   return disabled
-    ? "min-h-11 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-400"
-    : "min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900";
+    ? "min-h-11 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2 text-left text-sm font-medium text-slate-400"
+    : "min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-left text-sm font-medium text-slate-900";
 }
 
 function getApprovalStatusTone(status: string) {
@@ -25,27 +25,10 @@ function getApprovalStatusTone(status: string) {
   return "bg-slate-100 text-slate-700";
 }
 
-function getReadinessPriority(
-  readiness: StageDetailModel["approvals"][number]["readiness"],
-): "Primary action" | "Secondary action" | "Unavailable" {
-  return readiness.readinessState === "available" ? "Primary action" : "Unavailable";
-}
-
-function getReadinessMessage(readiness: StageDetailModel["approvals"][number]["readiness"]) {
-  const missing = readiness.missingPrerequisites[0];
-  if (missing && readiness.readinessState !== "available" && readiness.readinessState !== "complete") {
-    return missing;
-  }
-
-  if (readiness.readinessState === "waiting_on_other_role" && readiness.nextOwnerLabel) {
-    return `${readiness.reasonLabel} ${readiness.nextOwnerLabel} must act first.`;
-  }
-
-  if (readiness.readinessState === "waiting_on_prerequisite" && readiness.nextConditionLabel) {
-    return `${readiness.reasonLabel} ${readiness.nextConditionLabel}`;
-  }
-
-  return readiness.reasonLabel;
+function getDescriptorStatus(descriptor: DerivedActionDescriptor) {
+  if (descriptor.confidence === "blocked") return "Blocked";
+  if (descriptor.isPrimary && descriptor.confidence === "high") return "Primary action";
+  return "Secondary action";
 }
 
 export default function ApprovalPanel({
@@ -60,12 +43,11 @@ export default function ApprovalPanel({
   return (
     <section>
       <div>
-        <h3 className="text-sm font-semibold text-slate-900">Approval Workflow</h3>
-        <p className="mt-1 text-sm text-slate-500">Status: {detail.approvalSummary.approvalProgressLabel}</p>
+        <h3 className="text-sm font-medium text-slate-900">Approval workflow</h3>
+        <p className="mt-1 text-xs text-slate-500">{detail.approvalSummary.approvalProgressLabel}</p>
         <p className="mt-2 text-sm text-slate-600">{detail.approvalSummary.headline}</p>
-        <p className="mt-1 text-sm text-slate-600">{detail.approvalSummary.nextApprovalStepLabel ?? detail.sectionGuidance.approvals.recommendedAction}</p>
       </div>
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active approval</p>
@@ -111,39 +93,49 @@ export default function ApprovalPanel({
                       ? "text-teal-700"
                       : "text-slate-500"
                 }`}>
-                  {getReadinessMessage(approval.readiness)}
+                  {approval.approveAction.stateTransitionPreview.fromState} → {approval.approveAction.stateTransitionPreview.toState}
                 </p>
               </div>
               <div className="grid gap-2">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="grid gap-2">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      {approval.readiness.readinessState === "complete" ? "Completed" : getReadinessPriority(approval.readiness)}
+                      {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.approveAction)}
                     </p>
                     <button
                       type="button"
                       onClick={() => onApprove(approval.role)}
                       disabled={!approval.readiness.isAvailable}
-                      className={`disabled:cursor-not-allowed ${getActionButtonClass("primary", !approval.readiness.isAvailable)}`}
+                      className={`disabled:cursor-not-allowed ${getActionButtonClass(approval.approveAction, !approval.readiness.isAvailable)}`}
                     >
-                      Approve
+                      <span className="block">{approval.approveAction.label}</span>
+                      <span className="mt-1 block text-xs opacity-80">
+                        {approval.approveAction.stateTransitionPreview.fromState} → {approval.approveAction.stateTransitionPreview.toState}
+                      </span>
                     </button>
                   </div>
                   <div className="grid gap-2">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      {approval.readiness.readinessState === "available" ? "Secondary action" : approval.readiness.readinessState === "complete" ? "Completed" : "Unavailable"}
+                      {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.rejectAction)}
                     </p>
                     <button
                       type="button"
                       onClick={() => onReject(approval.role)}
                       disabled={!approval.readiness.isAvailable}
-                      className={`disabled:cursor-not-allowed ${getActionButtonClass("secondary", !approval.readiness.isAvailable)}`}
+                      className={`disabled:cursor-not-allowed ${getActionButtonClass(approval.rejectAction, !approval.readiness.isAvailable)}`}
                     >
-                      Reject
+                      <span className="block">{approval.rejectAction.label}</span>
+                      <span className="mt-1 block text-xs opacity-80">
+                        {approval.rejectAction.stateTransitionPreview.fromState} → {approval.rejectAction.stateTransitionPreview.toState}
+                      </span>
                     </button>
                   </div>
                 </div>
-                <p className="text-sm text-slate-600">{getReadinessMessage(approval.readiness)}</p>
+                <p className="text-xs text-slate-500">
+                  {approval.readiness.isAvailable
+                    ? approval.approveAction.sideEffects?.[0] ?? approval.approveAction.outcomeLabel
+                    : approval.approveAction.blockerSummary ?? approval.readiness.nextConditionLabel}
+                </p>
               </div>
             </div>
           </article>

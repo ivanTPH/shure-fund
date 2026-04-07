@@ -1,16 +1,16 @@
 import type { EvidenceStatus, EvidenceType } from "@/lib/shureFundModels";
-import type { StageDetailModel } from "@/lib/systemState";
+import type { DerivedActionDescriptor, StageDetailModel } from "@/lib/systemState";
 
-function getActionButtonClass(kind: "primary" | "secondary", disabled: boolean) {
-  if (kind === "primary") {
+function getActionButtonClass(descriptor: DerivedActionDescriptor, disabled: boolean) {
+  if (descriptor.confidence === "high" && descriptor.isPrimary) {
     return disabled
-      ? "min-h-11 rounded-2xl bg-slate-300 px-4 py-2 text-xs font-medium text-white"
-      : "min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-medium text-white";
+      ? "min-h-11 rounded-2xl bg-slate-300 px-4 py-2 text-left text-xs font-medium text-white"
+      : "min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-left text-xs font-medium text-white";
   }
 
   return disabled
-    ? "min-h-11 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400"
-    : "min-h-11 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900";
+    ? "min-h-11 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-left text-xs font-medium text-slate-400"
+    : "min-h-11 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-left text-xs font-medium text-slate-900";
 }
 
 function getEvidenceStatusTone(status: string) {
@@ -25,10 +25,10 @@ function getEvidenceStatusTone(status: string) {
   return "bg-slate-100 text-slate-700";
 }
 
-function getReadinessLabel(readiness: StageDetailModel["actionReadiness"][keyof StageDetailModel["actionReadiness"]]) {
-  if (readiness.readinessState === "available") return "Primary action";
-  if (readiness.readinessState === "complete") return "Completed";
-  return "Unavailable";
+function getDescriptorLabel(descriptor: DerivedActionDescriptor) {
+  if (descriptor.confidence === "blocked") return "Blocked";
+  if (descriptor.isPrimary && descriptor.confidence === "high") return "Primary action";
+  return "Secondary action";
 }
 
 function getReadinessMessage(
@@ -73,6 +73,7 @@ export default function EvidencePanel({
   onUpdateEvidenceStatus: (requirementId: string, status: EvidenceStatus) => void;
 }) {
   const canAddItem = detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length > 0;
+  const addEvidenceDescriptor = detail.actionDescriptorMap["add-evidence"];
   const addItemHelp = getReadinessMessage(
     detail.actionReadiness.addEvidence,
     detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length === 0
@@ -85,17 +86,16 @@ export default function EvidencePanel({
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Supporting Documents & Supporting Information</h3>
-          <p className="mt-1 text-sm text-slate-500">Status: {detail.evidenceSummary.reviewStatusLabel}</p>
+          <h3 className="text-sm font-medium text-slate-900">Supporting documents & information</h3>
+          <p className="mt-1 text-xs text-slate-500">{detail.evidenceSummary.reviewStatusLabel}</p>
           <p className="mt-2 text-sm text-slate-600">{detail.evidenceSummary.headline}</p>
-          <p className="mt-1 text-sm text-slate-600">{detail.evidenceSummary.nextEvidenceStepLabel ?? detail.sectionGuidance.evidence.recommendedAction}</p>
           {!detail.actionReadiness.addEvidence.isAvailable && !detail.actionReadiness.reviewEvidence.isAvailable ? (
             <p className="mt-2 text-xs text-slate-500">This role can view evidence only.</p>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Sufficiency</p>
@@ -119,7 +119,7 @@ export default function EvidencePanel({
         ) : null}
       </div>
 
-      <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+      <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4">
         <p className="text-sm font-medium text-slate-700">Add supporting item</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_10rem_10rem]">
           <input
@@ -140,15 +140,20 @@ export default function EvidencePanel({
             type="button"
             onClick={onAddEvidence}
             disabled={!canAddItem}
-            className={`disabled:cursor-not-allowed ${getActionButtonClass("primary", !canAddItem).replace("min-h-11 px-4 py-2 text-xs", "min-h-12 px-4 py-3 text-sm")}`}
+            className={`disabled:cursor-not-allowed ${getActionButtonClass(addEvidenceDescriptor, !canAddItem).replace("min-h-11 px-4 py-2 text-left text-xs", "min-h-12 px-4 py-3 text-left text-sm")}`}
           >
-            Add Item
+            <span className="block">{addEvidenceDescriptor.label}</span>
+            <span className="mt-1 block text-xs opacity-80">
+              {addEvidenceDescriptor.stateTransitionPreview.fromState} → {addEvidenceDescriptor.stateTransitionPreview.toState}
+            </span>
           </button>
         </div>
         <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          {canAddItem ? "Primary action" : getReadinessLabel(detail.actionReadiness.addEvidence)}
+          {getDescriptorLabel(addEvidenceDescriptor)}
         </p>
-        <p className="mt-1 text-xs text-slate-500">{addItemHelp}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          {canAddItem ? addEvidenceDescriptor.sideEffects?.[0] ?? addEvidenceDescriptor.outcomeLabel : addItemHelp}
+        </p>
       </div>
 
       <div className="mt-3 grid gap-3">
@@ -174,26 +179,39 @@ export default function EvidencePanel({
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex">
-                {(["pending", "accepted", "rejected", "requires_more"] as EvidenceStatus[]).map((status) => (
+                {(["pending", "accepted", "rejected", "requires_more"] as EvidenceStatus[]).map((status) => {
+                  const descriptor = item.actionDescriptors[status];
+                  if (!descriptor) return null;
+
+                  return (
                   <button
                     key={status}
                     type="button"
                     onClick={() => onUpdateEvidenceStatus(item.id, status)}
                     disabled={!detail.actionReadiness.reviewEvidence.isAvailable}
                     className={`disabled:cursor-not-allowed ${
-                      getActionButtonClass(status === "accepted" ? "primary" : "secondary", !detail.actionReadiness.reviewEvidence.isAvailable)
+                      getActionButtonClass(descriptor, !detail.actionReadiness.reviewEvidence.isAvailable)
                     }`}
                   >
-                    {status.replace("_", " ")}
+                    <span className="block">{descriptor.label}</span>
+                    <span className="mt-1 block text-[10px] opacity-80">
+                      {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
+                    </span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
             {detail.actionReadiness.reviewEvidence.isAvailable ? (
-              <p className="mt-2 text-sm text-slate-600">{detail.evidenceSummary.nextEvidenceStepLabel ?? "Accept the evidence when it is complete. Use the other controls when review cannot clear yet."}</p>
+              <p className="mt-2 text-xs text-slate-500">
+                {item.actionDescriptors.accepted?.sideEffects?.[0] ??
+                  item.actionDescriptors.accepted?.impactSummary ??
+                  item.actionDescriptors.accepted?.outcomeLabel ??
+                  detail.evidenceSummary.reviewStatusLabel}
+              </p>
             ) : null}
             {!detail.actionReadiness.reviewEvidence.isAvailable ? (
-              <p className="mt-2 text-sm text-slate-600">{reviewHelp}</p>
+              <p className="mt-2 text-sm text-slate-600">{item.actionDescriptors.accepted?.blockerSummary ?? reviewHelp}</p>
             ) : null}
           </article>
         ))}

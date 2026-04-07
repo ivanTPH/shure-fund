@@ -262,6 +262,9 @@ export interface HomeTaskItem {
   handoff?: StageRoleHandoff;
   exitState?: StageExitState;
   exceptionPath?: StageExceptionPath;
+  roleCueLabel?: string;
+  roleViewMode?: StageRoleViewMode;
+  decisionCue?: WorkspaceDecisionCue;
 }
 
 export interface HomeTaskSections {
@@ -1260,6 +1263,9 @@ export function deriveHomeTaskSections(
         nextActionLabel: primary.nextActionLabel ?? primary.title,
         issueCount: sorted.length > 1 ? sorted.length : undefined,
         attentionReason: primary.attentionReason,
+        roleCueLabel: primary.roleCueLabel,
+        roleViewMode: primary.roleViewMode,
+        decisionCue: primary.decisionCue,
       };
     });
 
@@ -1280,6 +1286,19 @@ export function deriveHomeTaskSections(
         actionKey: action.actionKey,
         statusLabel: stage ? deriveWorkflowProgressLabel(stage, project.funding.position) : "In review",
       });
+      const handoff = getTaskRoleHandoff({
+        ownerLabel: formatRoleLabel(action.requiredRole ?? role),
+        attentionReason,
+        nextActionLabel: action.title,
+        summary: action.blockerLabel ?? action.detail,
+      });
+      const deepLinkSection = getStageDetailSectionForActionCategory(action.type);
+      const roleCue = getHomeTaskRoleCue({
+        role,
+        actionType: action.type,
+        attentionReason,
+        handoff,
+      });
       return {
         id: action.id,
         projectId: project.project.id,
@@ -1297,11 +1316,18 @@ export function deriveHomeTaskSections(
         statusLabel: stage ? deriveWorkflowProgressLabel(stage, project.funding.position) : "In review",
         actionType: action.type,
         attentionReason,
-        handoff: getTaskRoleHandoff({
-          ownerLabel: formatRoleLabel(action.requiredRole ?? role),
-          attentionReason,
-          nextActionLabel: action.title,
+        handoff,
+        roleCueLabel: roleCue.label,
+        roleViewMode: roleCue.mode,
+        decisionCue: getTaskDecisionCue({
           summary: action.blockerLabel ?? action.detail,
+          nextStep: action.title,
+          nextActionLabel: action.title,
+          readinessState: "actionable",
+          roleRelevance: "direct",
+          attentionReason,
+          handoff,
+          deepLinkSection,
         }),
       };
     };
@@ -1326,6 +1352,15 @@ export function deriveHomeTaskSections(
         attentionReason: item.attentionReason,
         nextActionLabel: undefined,
         summary: item.summary,
+      });
+      item.decisionCue = getTaskDecisionCue({
+        summary: item.summary,
+        nextStep: item.nextActionLabel,
+        readinessState: "watch",
+        roleRelevance: "indirect",
+        attentionReason: item.attentionReason,
+        handoff: item.handoff,
+        deepLinkSection: getStageDetailSectionForActionCategory(action.type),
       });
       waitingOnOthers.push(item);
     });
@@ -2490,11 +2525,20 @@ export interface AttentionTaskItem {
   exceptionPath?: StageExceptionPath;
   readinessState: "actionable" | "watch";
   roleRelevance: "direct" | "indirect" | "read_only";
+  decisionCue: WorkspaceDecisionCue;
   deepLinkTarget?: {
     projectId: string;
     stageId?: string;
     section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
   };
+}
+
+export interface WorkspaceDecisionCue {
+  primaryCue: string;
+  secondaryCue: string | null;
+  decisionUrgency: "immediate" | "active" | "monitor" | "outcome";
+  entryOrientationLabel: string | null;
+  detailFocusHint: "release" | "funding" | "approval" | "evidence" | "exception" | "handoff" | "outcome" | "general";
 }
 
 export interface StageAttentionReason {
@@ -2529,6 +2573,477 @@ function getActingRoleSummary(role: FundingUserRole): ActingRoleSummary {
 
 function getPermissionReason(enabled: boolean, requiredRoleLabel: string, enabledMessage: string) {
   return enabled ? enabledMessage : `${requiredRoleLabel} role required.`;
+}
+
+function reorderSignals(base: StageTopSignalKey[], priorityKeys: StageTopSignalKey[]) {
+  const priority = priorityKeys.filter((key, index) => priorityKeys.indexOf(key) === index);
+  const rest = base.filter((key) => !priority.includes(key));
+  return [...priority, ...rest];
+}
+
+function getStageRoleViewGuidance(params: {
+  actingRole: ActingRoleSummary;
+  decisionSummary: StageDecisionSummary;
+  attentionReason: StageAttentionReason;
+  roleHandoff: StageRoleHandoff;
+  exitState: StageExitState;
+  exceptionPath: StageExceptionPath;
+  releaseSummary: StageReleaseDecisionSummary;
+  evidenceSummary: StageEvidenceSummary;
+  approvalSummary: StageApprovalSummary;
+  casePathSummary: StageCasePathSummary;
+  fundingExplanation: StageFundingExplanation;
+}): StageRoleViewGuidance {
+  const {
+    actingRole,
+    decisionSummary,
+    attentionReason,
+    roleHandoff,
+    exitState,
+    exceptionPath,
+    releaseSummary,
+    evidenceSummary,
+    approvalSummary,
+    casePathSummary,
+    fundingExplanation,
+  } = params;
+
+  let viewMode: StageRoleViewMode = "action_led";
+  let primarySignals: StageTopSignalKey[] = ["decision", "release", "attention", "handoff"];
+  let secondarySignals: StageTopSignalKey[] = ["evidence", "approval", "funding", "exception", "case_path", "outcome"];
+  let contextualSignals: StageTopSignalKey[] = ["timeline"];
+  let primaryWorkspaceLabel = "Stage progression";
+  let workspaceHintLabel = "Next governed move";
+
+  switch (actingRole.key) {
+    case "treasury":
+      viewMode = "funding_led";
+      primarySignals = ["release", "funding", "decision", "exception", "handoff"];
+      secondarySignals = ["case_path", "approval", "evidence", "outcome", "attention"];
+      primaryWorkspaceLabel = "Release and funding";
+      workspaceHintLabel = "Treasury control";
+      break;
+    case "commercial":
+      viewMode = "review_led";
+      primarySignals = ["approval", "case_path", "exception", "decision", "attention"];
+      secondarySignals = ["evidence", "handoff", "release", "funding", "outcome"];
+      primaryWorkspaceLabel = "Approval and case decision";
+      workspaceHintLabel = "Commercial review";
+      break;
+    case "professional":
+      viewMode = "review_led";
+      primarySignals = ["evidence", "approval", "decision", "attention", "handoff"];
+      secondarySignals = ["exception", "case_path", "release", "funding", "outcome"];
+      primaryWorkspaceLabel = "Evidence and review";
+      workspaceHintLabel = "Evidence review";
+      break;
+    case "funder":
+      viewMode = "funding_led";
+      primarySignals = ["funding", "release", "exception", "decision", "outcome"];
+      secondarySignals = ["case_path", "attention", "handoff", "evidence", "approval"];
+      primaryWorkspaceLabel = "Funding exposure";
+      workspaceHintLabel = "Financial oversight";
+      break;
+    case "executive":
+      viewMode = "oversight_led";
+      primarySignals = ["decision", "outcome", "release", "exception", "timeline"];
+      secondarySignals = ["funding", "case_path", "attention", "handoff", "evidence", "approval"];
+      contextualSignals = [];
+      primaryWorkspaceLabel = "Outcome and risk";
+      workspaceHintLabel = "Executive oversight";
+      break;
+    default:
+      viewMode = "action_led";
+      primarySignals = ["decision", "attention", "handoff", "evidence", "approval"];
+      secondarySignals = ["release", "exception", "case_path", "funding", "outcome"];
+      primaryWorkspaceLabel = "Stage progression";
+      workspaceHintLabel = "Next governed move";
+      break;
+  }
+
+  const dynamicPriority: StageTopSignalKey[] = [];
+
+  if (exceptionPath.hasActiveExceptionPath) {
+    viewMode = "exception_led";
+    dynamicPriority.push("exception", "case_path");
+  }
+  if (exitState.isClosedOrComplete) {
+    dynamicPriority.push("outcome");
+  }
+  if (roleHandoff.isWaitingOnAnotherRole && !actingRole.readOnly) {
+    dynamicPriority.push("handoff");
+  }
+  if (attentionReason.requiresMyAction && !actingRole.readOnly) {
+    dynamicPriority.push("attention");
+  }
+  if (releaseSummary.tone === "warning" || fundingExplanation.tone === "warning") {
+    dynamicPriority.push("release", "funding");
+  }
+  if (approvalSummary.tone === "warning") {
+    dynamicPriority.push("approval");
+  }
+  if (evidenceSummary.tone === "warning") {
+    dynamicPriority.push("evidence");
+  }
+  if (decisionSummary.tone === "warning") {
+    dynamicPriority.push("decision");
+  }
+
+  return {
+    viewMode,
+    primarySignals: reorderSignals(primarySignals, dynamicPriority),
+    secondarySignals: reorderSignals(secondarySignals, dynamicPriority),
+    contextualSignals: reorderSignals(contextualSignals, dynamicPriority),
+    primaryWorkspaceLabel,
+    workspaceHintLabel,
+  };
+}
+
+function getHomeTaskRoleCue(params: {
+  role: Role;
+  actionType?: ActionType;
+  attentionReason?: StageAttentionReason;
+  exceptionPath?: StageExceptionPath;
+  handoff?: StageRoleHandoff;
+}): { label: string; mode: StageRoleViewMode } {
+  const { role, actionType, attentionReason, exceptionPath, handoff } = params;
+
+  if (exceptionPath?.hasActiveExceptionPath) {
+    return {
+      label: role === "funder" ? "Exception oversight" : "Governed exception",
+      mode: "exception_led",
+    };
+  }
+
+  if (role === "treasury") {
+    return {
+      label: actionType === "approval" ? "Release control" : "Funding and release",
+      mode: "funding_led",
+    };
+  }
+
+  if (role === "commercial") {
+    return {
+      label: actionType === "approval" ? "Approval decision" : "Case review",
+      mode: "review_led",
+    };
+  }
+
+  if (role === "professional") {
+    return {
+      label: "Evidence review",
+      mode: "review_led",
+    };
+  }
+
+  if (role === "funder") {
+    return {
+      label: "Financial exposure",
+      mode: "funding_led",
+    };
+  }
+
+  if (handoff?.isWaitingOnAnotherRole) {
+    return {
+      label: "Progress handoff",
+      mode: "action_led",
+    };
+  }
+
+  return {
+    label: attentionReason?.reasonCategory === "evidence" ? "Delivery evidence" : "Stage progression",
+    mode: "action_led",
+  };
+}
+
+function mapSectionToFocusHint(section?: StageDetailSectionKey): WorkspaceDecisionCue["detailFocusHint"] {
+  if (section === "release") return "release";
+  if (section === "funding") return "funding";
+  if (section === "approvals") return "approval";
+  if (section === "evidence") return "evidence";
+  if (section === "dispute" || section === "variation") return "exception";
+  return "general";
+}
+
+function getTaskDecisionCue(params: {
+  summary: string;
+  nextStep?: string;
+  nextActionLabel?: string;
+  readinessState: "actionable" | "watch";
+  roleRelevance: "direct" | "indirect" | "read_only";
+  attentionReason?: StageAttentionReason;
+  handoff?: StageRoleHandoff;
+  exitState?: StageExitState;
+  exceptionPath?: StageExceptionPath;
+  deepLinkSection?: StageDetailSectionKey;
+}): WorkspaceDecisionCue {
+  const {
+    summary,
+    nextStep,
+    nextActionLabel,
+    readinessState,
+    roleRelevance,
+    attentionReason,
+    handoff,
+    exitState,
+    exceptionPath,
+    deepLinkSection,
+  } = params;
+
+  if (exitState?.isClosedOrComplete) {
+    return {
+      primaryCue: exitState.outcomeLabel,
+      secondaryCue: exitState.valueOutcomeLabel ?? exitState.reopenPathLabel,
+      decisionUrgency: "outcome",
+      entryOrientationLabel: "Governed outcome",
+      detailFocusHint: "outcome",
+    };
+  }
+
+  if (exceptionPath?.hasActiveExceptionPath) {
+    return {
+      primaryCue: exceptionPath.headline,
+      secondaryCue: exceptionPath.requiredDecisionLabel ?? exceptionPath.returnPathLabel,
+      decisionUrgency: roleRelevance === "direct" ? "immediate" : "active",
+      entryOrientationLabel: "Exception path",
+      detailFocusHint: "exception",
+    };
+  }
+
+  if (handoff?.isWaitingOnAnotherRole) {
+    return {
+      primaryCue: handoff.handoffHeadline,
+      secondaryCue: handoff.expectedActionLabel ?? handoff.unlockOutcomeLabel,
+      decisionUrgency: roleRelevance === "direct" ? "active" : "monitor",
+      entryOrientationLabel: "Waiting on handoff",
+      detailFocusHint: "handoff",
+    };
+  }
+
+  if (readinessState === "actionable") {
+    return {
+      primaryCue: attentionReason?.reasonLabel ?? summary,
+      secondaryCue: nextActionLabel ?? nextStep ?? attentionReason?.supportingDetails[0] ?? null,
+      decisionUrgency: roleRelevance === "read_only" ? "monitor" : "immediate",
+      entryOrientationLabel: roleRelevance === "read_only" ? "Monitor now" : "Act now",
+      detailFocusHint: mapSectionToFocusHint(deepLinkSection),
+    };
+  }
+
+  return {
+    primaryCue: attentionReason?.reasonLabel ?? summary,
+    secondaryCue:
+      attentionReason?.supportingDetails[0] ??
+      nextStep ??
+      nextActionLabel ??
+      null,
+    decisionUrgency: roleRelevance === "read_only" ? "outcome" : "monitor",
+    entryOrientationLabel: roleRelevance === "read_only" ? "Oversight" : "Monitor",
+    detailFocusHint: mapSectionToFocusHint(deepLinkSection),
+  };
+}
+
+function getStageEntryOrientation(detail: Pick<
+  StageDetailModel,
+  | "attentionReason"
+  | "roleHandoff"
+  | "exitState"
+  | "exceptionPath"
+  | "releaseSummary"
+  | "fundingExplanation"
+  | "evidenceSummary"
+  | "approvalSummary"
+  | "sectionGuidance"
+  | "roleViewGuidance"
+>): WorkspaceDecisionCue {
+  if (detail.exitState.isClosedOrComplete) {
+    return {
+      primaryCue: detail.exitState.outcomeLabel,
+      secondaryCue: detail.exitState.valueOutcomeLabel ?? detail.exitState.reopenPathLabel,
+      decisionUrgency: "outcome",
+      entryOrientationLabel: "Governed outcome",
+      detailFocusHint: "outcome",
+    };
+  }
+
+  if (detail.exceptionPath.hasActiveExceptionPath) {
+    return {
+      primaryCue: detail.exceptionPath.headline,
+      secondaryCue: detail.exceptionPath.requiredDecisionLabel ?? detail.exceptionPath.returnPathLabel,
+      decisionUrgency: "immediate",
+      entryOrientationLabel: "Exception path",
+      detailFocusHint: "exception",
+    };
+  }
+
+  if (detail.roleHandoff.isWaitingOnAnotherRole) {
+    return {
+      primaryCue: detail.roleHandoff.handoffHeadline,
+      secondaryCue: detail.roleHandoff.expectedActionLabel ?? detail.roleHandoff.unlockOutcomeLabel,
+      decisionUrgency: "monitor",
+      entryOrientationLabel: "Waiting on handoff",
+      detailFocusHint: "handoff",
+    };
+  }
+
+  const primarySignal = detail.roleViewGuidance.primarySignals[0];
+
+  if (primarySignal === "release") {
+    return {
+      primaryCue: detail.releaseSummary.decisionLabel ?? detail.releaseSummary.headline,
+      secondaryCue: detail.releaseSummary.blockingConditionLabel ?? detail.releaseSummary.nextReleaseStepLabel,
+      decisionUrgency: detail.releaseSummary.isReleaseEligible ? "immediate" : "active",
+      entryOrientationLabel: detail.releaseSummary.isReleaseEligible ? "Release review" : "Release position",
+      detailFocusHint: "release",
+    };
+  }
+
+  if (primarySignal === "funding") {
+    return {
+      primaryCue: detail.fundingExplanation.coverageLabel,
+      secondaryCue: detail.fundingExplanation.blockingConditionLabel ?? detail.fundingExplanation.nextFinancialStepLabel,
+      decisionUrgency: detail.fundingExplanation.tone === "warning" ? "active" : "monitor",
+      entryOrientationLabel: "Funding position",
+      detailFocusHint: "funding",
+    };
+  }
+
+  if (primarySignal === "evidence") {
+    return {
+      primaryCue: detail.evidenceSummary.sufficiencyLabel,
+      secondaryCue: detail.evidenceSummary.blockingConditionLabel ?? detail.evidenceSummary.nextEvidenceStepLabel,
+      decisionUrgency: detail.evidenceSummary.tone === "warning" ? "active" : "monitor",
+      entryOrientationLabel: "Evidence review",
+      detailFocusHint: "evidence",
+    };
+  }
+
+  if (primarySignal === "approval") {
+    return {
+      primaryCue: detail.approvalSummary.approvalProgressLabel,
+      secondaryCue: detail.approvalSummary.blockingConditionLabel ?? detail.approvalSummary.nextApprovalStepLabel,
+      decisionUrgency: detail.approvalSummary.tone === "warning" ? "active" : "monitor",
+      entryOrientationLabel: "Approval review",
+      detailFocusHint: "approval",
+    };
+  }
+
+  return {
+    primaryCue: detail.attentionReason.reasonLabel,
+    secondaryCue: detail.attentionReason.supportingDetails[0] ?? detail.sectionGuidance.overview.nextStep,
+    decisionUrgency: detail.attentionReason.requiresMyAction ? "immediate" : "active",
+    entryOrientationLabel: detail.attentionReason.requiresMyAction ? "Act now" : "Review now",
+    detailFocusHint: mapSectionToFocusHint(detail.sectionGuidance.overview.key),
+  };
+}
+
+function getStageTopSurfaceGuidance(detail: Pick<
+  StageDetailModel,
+  | "decisionSummary"
+  | "attentionReason"
+  | "actionReadiness"
+  | "roleHandoff"
+  | "exceptionPath"
+  | "exitState"
+  | "releaseSummary"
+  | "fundingExplanation"
+  | "evidenceSummary"
+  | "approvalSummary"
+  | "casePathSummary"
+  | "roleViewGuidance"
+  | "entryOrientation"
+>): StageTopSurfaceGuidance {
+  const visiblePrimary = detail.roleViewGuidance.primarySignals.filter((signal, index, list) => list.indexOf(signal) === index);
+  const visibleSecondary = detail.roleViewGuidance.secondarySignals.filter((signal, index, list) => list.indexOf(signal) === index);
+  const visibleSupport = detail.roleViewGuidance.contextualSignals.filter((signal, index, list) => list.indexOf(signal) === index);
+
+  let primaryMode: StageTopSurfaceGuidance["primaryMode"] =
+    detail.roleViewGuidance.viewMode === "review_led"
+      ? "review"
+      : detail.roleViewGuidance.viewMode === "oversight_led"
+        ? "oversight"
+        : "action";
+
+  if (detail.exitState.isClosedOrComplete) {
+    primaryMode = "outcome";
+  } else if (detail.exceptionPath.hasActiveExceptionPath) {
+    primaryMode = "exception";
+  } else if (detail.roleHandoff.isWaitingOnAnotherRole && !detail.attentionReason.requiresMyAction) {
+    primaryMode = "waiting";
+  }
+
+  const elevatedPrimary: StageTopSignalKey[] =
+    primaryMode === "outcome"
+      ? ["outcome", "decision", "release"]
+      : primaryMode === "exception"
+        ? ["exception", "case_path", "decision"]
+        : primaryMode === "waiting"
+          ? ["handoff", "decision", "release"]
+          : primaryMode === "review"
+            ? visiblePrimary.slice(0, 3)
+            : primaryMode === "oversight"
+              ? ["decision", "release", "outcome"]
+              : visiblePrimary.slice(0, 3);
+
+  const prioritizedSignals: StageTopSignalKey[] = [
+    detail.entryOrientation.detailFocusHint === "release"
+      ? "release"
+      : detail.entryOrientation.detailFocusHint === "funding"
+        ? "funding"
+        : detail.entryOrientation.detailFocusHint === "approval"
+          ? "approval"
+          : detail.entryOrientation.detailFocusHint === "evidence"
+            ? "evidence"
+            : detail.entryOrientation.detailFocusHint === "exception"
+              ? "exception"
+              : detail.entryOrientation.detailFocusHint === "handoff"
+                ? "handoff"
+                : detail.entryOrientation.detailFocusHint === "outcome"
+                  ? "outcome"
+                  : "decision",
+    ...elevatedPrimary,
+  ];
+  const primarySignalKeys = reorderSignals(visiblePrimary, prioritizedSignals).slice(
+    0,
+    primaryMode === "action" || primaryMode === "review" ? 2 : 3,
+  );
+
+  const secondarySignalKeys = visibleSecondary.filter((signal) => !primarySignalKeys.includes(signal));
+  const supportSignalKeys = visibleSupport.filter((signal) => !primarySignalKeys.includes(signal) && !secondarySignalKeys.includes(signal));
+
+  const topHeadlineLabel =
+    primaryMode === "outcome"
+      ? detail.exitState.outcomeLabel
+      : primaryMode === "exception"
+        ? detail.exceptionPath.headline
+        : primaryMode === "waiting"
+          ? detail.roleHandoff.handoffHeadline
+          : detail.entryOrientation.primaryCue;
+
+  const topSublineLabel =
+    primaryMode === "outcome"
+      ? detail.exitState.valueOutcomeLabel ?? detail.exitState.reopenPathLabel
+      : primaryMode === "exception"
+        ? detail.exceptionPath.requiredDecisionLabel ?? detail.exceptionPath.normalPathPausedLabel
+        : primaryMode === "waiting"
+          ? detail.roleHandoff.expectedActionLabel ?? detail.roleHandoff.handoffReasonLabel
+          : detail.entryOrientation.secondaryCue ?? detail.decisionSummary.primaryDecisionLabel ?? detail.decisionSummary.actionabilityLabel;
+
+  return {
+    primaryMode,
+    primarySignalKeys,
+    secondarySignalKeys,
+    supportSignalKeys,
+    topHeadlineLabel,
+    topSublineLabel,
+    shouldCompactSecondarySignals: primaryMode !== "action" && primaryMode !== "review",
+    shouldElevateException: detail.exceptionPath.hasActiveExceptionPath,
+    shouldElevateOutcome: detail.exitState.isClosedOrComplete,
+    shouldElevateRelease:
+      detail.releaseSummary.isReleaseEligible ||
+      detail.releaseSummary.tone === "warning" ||
+      detail.roleViewGuidance.primarySignals.slice(0, 2).includes("release"),
+  };
 }
 
 export interface DashboardDecisionSnapshot {
@@ -2588,6 +3103,12 @@ export interface StageActionOutcomeSummary {
   tone: "success" | "warning";
   title: string;
   detail: string;
+  resultType: "advanced" | "released" | "waiting" | "blocked" | "exception" | "no_change";
+  resultTypeLabel: string;
+  resultHeadline: string;
+  resultSubline: string | null;
+  resultTone: "success" | "info" | "warning" | "neutral";
+  emphasis: "strong" | "normal" | "subtle";
   whatChanged: string[];
   unlockedItems: string[];
   remainingBlockers: string[];
@@ -2681,6 +3202,16 @@ export interface StageApprovalSummary {
   tone: "success" | "info" | "warning" | "neutral";
 }
 
+export interface StageHealthDescriptor {
+  overallStatus: "healthy" | "at_risk" | "blocked";
+  primaryReason: string;
+  secondarySignals: string[];
+  fundingStatus?: "ok" | "shortfall";
+  approvalStatus?: "complete" | "pending";
+  evidenceStatus?: "accepted" | "missing" | "rejected";
+  releaseStatus?: "ready" | "not_ready";
+}
+
 export interface StageCasePathSummary {
   caseState: "none" | "dispute_active" | "variation_active" | "dispute_resolved" | "variation_resolved" | "blocked_by_case";
   headline: string;
@@ -2692,6 +3223,43 @@ export interface StageCasePathSummary {
   riskLabel: string | null;
   supportingLines: string[];
   tone: "success" | "info" | "warning" | "neutral";
+}
+
+export type StageRoleViewMode = "action_led" | "review_led" | "funding_led" | "exception_led" | "oversight_led";
+
+export type StageTopSignalKey =
+  | "decision"
+  | "outcome"
+  | "release"
+  | "exception"
+  | "handoff"
+  | "funding"
+  | "evidence"
+  | "approval"
+  | "case_path"
+  | "attention"
+  | "timeline";
+
+export interface StageRoleViewGuidance {
+  viewMode: StageRoleViewMode;
+  primarySignals: StageTopSignalKey[];
+  secondarySignals: StageTopSignalKey[];
+  contextualSignals: StageTopSignalKey[];
+  primaryWorkspaceLabel: string;
+  workspaceHintLabel: string;
+}
+
+export interface StageTopSurfaceGuidance {
+  primaryMode: "action" | "review" | "waiting" | "exception" | "outcome" | "oversight";
+  primarySignalKeys: StageTopSignalKey[];
+  secondarySignalKeys: StageTopSignalKey[];
+  supportSignalKeys: StageTopSignalKey[];
+  topHeadlineLabel: string | null;
+  topSublineLabel: string | null;
+  shouldCompactSecondarySignals: boolean;
+  shouldElevateException: boolean;
+  shouldElevateOutcome: boolean;
+  shouldElevateRelease: boolean;
 }
 
 export interface StageTimelineEntry {
@@ -2725,6 +3293,8 @@ export interface ApprovalPanelItem {
   sequenceBlocked: boolean;
   unavailableReason: string;
   readiness: StageActionReadiness;
+  approveAction: DerivedActionDescriptor;
+  rejectAction: DerivedActionDescriptor;
 }
 
 export interface ActingRoleSummary {
@@ -2764,8 +3334,12 @@ export interface StageDetailModel {
   releaseSummary: StageReleaseDecisionSummary;
   evidenceSummary: StageEvidenceSummary;
   approvalSummary: StageApprovalSummary;
+  healthDescriptor: StageHealthDescriptor;
   casePathSummary: StageCasePathSummary;
   attentionReason: StageAttentionReason;
+  roleViewGuidance: StageRoleViewGuidance;
+  entryOrientation: WorkspaceDecisionCue;
+  topSurfaceGuidance: StageTopSurfaceGuidance;
   operationalStatus: OperationalStageStatus;
   releaseDecision: ReleaseDecisionCard;
   treasuryReadiness: TreasuryReadinessSummary;
@@ -2787,6 +3361,7 @@ export interface StageDetailModel {
   disputes: Array<
     DisputeRecord & {
       canResolve: boolean;
+      resolveAction: DerivedActionDescriptor;
     }
   >;
   variations: Array<
@@ -2795,14 +3370,20 @@ export interface StageDetailModel {
       canReject: boolean;
       canActivate: boolean;
       operationalStatusLabel: VariationOperationalSummary["status"];
+      approveAction: DerivedActionDescriptor;
+      rejectAction: DerivedActionDescriptor;
+      activateAction: DerivedActionDescriptor;
     }
   >;
   evidence: Array<
     EvidenceRequirementRecord & {
       record: EvidenceRecord | null;
+      actionDescriptors: Partial<Record<EvidenceStatus, DerivedActionDescriptor>>;
     }
   >;
   approvals: ApprovalPanelItem[];
+  actionDescriptors: DerivedActionDescriptor[];
+  actionDescriptorMap: Record<string, DerivedActionDescriptor>;
   actionReadiness: {
     fundStage: StageActionReadiness;
     release: StageActionReadiness;
@@ -2852,6 +3433,21 @@ export interface StageActionReadiness {
   nextConditionLabel: string | null;
   nextOwnerLabel: string | null;
   tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface DerivedActionDescriptor {
+  actionId: string;
+  label: string;
+  outcomeLabel: string;
+  stateTransitionPreview: {
+    fromState: string;
+    toState: string;
+  };
+  sideEffects?: string[];
+  confidence: "high" | "medium" | "blocked";
+  blockerSummary?: string;
+  impactSummary?: string;
+  isPrimary: boolean;
 }
 
 export interface RoleJourneySummary {
@@ -4207,6 +4803,15 @@ function getStageDetailSectionForAction(actionType: QueueActionType) {
   return "overview" as const;
 }
 
+function getStageDetailSectionForActionCategory(actionType: ActionType) {
+  if (actionType === "funding") return "funding" as const;
+  if (actionType === "evidence") return "evidence" as const;
+  if (actionType === "approval") return "approvals" as const;
+  if (actionType === "dispute") return "dispute" as const;
+  if (actionType === "variation") return "variation" as const;
+  return "overview" as const;
+}
+
 function getStageSectionGuidance({
   state,
   stage,
@@ -4231,7 +4836,7 @@ function getStageSectionGuidance({
   variationSummary: VariationOperationalSummary;
   evidenceState: DerivedEvidenceState;
   approvalState: StageDetailModel["approvalState"];
-  approvals: ApprovalPanelItem[];
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>;
   availableActions: StageDetailModel["availableActions"];
 }): Record<StageDetailSectionKey, StageSectionGuidance> {
   const nextPendingApproval = approvals.find((approval) => approval.status !== "approved");
@@ -4509,6 +5114,17 @@ export function getRoleInboxItems(
           exceptionPath: detail.exceptionPath,
           readinessState: "watch",
           roleRelevance: "read_only",
+          decisionCue: getTaskDecisionCue({
+            summary: decision.explanation.reason,
+            nextStep: detail.operationalStatus.nextStep,
+            readinessState: "watch",
+            roleRelevance: "read_only",
+            attentionReason: detail.attentionReason,
+            handoff: detail.roleHandoff,
+            exitState: detail.exitState,
+            exceptionPath: detail.exceptionPath,
+            deepLinkSection: getStageDetailSectionForBlocker(detail.blockers[0]?.code),
+          }),
           deepLinkTarget: {
             projectId: project.id,
             stageId: decision.stageId,
@@ -4547,6 +5163,17 @@ export function getRoleInboxItems(
             exceptionPath: detail.exceptionPath,
             readinessState: detail.availableActions.addEvidence || detail.availableActions.openDispute || detail.availableActions.createVariation ? "actionable" : "watch",
             roleRelevance: detail.availableActions.addEvidence || detail.availableActions.openDispute || detail.availableActions.createVariation ? "direct" : "indirect",
+            decisionCue: getTaskDecisionCue({
+              summary: detail.operationalStatus.reason,
+              nextStep: detail.operationalStatus.nextStep,
+              readinessState: detail.availableActions.addEvidence || detail.availableActions.openDispute || detail.availableActions.createVariation ? "actionable" : "watch",
+              roleRelevance: detail.availableActions.addEvidence || detail.availableActions.openDispute || detail.availableActions.createVariation ? "direct" : "indirect",
+              attentionReason: detail.attentionReason,
+              handoff: detail.roleHandoff,
+              exitState: detail.exitState,
+              exceptionPath: detail.exceptionPath,
+              deepLinkSection: getStageDetailSectionForBlocker(detail.blockers[0]?.code),
+            }),
             deepLinkTarget: {
               projectId: project.id,
               stageId: stage.id,
@@ -4580,6 +5207,18 @@ export function getRoleInboxItems(
           exceptionPath: detail.exceptionPath,
           readinessState: "actionable",
           roleRelevance: "direct",
+          decisionCue: getTaskDecisionCue({
+            summary: item.primaryAction.detail,
+            nextStep: item.operationalStatus.nextStep,
+            nextActionLabel: item.primaryAction.title,
+            readinessState: "actionable",
+            roleRelevance: "direct",
+            attentionReason: detail.attentionReason,
+            handoff: detail.roleHandoff,
+            exitState: detail.exitState,
+            exceptionPath: detail.exceptionPath,
+            deepLinkSection: getStageDetailSectionForAction(item.primaryAction.actionType),
+          }),
           deepLinkTarget: {
             projectId: item.projectId,
             stageId: item.stageId,
@@ -5442,10 +6081,17 @@ function getStageReleaseDecisionSummary(detail: Pick<
   };
 }
 
-function getStageEvidenceSummary(detail: Pick<
-  StageDetailModel,
-  "evidence" | "evidenceState" | "sectionGuidance" | "actionReadiness" | "blockers"
->): StageEvidenceSummary {
+function getStageEvidenceSummary(detail: {
+  evidence: Array<
+    EvidenceRequirementRecord & {
+      record: EvidenceRecord | null;
+    }
+  >;
+  evidenceState: DerivedEvidenceState;
+  sectionGuidance: Record<StageDetailSectionKey, StageSectionGuidance>;
+  actionReadiness: StageDetailModel["actionReadiness"];
+  blockers: StageBlocker[];
+}): StageEvidenceSummary {
   const requiredEvidence = detail.evidence.filter((item) => item.required);
   const requiredCount = requiredEvidence.length;
   const acceptedCount = requiredEvidence.filter((item) => item.record?.status === "accepted").length;
@@ -5527,10 +6173,12 @@ function getStageEvidenceSummary(detail: Pick<
   };
 }
 
-function getStageApprovalSummary(detail: Pick<
-  StageDetailModel,
-  "approvals" | "approvalState" | "sectionGuidance" | "blockers"
->): StageApprovalSummary {
+function getStageApprovalSummary(detail: {
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>;
+  approvalState: StageDetailModel["approvalState"];
+  sectionGuidance: Record<StageDetailSectionKey, StageSectionGuidance>;
+  blockers: StageBlocker[];
+}): StageApprovalSummary {
   const completedApprovals = detail.approvals
     .filter((approval) => approval.status === "approved")
     .map((approval) => getUserFacingRoleLabel(approval.role));
@@ -5594,6 +6242,137 @@ function getStageApprovalSummary(detail: Pick<
         : approvalState === "partially_approved" || approvalState === "in_progress"
           ? "info"
           : "warning",
+  };
+}
+
+function getStageHealthDescriptor(detail: {
+  blockers: StageBlocker[];
+  fundingExplanation: StageFundingExplanation;
+  approvalSummary: StageApprovalSummary;
+  evidenceSummary: StageEvidenceSummary;
+  releaseSummary: StageReleaseDecisionSummary;
+  exceptionPath: StageExceptionPath;
+  exitState: StageExitState;
+  roleHandoff: StageRoleHandoff;
+}): StageHealthDescriptor {
+  const fundingStatus: StageHealthDescriptor["fundingStatus"] =
+    detail.fundingExplanation.coverageState === "underfunded" ? "shortfall" : "ok";
+  const approvalStatus: StageHealthDescriptor["approvalStatus"] =
+    detail.approvalSummary.approvalState === "approved" ? "complete" : "pending";
+  const evidenceStatus: StageHealthDescriptor["evidenceStatus"] =
+    detail.evidenceSummary.evidenceState === "accepted" || detail.evidenceSummary.evidenceState === "not_required"
+      ? "accepted"
+      : detail.evidenceSummary.evidenceState === "rejected"
+        ? "rejected"
+        : "missing";
+  const releaseStatus: StageHealthDescriptor["releaseStatus"] =
+    detail.releaseSummary.isReleaseEligible ? "ready" : "not_ready";
+
+  const firstBlocker = detail.blockers[0];
+  const hasHardBlocker =
+    detail.blockers.length > 0 ||
+    detail.fundingExplanation.coverageState === "underfunded" ||
+    detail.evidenceSummary.evidenceState === "rejected" ||
+    detail.approvalSummary.approvalState === "blocked" ||
+    detail.approvalSummary.approvalState === "not_ready";
+
+  if (hasHardBlocker) {
+    const primaryReason =
+      firstBlocker?.code === "funding"
+        ? detail.fundingExplanation.blockingConditionLabel ?? detail.fundingExplanation.coverageLabel
+        : firstBlocker?.code === "evidence"
+          ? detail.evidenceSummary.blockingConditionLabel ?? detail.evidenceSummary.sufficiencyLabel
+          : firstBlocker?.code === "approvals"
+            ? detail.approvalSummary.blockingConditionLabel ?? detail.approvalSummary.approvalProgressLabel
+            : firstBlocker?.code === "disputed" || detail.exceptionPath.hasActiveExceptionPath
+              ? detail.exceptionPath.headline
+              : firstBlocker?.label ??
+                detail.releaseSummary.blockingConditionLabel ??
+                detail.fundingExplanation.blockingConditionLabel ??
+                detail.evidenceSummary.blockingConditionLabel ??
+                detail.approvalSummary.blockingConditionLabel ??
+                "Blocked by governed condition";
+
+    return {
+      overallStatus: "blocked",
+      primaryReason,
+      secondarySignals: [
+        approvalStatus === "complete" ? "All approvals complete" : detail.approvalSummary.approvalProgressLabel,
+        evidenceStatus === "accepted" ? "Evidence accepted" : detail.evidenceSummary.reviewStatusLabel,
+        releaseStatus === "ready" ? "Release ready" : detail.releaseSummary.remainingHeldLabel,
+      ]
+        .filter((line, index, lines) => Boolean(line) && lines.indexOf(line) === index && line !== primaryReason)
+        .slice(0, 2),
+      fundingStatus,
+      approvalStatus,
+      evidenceStatus,
+      releaseStatus,
+    };
+  }
+
+  const atRisk =
+    detail.exceptionPath.hasActiveExceptionPath ||
+    detail.roleHandoff.isWaitingOnAnotherRole ||
+    detail.approvalSummary.approvalState === "in_progress" ||
+    detail.approvalSummary.approvalState === "partially_approved" ||
+    detail.evidenceSummary.evidenceState === "under_review" ||
+    detail.evidenceSummary.evidenceState === "submitted" ||
+    detail.evidenceSummary.evidenceState === "partially_accepted" ||
+    detail.fundingExplanation.coverageState === "buffer_at_risk" ||
+    detail.releaseSummary.releaseState === "not_ready" ||
+    detail.releaseSummary.releaseState === "withheld";
+
+  if (atRisk) {
+    const primaryReason =
+      detail.exceptionPath.hasActiveExceptionPath
+        ? detail.exceptionPath.headline
+        : detail.roleHandoff.isWaitingOnAnotherRole
+          ? detail.roleHandoff.handoffHeadline
+          : detail.approvalSummary.approvalState === "in_progress" || detail.approvalSummary.approvalState === "partially_approved"
+            ? detail.approvalSummary.activeApprovalLabel
+              ? `Awaiting ${detail.approvalSummary.activeApprovalLabel}`
+              : detail.approvalSummary.approvalProgressLabel
+            : detail.evidenceSummary.evidenceState === "under_review" || detail.evidenceSummary.evidenceState === "submitted" || detail.evidenceSummary.evidenceState === "partially_accepted"
+              ? detail.evidenceSummary.reviewStatusLabel
+              : detail.fundingExplanation.coverageState === "buffer_at_risk"
+                ? detail.fundingExplanation.coverageLabel
+                : detail.releaseSummary.blockingConditionLabel ?? detail.releaseSummary.headline;
+
+    return {
+      overallStatus: "at_risk",
+      primaryReason,
+      secondarySignals: [
+        fundingStatus === "ok" ? "Funding sufficient" : detail.fundingExplanation.shortfallLabel,
+        approvalStatus === "complete" ? "All approvals complete" : detail.approvalSummary.approvalProgressLabel,
+        evidenceStatus === "accepted" ? "Evidence accepted" : detail.evidenceSummary.reviewStatusLabel,
+        detail.exitState.isClosedOrComplete ? detail.exitState.outcomeLabel : detail.releaseSummary.eligibleAmountLabel,
+      ]
+        .filter((line, index, lines) => Boolean(line) && lines.indexOf(line) === index && line !== primaryReason)
+        .slice(0, 2),
+      fundingStatus,
+      approvalStatus,
+      evidenceStatus,
+      releaseStatus,
+    };
+  }
+
+  return {
+    overallStatus: "healthy",
+    primaryReason:
+      detail.exitState.isClosedOrComplete
+        ? detail.exitState.outcomeLabel
+        : detail.releaseSummary.isReleaseEligible
+          ? "Ready for release"
+          : "Ready to proceed",
+    secondarySignals: [
+      "All approvals complete",
+      evidenceStatus === "accepted" ? "Evidence accepted" : "No evidence blocker",
+      releaseStatus === "ready" ? detail.releaseSummary.eligibleAmountLabel : "No active blocker",
+    ].slice(0, 2),
+    fundingStatus,
+    approvalStatus,
+    evidenceStatus,
+    releaseStatus,
   };
 }
 
@@ -5785,6 +6564,199 @@ function buildActionReadiness({
     nextOwnerLabel: nextOwnerLabel ?? guidance.ownerLabel,
     tone: getReadinessTone(readinessState),
   };
+}
+
+function getActionBlockerSummary(readiness: StageActionReadiness) {
+  if (readiness.readinessState === "available") {
+    return undefined;
+  }
+
+  if (readiness.readinessState === "complete") {
+    return readiness.reasonLabel;
+  }
+
+  if (readiness.missingPrerequisites.length > 0) {
+    return readiness.missingPrerequisites[0];
+  }
+
+  if (readiness.readinessState === "waiting_on_other_role" && readiness.nextOwnerLabel) {
+    return `${readiness.nextOwnerLabel} must act first.`;
+  }
+
+  return readiness.nextConditionLabel ?? readiness.reasonLabel;
+}
+
+function getActionConfidence(
+  actionId: string,
+  readiness: StageActionReadiness,
+): DerivedActionDescriptor["confidence"] {
+  if (readiness.readinessState !== "available") {
+    return "blocked";
+  }
+
+  if (
+    actionId.includes("override") ||
+    actionId.includes("reject") ||
+    actionId.includes("dispute") ||
+    actionId.includes("variation") ||
+    actionId.endsWith("requires_more") ||
+    actionId.endsWith("pending")
+  ) {
+    return "medium";
+  }
+
+  return "high";
+}
+
+function getCurrentStateLabelForAction(detail: {
+  operationalStatus: OperationalStageStatus;
+  releaseSummary: StageReleaseDecisionSummary;
+  fundingExplanation: StageFundingExplanation;
+  evidenceSummary: StageEvidenceSummary;
+  approvalSummary: StageApprovalSummary;
+  disputeSummary: DisputeOperationalSummary;
+  variationSummary: VariationOperationalSummary;
+  exceptionPath: StageExceptionPath;
+}, actionId: string) {
+  if (actionId === "release" || actionId === "apply-override") {
+    return detail.releaseSummary.decisionLabel ?? detail.releaseSummary.headline;
+  }
+
+  if (actionId === "fund-stage") {
+    return detail.fundingExplanation.coverageLabel;
+  }
+
+  if (actionId.startsWith("approval-")) {
+    return detail.approvalSummary.activeApprovalLabel
+      ? `Awaiting ${detail.approvalSummary.activeApprovalLabel}`
+      : detail.approvalSummary.approvalProgressLabel;
+  }
+
+  if (actionId === "add-evidence" || actionId.startsWith("evidence-") || actionId === "review-evidence") {
+    return detail.evidenceSummary.reviewStatusLabel;
+  }
+
+  if (actionId.includes("dispute")) {
+    return detail.disputeSummary.status;
+  }
+
+  if (actionId.includes("variation")) {
+    return detail.variationSummary.status;
+  }
+
+  if (detail.exceptionPath.hasActiveExceptionPath) {
+    return detail.exceptionPath.headline;
+  }
+
+  return detail.operationalStatus.label;
+}
+
+function buildDerivedActionDescriptor(params: {
+  actionId: string;
+  label: string;
+  outcomeLabel: string;
+  fromState: string;
+  toState: string;
+  readiness: StageActionReadiness;
+  sideEffects?: string[];
+  impactSummary?: string;
+}): DerivedActionDescriptor {
+  const { actionId, label, outcomeLabel, fromState, toState, readiness, sideEffects, impactSummary } = params;
+
+  return {
+    actionId,
+    label,
+    outcomeLabel,
+    stateTransitionPreview: {
+      fromState,
+      toState,
+    },
+    sideEffects: sideEffects?.slice(0, 2),
+    confidence: getActionConfidence(actionId, readiness),
+    blockerSummary: getActionBlockerSummary(readiness),
+    impactSummary,
+    isPrimary: false,
+  };
+}
+
+function getPrimaryActionPreference(detail: {
+  entryOrientation: WorkspaceDecisionCue;
+  exceptionPath: StageExceptionPath;
+  variationSummary: VariationOperationalSummary;
+  disputes: Array<
+    DisputeRecord & {
+      canResolve: boolean;
+    }
+  >;
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>;
+  evidence: Array<
+    EvidenceRequirementRecord & {
+      record: EvidenceRecord | null;
+    }
+  >;
+}): string[] {
+  if (detail.exceptionPath.hasActiveExceptionPath) {
+    if (detail.disputes.some((dispute) => dispute.status === "open")) {
+      return ["resolve-dispute"];
+    }
+
+    if (detail.variationSummary.status === "Pending review") {
+      return ["review-variation-approve", "review-variation-reject"];
+    }
+
+    if (detail.variationSummary.status === "Approved variation") {
+      return ["activate-variation"];
+    }
+  }
+
+  if (detail.entryOrientation.detailFocusHint === "release") {
+    return ["release", "apply-override"];
+  }
+
+  if (detail.entryOrientation.detailFocusHint === "funding") {
+    return ["fund-stage"];
+  }
+
+  if (detail.entryOrientation.detailFocusHint === "approval") {
+    const activeApproval = detail.approvals.find((approval) => approval.readiness.readinessState === "available");
+    return activeApproval ? [`approval-${activeApproval.role}-approve`] : ["release"];
+  }
+
+  if (detail.entryOrientation.detailFocusHint === "evidence") {
+    const pendingEvidence = detail.evidence.find((item) => (item.record?.status ?? "missing") === "pending");
+    return pendingEvidence ? [`evidence-${pendingEvidence.id}-accepted`] : ["add-evidence", "review-evidence"];
+  }
+
+  return ["release", "fund-stage", "review-evidence", "add-evidence"];
+}
+
+function markPrimaryAction(
+  descriptors: DerivedActionDescriptor[],
+  preferredActionIds: string[],
+): DerivedActionDescriptor[] {
+  const availableDescriptors = descriptors.filter((descriptor) => descriptor.confidence !== "blocked");
+  const blockedDescriptors = descriptors.filter((descriptor) => descriptor.confidence === "blocked");
+  const candidatePool = availableDescriptors.length > 0 ? availableDescriptors : blockedDescriptors;
+
+  if (candidatePool.length === 0) {
+    return descriptors;
+  }
+
+  const preferred = preferredActionIds.find((actionId) =>
+    candidatePool.some((descriptor) => descriptor.actionId === actionId || descriptor.actionId.startsWith(`${actionId}-`)),
+  );
+
+  const primaryDescriptor =
+    (preferred
+      ? candidatePool.find((descriptor) => descriptor.actionId === preferred || descriptor.actionId.startsWith(`${preferred}-`))
+      : undefined) ??
+    candidatePool.find((descriptor) => descriptor.confidence === "high") ??
+    candidatePool[0];
+
+  return descriptors.map((descriptor) => ({
+    ...descriptor,
+    isPrimary: descriptor.actionId === primaryDescriptor.actionId,
+  }));
 }
 
 function getMissingPrerequisitesForSection(sectionKey: StageDetailSectionKey, detail: Pick<
@@ -6012,6 +6984,452 @@ function getApprovalReadiness(
   };
 }
 
+function getApprovalOutcomeLabel(
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>,
+  approvalRole: FundingApprovalRole,
+  mode: "approve" | "reject",
+) {
+  if (mode === "reject") {
+    return "Keeps the stage blocked for approval rework";
+  }
+
+  const pendingApprovals = approvals.filter((entry) => entry.status !== "approved");
+  const currentIndex = pendingApprovals.findIndex((entry) => entry.role === approvalRole);
+  const nextApproval = currentIndex >= 0 ? pendingApprovals[currentIndex + 1] : null;
+
+  if (nextApproval) {
+    return `Moves to ${getUserFacingRoleLabel(nextApproval.role)} approval`;
+  }
+
+  return "Moves to release review";
+}
+
+function getEvidenceOutcomeLabel(status: EvidenceStatus) {
+  if (status === "accepted") {
+    return "Moves the stage toward approval progression";
+  }
+
+  if (status === "rejected") {
+    return "Keeps the stage blocked for evidence correction";
+  }
+
+  if (status === "requires_more") {
+    return "Returns evidence for further submission";
+  }
+
+  return "Keeps evidence under governed review";
+}
+
+function getVariationOutcomeLabel(status: VariationRecord["status"], action: "approve" | "reject" | "activate") {
+  if (action === "approve") {
+    return "Moves the variation to activation control";
+  }
+
+  if (action === "reject") {
+    return "Leaves the current scope and controls unchanged";
+  }
+
+  if (status === "approved") {
+    return "Applies the approved variation to live controls";
+  }
+
+  return "No approved variation is waiting for activation";
+}
+
+function getVariationNextStateLabel(status: VariationRecord["status"], action: "approve" | "reject" | "activate") {
+  if (action === "approve") {
+    return "Approved variation";
+  }
+
+  if (action === "reject") {
+    return "Scope unchanged";
+  }
+
+  if (status === "approved") {
+    return "Variation active";
+  }
+
+  return "No variation pending";
+}
+
+function getStageDerivedActionDescriptors(detail: {
+  entryOrientation: WorkspaceDecisionCue;
+  operationalStatus: OperationalStageStatus;
+  funding: FundingStageSummary;
+  fundingExplanation: StageFundingExplanation;
+  releaseDecision: ReleaseDecisionCard;
+  releaseSummary: StageReleaseDecisionSummary;
+  disputeSummary: DisputeOperationalSummary;
+  variationSummary: VariationOperationalSummary;
+  actionReadiness: StageDetailModel["actionReadiness"];
+  evidenceSummary: StageEvidenceSummary;
+  approvalSummary: StageApprovalSummary;
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>;
+  evidence: Array<
+    EvidenceRequirementRecord & {
+      record: EvidenceRecord | null;
+    }
+  >;
+  disputes: Array<
+    DisputeRecord & {
+      canResolve: boolean;
+    }
+  >;
+  variations: Array<
+    VariationRecord & {
+      canApprove: boolean;
+      canReject: boolean;
+      canActivate: boolean;
+      operationalStatusLabel: VariationOperationalSummary["status"];
+    }
+  >;
+  exceptionPath: StageExceptionPath;
+}): {
+  actionDescriptors: DerivedActionDescriptor[];
+  actionDescriptorMap: Record<string, DerivedActionDescriptor>;
+  approvals: ApprovalPanelItem[];
+  evidence: StageDetailModel["evidence"];
+  disputes: StageDetailModel["disputes"];
+  variations: StageDetailModel["variations"];
+} {
+  const baseDescriptors: DerivedActionDescriptor[] = [
+    buildDerivedActionDescriptor({
+      actionId: "fund-stage",
+      label:
+        detail.funding.gapToRequiredCover > 0
+          ? `Fund ${dashboardCurrency.format(detail.funding.gapToRequiredCover)}`
+          : "Fund work package",
+      outcomeLabel: "Aligns the stage to the current WIP funding requirement",
+      fromState: getCurrentStateLabelForAction(detail, "fund-stage"),
+      toState: detail.funding.gapToRequiredCover > 0 ? "Funding aligned" : detail.fundingExplanation.coverageLabel,
+      readiness: detail.actionReadiness.fundStage,
+      sideEffects:
+        detail.funding.gapToRequiredCover > 0
+          ? [
+              `${dashboardCurrency.format(detail.funding.gapToRequiredCover)} gap is covered`,
+              "Stage stays within current WIP funding",
+            ]
+          : undefined,
+      impactSummary:
+        detail.funding.gapToRequiredCover > 0
+          ? `${dashboardCurrency.format(detail.funding.gapToRequiredCover)} gap is covered`
+          : undefined,
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "release",
+      label:
+        detail.releaseDecision.releasableAmount > 0
+          ? `Release ${dashboardCurrency.format(detail.releaseDecision.releasableAmount)}`
+          : "Release funds",
+      outcomeLabel:
+        detail.releaseDecision.releasableAmount > 0
+          ? "Funds transfer immediately"
+          : "Records the current release decision",
+      fromState: getCurrentStateLabelForAction(detail, "release"),
+      toState: detail.releaseDecision.releasableAmount > 0 ? "Funds released" : "Release recorded",
+      readiness: detail.actionReadiness.release,
+      sideEffects:
+        detail.releaseDecision.releasableAmount > 0
+          ? [
+              `${dashboardCurrency.format(detail.releaseDecision.releasableAmount)} becomes released`,
+              detail.releaseDecision.frozenAmount > 0
+                ? `${dashboardCurrency.format(detail.releaseDecision.frozenAmount)} remains held`
+                : "No held amount remains",
+            ]
+          : undefined,
+      impactSummary:
+        detail.releaseDecision.releasableAmount > 0
+          ? `${dashboardCurrency.format(detail.releaseDecision.releasableAmount)} becomes released`
+          : undefined,
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "apply-override",
+      label: "Apply override",
+      outcomeLabel: "Moves release through the controlled override path",
+      fromState: getCurrentStateLabelForAction(detail, "apply-override"),
+      toState: "Override active",
+      readiness: detail.actionReadiness.applyOverride,
+      sideEffects: ["Normal release path is paused"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "add-evidence",
+      label: "Add evidence",
+      outcomeLabel: "Submits evidence into governed review",
+      fromState: getCurrentStateLabelForAction(detail, "add-evidence"),
+      toState: "Review in progress",
+      readiness: detail.actionReadiness.addEvidence,
+      sideEffects: ["Evidence enters governed review"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "review-evidence",
+      label: "Review evidence",
+      outcomeLabel: "Moves the evidence position to a review decision",
+      fromState: getCurrentStateLabelForAction(detail, "review-evidence"),
+      toState: detail.evidenceSummary.reviewStatusLabel,
+      readiness: detail.actionReadiness.reviewEvidence,
+      sideEffects: ["Evidence outcome updates immediately"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "open-dispute",
+      label: "Raise dispute",
+      outcomeLabel: "Freezes disputed value and pauses normal release",
+      fromState: getCurrentStateLabelForAction(detail, "open-dispute"),
+      toState: "Blocked by dispute",
+      readiness: detail.actionReadiness.openDispute,
+      sideEffects: ["Normal release path pauses"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "resolve-dispute",
+      label: "Resolve dispute",
+      outcomeLabel: "Returns the stage to the governed payment path",
+      fromState: getCurrentStateLabelForAction(detail, "resolve-dispute"),
+      toState: "Dispute resolved",
+      readiness: detail.actionReadiness.resolveDispute,
+      sideEffects:
+        detail.disputeSummary.frozenValue > 0
+          ? [
+              `${dashboardCurrency.format(detail.disputeSummary.frozenValue)} leaves dispute hold`,
+              "Governed payment path resumes",
+            ]
+          : ["Governed payment path resumes"],
+      impactSummary:
+        detail.disputeSummary.frozenValue > 0
+          ? `${dashboardCurrency.format(detail.disputeSummary.frozenValue)} can leave the dispute hold`
+          : undefined,
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "create-variation",
+      label: "Propose variation",
+      outcomeLabel: "Moves the stage into variation review",
+      fromState: getCurrentStateLabelForAction(detail, "create-variation"),
+      toState: "Pending review",
+      readiness: detail.actionReadiness.createVariation,
+      sideEffects: ["Variation enters governed review"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "review-variation-approve",
+      label: "Approve variation",
+      outcomeLabel: "Moves the variation to activation control",
+      fromState: getCurrentStateLabelForAction(detail, "review-variation-approve"),
+      toState: "Approved variation",
+      readiness: detail.actionReadiness.reviewVariation,
+      sideEffects: ["Variation moves to activation control"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "review-variation-reject",
+      label: "Reject variation",
+      outcomeLabel: "Leaves the current scope and controls unchanged",
+      fromState: getCurrentStateLabelForAction(detail, "review-variation-reject"),
+      toState: "Scope unchanged",
+      readiness: detail.actionReadiness.reviewVariation,
+      sideEffects: ["Current stage controls remain unchanged"],
+    }),
+    buildDerivedActionDescriptor({
+      actionId: "activate-variation",
+      label: "Activate variation",
+      outcomeLabel: "Applies the approved change to live controls",
+      fromState: getCurrentStateLabelForAction(detail, "activate-variation"),
+      toState: "Variation active",
+      readiness: detail.actionReadiness.activateVariation,
+      sideEffects: ["Live stage controls update immediately"],
+    }),
+  ];
+
+  const approvals = detail.approvals.map((approval) => ({
+    ...approval,
+    approveAction: buildDerivedActionDescriptor({
+      actionId: `approval-${approval.role}-approve`,
+      label: "Approve stage",
+      outcomeLabel: getApprovalOutcomeLabel(detail.approvals, approval.role, "approve"),
+      fromState: getCurrentStateLabelForAction(detail, `approval-${approval.role}-approve`),
+      toState:
+        getApprovalOutcomeLabel(detail.approvals, approval.role, "approve") === "Moves to release review"
+          ? "Ready for release"
+          : getApprovalOutcomeLabel(detail.approvals, approval.role, "approve").replace("Moves to ", ""),
+      readiness: approval.readiness,
+      sideEffects:
+        getApprovalOutcomeLabel(detail.approvals, approval.role, "approve") === "Moves to release review"
+          ? ["Approval chain completes"]
+          : [getApprovalOutcomeLabel(detail.approvals, approval.role, "approve")],
+    }),
+    rejectAction: buildDerivedActionDescriptor({
+      actionId: `approval-${approval.role}-reject`,
+      label: "Reject stage",
+      outcomeLabel: getApprovalOutcomeLabel(detail.approvals, approval.role, "reject"),
+      fromState: getCurrentStateLabelForAction(detail, `approval-${approval.role}-reject`),
+      toState: "Approval blocked",
+      readiness: approval.readiness,
+      sideEffects: ["Stage remains blocked for approval rework"],
+    }),
+  }));
+
+  const evidence = detail.evidence.map((item) => ({
+    ...item,
+    actionDescriptors: {
+      pending: buildDerivedActionDescriptor({
+        actionId: `evidence-${item.id}-pending`,
+        label: "Mark pending",
+        outcomeLabel: getEvidenceOutcomeLabel("pending"),
+        fromState: item.record?.status ? item.record.status.replaceAll("_", " ") : "Missing",
+        toState: "Under review",
+        readiness: detail.actionReadiness.reviewEvidence,
+        sideEffects: ["Evidence remains under review"],
+      }),
+      accepted: buildDerivedActionDescriptor({
+        actionId: `evidence-${item.id}-accepted`,
+        label: "Accept evidence",
+        outcomeLabel: getEvidenceOutcomeLabel("accepted"),
+        fromState: item.record?.status ? item.record.status.replaceAll("_", " ") : "Missing",
+        toState: "Accepted",
+        readiness: detail.actionReadiness.reviewEvidence,
+        sideEffects: ["Evidence status becomes accepted"],
+      }),
+      rejected: buildDerivedActionDescriptor({
+        actionId: `evidence-${item.id}-rejected`,
+        label: "Reject evidence",
+        outcomeLabel: getEvidenceOutcomeLabel("rejected"),
+        fromState: item.record?.status ? item.record.status.replaceAll("_", " ") : "Missing",
+        toState: "Rejected",
+        readiness: detail.actionReadiness.reviewEvidence,
+        sideEffects: ["Stage remains held on evidence"],
+      }),
+      requires_more: buildDerivedActionDescriptor({
+        actionId: `evidence-${item.id}-requires_more`,
+        label: "Request more evidence",
+        outcomeLabel: getEvidenceOutcomeLabel("requires_more"),
+        fromState: item.record?.status ? item.record.status.replaceAll("_", " ") : "Missing",
+        toState: "Evidence required",
+        readiness: detail.actionReadiness.reviewEvidence,
+        sideEffects: ["Evidence returns for resubmission"],
+      }),
+    },
+  }));
+
+  const disputes = detail.disputes.map((dispute) => ({
+    ...dispute,
+    resolveAction: buildDerivedActionDescriptor({
+      actionId: `dispute-${dispute.id}-resolve`,
+      label: "Resolve dispute",
+      outcomeLabel: "Returns disputed value to governed progression",
+      fromState: dispute.status === "open" ? "Blocked by dispute" : dispute.status,
+      toState: "Dispute resolved",
+      readiness: {
+        ...detail.actionReadiness.resolveDispute,
+        isAvailable: dispute.canResolve && detail.actionReadiness.resolveDispute.isAvailable,
+        readinessState:
+          dispute.canResolve && detail.actionReadiness.resolveDispute.isAvailable
+            ? "available"
+            : detail.actionReadiness.resolveDispute.readinessState,
+      },
+      sideEffects: [`${dashboardCurrency.format(dispute.disputedAmount)} leaves dispute control`],
+      impactSummary: `${dashboardCurrency.format(dispute.disputedAmount)} leaves dispute control`,
+    }),
+  }));
+
+  const variations = detail.variations.map((variation) => ({
+    ...variation,
+    approveAction: buildDerivedActionDescriptor({
+      actionId: `variation-${variation.id}-approve`,
+      label: "Approve variation",
+      outcomeLabel: getVariationOutcomeLabel(variation.status, "approve"),
+      fromState: variation.operationalStatusLabel,
+      toState: getVariationNextStateLabel(variation.status, "approve"),
+      readiness: {
+        ...detail.actionReadiness.reviewVariation,
+        isAvailable: variation.canApprove && detail.actionReadiness.reviewVariation.isAvailable,
+        readinessState:
+          variation.canApprove && detail.actionReadiness.reviewVariation.isAvailable
+            ? "available"
+            : detail.actionReadiness.reviewVariation.readinessState,
+      },
+      sideEffects: [`${dashboardCurrency.format(variation.amountDelta)} moves to activation control`],
+      impactSummary: `${dashboardCurrency.format(variation.amountDelta)} moves to activation control`,
+    }),
+    rejectAction: buildDerivedActionDescriptor({
+      actionId: `variation-${variation.id}-reject`,
+      label: "Reject variation",
+      outcomeLabel: getVariationOutcomeLabel(variation.status, "reject"),
+      fromState: variation.operationalStatusLabel,
+      toState: getVariationNextStateLabel(variation.status, "reject"),
+      readiness: {
+        ...detail.actionReadiness.reviewVariation,
+        isAvailable: variation.canReject && detail.actionReadiness.reviewVariation.isAvailable,
+        readinessState:
+          variation.canReject && detail.actionReadiness.reviewVariation.isAvailable
+            ? "available"
+            : detail.actionReadiness.reviewVariation.readinessState,
+      },
+      sideEffects: ["Current scope remains in force"],
+    }),
+    activateAction: buildDerivedActionDescriptor({
+      actionId: `variation-${variation.id}-activate`,
+      label: "Activate variation",
+      outcomeLabel: getVariationOutcomeLabel(variation.status, "activate"),
+      fromState: variation.operationalStatusLabel,
+      toState: getVariationNextStateLabel(variation.status, "activate"),
+      readiness: {
+        ...detail.actionReadiness.activateVariation,
+        isAvailable: variation.canActivate && detail.actionReadiness.activateVariation.isAvailable,
+        readinessState:
+          variation.canActivate && detail.actionReadiness.activateVariation.isAvailable
+            ? "available"
+            : detail.actionReadiness.activateVariation.readinessState,
+      },
+      sideEffects: [`${dashboardCurrency.format(variation.amountDelta)} applies to live controls`],
+      impactSummary: `${dashboardCurrency.format(variation.amountDelta)} applies to live controls`,
+    }),
+  }));
+
+  const descriptors = markPrimaryAction(
+    [
+      ...baseDescriptors,
+      ...approvals.flatMap((approval) => [approval.approveAction, approval.rejectAction]),
+      ...evidence.flatMap((item) => Object.values(item.actionDescriptors)),
+      ...disputes.map((dispute) => dispute.resolveAction),
+      ...variations.flatMap((variation) => [variation.approveAction, variation.rejectAction, variation.activateAction]),
+    ],
+    getPrimaryActionPreference({
+      entryOrientation: detail.entryOrientation,
+      exceptionPath: detail.exceptionPath,
+      variationSummary: detail.variationSummary,
+      disputes: detail.disputes,
+      approvals: detail.approvals,
+      evidence: detail.evidence,
+    }),
+  );
+
+  const descriptorMap = Object.fromEntries(descriptors.map((descriptor) => [descriptor.actionId, descriptor]));
+
+  return {
+    actionDescriptors: descriptors,
+    actionDescriptorMap: descriptorMap,
+    approvals: approvals.map((approval) => ({
+      ...approval,
+      approveAction: descriptorMap[approval.approveAction.actionId] ?? approval.approveAction,
+      rejectAction: descriptorMap[approval.rejectAction.actionId] ?? approval.rejectAction,
+    })),
+    evidence: evidence.map((item) => ({
+      ...item,
+      actionDescriptors: Object.fromEntries(
+        Object.entries(item.actionDescriptors).map(([status, descriptor]) => [
+          status,
+          descriptorMap[descriptor.actionId] ?? descriptor,
+        ]),
+      ) as Partial<Record<EvidenceStatus, DerivedActionDescriptor>>,
+    })),
+    disputes: disputes.map((dispute) => ({
+      ...dispute,
+      resolveAction: descriptorMap[dispute.resolveAction.actionId] ?? dispute.resolveAction,
+    })),
+    variations: variations.map((variation) => ({
+      ...variation,
+      approveAction: descriptorMap[variation.approveAction.actionId] ?? variation.approveAction,
+      rejectAction: descriptorMap[variation.rejectAction.actionId] ?? variation.rejectAction,
+      activateAction: descriptorMap[variation.activateAction.actionId] ?? variation.activateAction,
+    })),
+  };
+}
+
 function mapSectionToAttentionCategory(section: StageDetailSectionKey): StageAttentionReason["reasonCategory"] {
   if (section === "funding") return "funding";
   if (section === "approvals") return "approval";
@@ -6022,7 +7440,11 @@ function mapSectionToAttentionCategory(section: StageDetailSectionKey): StageAtt
   return "general";
 }
 
-function canActOnAttentionSection(detail: Pick<StageDetailModel, "availableActions" | "approvals" | "actingRole">, section: StageDetailSectionKey) {
+function canActOnAttentionSection(detail: {
+  availableActions: StageDetailModel["availableActions"];
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>;
+  actingRole: ActingRoleSummary;
+}, section: StageDetailSectionKey) {
   if (section === "funding") return detail.availableActions.fundStage;
   if (section === "approvals") return detail.approvals.some((approval) => approval.canAct);
   if (section === "evidence") return detail.availableActions.reviewEvidence || detail.availableActions.addEvidence;
@@ -6032,10 +7454,15 @@ function canActOnAttentionSection(detail: Pick<StageDetailModel, "availableActio
   return !detail.actingRole.readOnly;
 }
 
-export function getStageAttentionReason(detail: Pick<
-  StageDetailModel,
-  "sectionGuidance" | "blockers" | "releaseDecision" | "decisionSummary" | "availableActions" | "approvals" | "actingRole"
->): StageAttentionReason {
+export function getStageAttentionReason(detail: {
+  sectionGuidance: Record<StageDetailSectionKey, StageSectionGuidance>;
+  blockers: StageBlocker[];
+  releaseDecision: ReleaseDecisionCard;
+  decisionSummary: StageDecisionSummary;
+  availableActions: StageDetailModel["availableActions"];
+  approvals: Array<Omit<ApprovalPanelItem, "approveAction" | "rejectAction">>;
+  actingRole: ActingRoleSummary;
+}): StageAttentionReason {
   const orderedSections: StageDetailSectionKey[] = ["funding", "evidence", "approvals", "dispute", "variation", "release", "overview"];
   const surfacedGuidance = orderedSections
     .map((section) => detail.sectionGuidance[section])
@@ -6159,6 +7586,99 @@ function getOutcomeState(detail: StageDetailModel): Pick<StageActionOutcomeSumma
   };
 }
 
+function getOutcomeResultMeta(params: {
+  before: StageDetailModel;
+  after: StageDetailModel;
+  section: StageDetailSectionKey;
+  stateNow: Pick<StageActionOutcomeSummary, "progressionStatus" | "stateNowLabel" | "stateNowDetail">;
+  nextOwner: string | null;
+  releasedDelta: number;
+  releasableDelta: number;
+  defaultWhatChanged: string;
+}): Pick<StageActionOutcomeSummary, "resultType" | "resultTypeLabel" | "resultHeadline" | "resultSubline" | "resultTone" | "emphasis"> {
+  const { before, after, stateNow, nextOwner, releasedDelta, releasableDelta } = params;
+
+  if (before === after) {
+    return {
+      resultType: "no_change",
+      resultTypeLabel: "No change",
+      resultHeadline: "No governed change recorded",
+      resultSubline: after.sectionGuidance[params.section].nextStep,
+      resultTone: "neutral",
+      emphasis: "subtle",
+    };
+  }
+
+  if (releasedDelta > 0) {
+    return {
+      resultType: "released",
+      resultTypeLabel: "Released",
+      resultHeadline: `${dashboardCurrency.format(releasedDelta)} released`,
+      resultSubline: nextOwner ? `${nextOwner} now owns the next governed step.` : "No further release action is required now.",
+      resultTone: "success",
+      emphasis: "strong",
+    };
+  }
+
+  if (!before.exceptionPath.hasActiveExceptionPath && after.exceptionPath.hasActiveExceptionPath) {
+    return {
+      resultType: "exception",
+      resultTypeLabel: "Exception path active",
+      resultHeadline: after.exceptionPath.headline,
+      resultSubline: after.exceptionPath.normalPathPausedLabel ?? after.exceptionPath.returnPathLabel,
+      resultTone: "warning",
+      emphasis: "strong",
+    };
+  }
+
+  if (stateNow.progressionStatus === "advanced") {
+    return {
+      resultType: "advanced",
+      resultTypeLabel: releasableDelta > 0 ? "Release available" : "Stage advanced",
+      resultHeadline:
+        releasableDelta > 0
+          ? "Release now available"
+          : after.operationalStatus.label === "Ready for release"
+            ? "Stage ready for release"
+            : `${after.stage.name} advanced`,
+      resultSubline: releasableDelta > 0 ? after.releaseSummary.eligibleAmountLabel : stateNow.stateNowDetail,
+      resultTone: "success",
+      emphasis: "strong",
+    };
+  }
+
+  if (stateNow.progressionStatus === "ready_for_next_decision") {
+    return {
+      resultType: "advanced",
+      resultTypeLabel: "Ready for next decision",
+      resultHeadline: "Ready for next decision",
+      resultSubline: nextOwner ? `${nextOwner} can act next.` : stateNow.stateNowDetail,
+      resultTone: "info",
+      emphasis: "normal",
+    };
+  }
+
+  if (stateNow.progressionStatus === "waiting_on_other_role") {
+    return {
+      resultType: "waiting",
+      resultTypeLabel: nextOwner ? `Waiting on ${nextOwner}` : "Waiting on another role",
+      resultHeadline: nextOwner ? `Awaiting ${nextOwner}` : "Awaiting another role",
+      resultSubline: stateNow.stateNowDetail,
+      resultTone: "neutral",
+      emphasis: "subtle",
+    };
+  }
+
+  return {
+    resultType: "blocked",
+    resultTypeLabel: "Still blocked",
+    resultHeadline: after.blockers[0]?.label ? `Still blocked by ${after.blockers[0].label}` : "Still blocked",
+    resultSubline: params.defaultWhatChanged,
+    resultTone: "warning",
+    emphasis: "subtle",
+  };
+}
+
 export function getStageActionOutcomeSummary(
   before: StageDetailModel,
   after: StageDetailModel,
@@ -6175,6 +7695,17 @@ export function getStageActionOutcomeSummary(
   const stateNow = getOutcomeState(after);
   const nextStepGuidance = after.sectionGuidance[section];
   const nextOwner = getNextActionOwner(after);
+  const releasedDelta = Math.max(after.stage.releasedAmount - before.stage.releasedAmount, 0);
+  const resultMeta = getOutcomeResultMeta({
+    before,
+    after,
+    section,
+    stateNow,
+    nextOwner: nextOwner === "No further action owner" ? null : nextOwner,
+    releasedDelta,
+    releasableDelta,
+    defaultWhatChanged,
+  });
 
   let whatChanged = [defaultWhatChanged];
   let unlockedItems = blockerDelta > 0 ? [`${blockerDelta} blocker${blockerDelta === 1 ? "" : "s"} cleared.`] : [];
@@ -6252,7 +7783,6 @@ export function getStageActionOutcomeSummary(
           : unlockedItems;
     nextActionLabel = after.sectionGuidance.variation.nextStep;
   } else if (section === "release") {
-    const releasedDelta = Math.max(after.stage.releasedAmount - before.stage.releasedAmount, 0);
     whatChanged = [
       releasedDelta > 0
         ? `${dashboardCurrency.format(releasedDelta)} has been released from this work package.`
@@ -6276,8 +7806,14 @@ export function getStageActionOutcomeSummary(
   return {
     section,
     tone: after.blockers.length <= before.blockers.length ? "success" : "warning",
-    title: latestEvent?.summary ?? after.operationalStatus.label,
-    detail: after.operationalStatus.nextStep,
+    title: resultMeta.resultHeadline,
+    detail: resultMeta.resultSubline ?? after.operationalStatus.nextStep,
+    resultType: resultMeta.resultType,
+    resultTypeLabel: resultMeta.resultTypeLabel,
+    resultHeadline: resultMeta.resultHeadline,
+    resultSubline: resultMeta.resultSubline,
+    resultTone: resultMeta.resultTone,
+    emphasis: resultMeta.emphasis,
     whatChanged,
     unlockedItems,
     remainingBlockers,
@@ -6550,6 +8086,7 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
       evidenceState,
     }),
   }));
+  const evidenceViews = getEvidenceViews(state, stageId);
 
   if (!project) {
     throw new Error(`Unable to derive stage detail for ${stageId}`);
@@ -6613,7 +8150,7 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     exceptionPath,
   });
   const evidenceSummary = getStageEvidenceSummary({
-    evidence: getEvidenceViews(state, stageId),
+    evidence: evidenceViews,
     evidenceState,
     sectionGuidance,
     actionReadiness,
@@ -6625,6 +8162,16 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     sectionGuidance,
     blockers: stageBlockers,
   });
+  const healthDescriptor = getStageHealthDescriptor({
+    blockers: stageBlockers,
+    fundingExplanation,
+    approvalSummary,
+    evidenceSummary,
+    releaseSummary,
+    exceptionPath,
+    exitState,
+    roleHandoff,
+  });
   const casePathSummary = getStageCasePathSummary({
     disputeSummary,
     variationSummary,
@@ -6633,13 +8180,10 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     exceptionPath,
     sectionGuidance,
   });
-
-  return {
-    projectName: project.name,
-    stage,
-    blockers: stageBlockers,
+  const roleViewGuidance = getStageRoleViewGuidance({
+    actingRole,
     decisionSummary,
-    fundingExplanation,
+    attentionReason,
     roleHandoff,
     exitState,
     exceptionPath,
@@ -6647,26 +8191,56 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     evidenceSummary,
     approvalSummary,
     casePathSummary,
+    fundingExplanation,
+  });
+  const entryOrientation = getStageEntryOrientation({
     attentionReason,
+    roleHandoff,
+    exitState,
+    exceptionPath,
+    releaseSummary,
+    fundingExplanation,
+    evidenceSummary,
+    approvalSummary,
+    sectionGuidance,
+    roleViewGuidance,
+  });
+  const topSurfaceGuidance = getStageTopSurfaceGuidance({
+    decisionSummary,
+    attentionReason,
+    actionReadiness,
+    roleHandoff,
+    exceptionPath,
+    exitState,
+    releaseSummary,
+    fundingExplanation,
+    evidenceSummary,
+    approvalSummary,
+    casePathSummary,
+    roleViewGuidance,
+    entryOrientation,
+  });
+  const {
+    actionDescriptors,
+    actionDescriptorMap,
+    approvals: approvalsWithDescriptors,
+    evidence: evidenceWithDescriptors,
+    disputes: disputesWithDescriptors,
+    variations: variationsWithDescriptors,
+  } = getStageDerivedActionDescriptors({
+    entryOrientation,
     operationalStatus,
-    releaseDecision,
-    treasuryReadiness: releaseDecision.treasuryReadiness,
     funding,
-    fundingStatusLabel:
-      projectFunding.shortfall === 0 ? "Covered by balance" : "Overcommitted",
-    blockingRelease: !releaseDecision.releasable,
-    lastUpdatedAt: getStageLastUpdatedAt(state, stageId),
-    lastDecisionAt: getStageLastDecisionAt(state, stageId),
-    notificationCue: getStageActivityCue(state, stageId),
-    recentEvents: getRecentStageEvents(state, stageId, 5),
-    timelineEntries: getStageTimeline(state, stageId, 6),
-    certifiedValue: stage.requiredAmount,
-    payableValue: getPayableValue(stage),
-    frozenValue: getFrozenValue(stage),
+    fundingExplanation,
+    releaseDecision,
+    releaseSummary,
     disputeSummary,
     variationSummary,
-    evidenceState,
-    approvalState,
+    actionReadiness,
+    evidenceSummary,
+    approvalSummary,
+    approvals: hydratedApprovals,
+    evidence: evidenceViews,
     disputes: (stage.disputes ?? []).map((dispute) => ({
       ...dispute,
       canResolve: dispute.status === "open" && canResolveDispute,
@@ -6689,14 +8263,67 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
             ? "Approved variation"
             : "Disputed variation",
     })),
-    evidence: getEvidenceViews(state, stageId),
-    approvals: hydratedApprovals,
+    exceptionPath,
+  });
+
+  return {
+    projectName: project.name,
+    stage,
+    blockers: stageBlockers,
+    decisionSummary,
+    fundingExplanation,
+    roleHandoff,
+    exitState,
+    exceptionPath,
+    releaseSummary,
+    evidenceSummary,
+    approvalSummary,
+    healthDescriptor,
+    casePathSummary,
+    attentionReason,
+    roleViewGuidance,
+    entryOrientation,
+    topSurfaceGuidance,
+    operationalStatus,
+    releaseDecision,
+    treasuryReadiness: releaseDecision.treasuryReadiness,
+    funding,
+    fundingStatusLabel:
+      projectFunding.shortfall === 0 ? "Covered by balance" : "Overcommitted",
+    blockingRelease: !releaseDecision.releasable,
+    lastUpdatedAt: getStageLastUpdatedAt(state, stageId),
+    lastDecisionAt: getStageLastDecisionAt(state, stageId),
+    notificationCue: getStageActivityCue(state, stageId),
+    recentEvents: getRecentStageEvents(state, stageId, 5),
+    timelineEntries: getStageTimeline(state, stageId, 6),
+    certifiedValue: stage.requiredAmount,
+    payableValue: getPayableValue(stage),
+    frozenValue: getFrozenValue(stage),
+    disputeSummary,
+    variationSummary,
+    evidenceState,
+    approvalState,
+    disputes: disputesWithDescriptors,
+    variations: variationsWithDescriptors,
+    evidence: evidenceWithDescriptors,
+    approvals: approvalsWithDescriptors,
+    actionDescriptors,
+    actionDescriptorMap,
     actionReadiness,
     ledgerTransactions: getLedgerTransactions(state, stage.projectId, stageId),
     actingRole,
     sectionGuidance,
     availableActions,
   };
+}
+
+export function deriveActionDescriptors(
+  stage: SystemStageRecord,
+  role: FundingUserRole,
+  systemState: SystemStateRecord,
+): DerivedActionDescriptor[] {
+  const matchingUser = systemState.users.find((user) => user.role === role) ?? getUserRecord(systemState);
+  return getStageDetail(systemState, stage.id, matchingUser.id).actionDescriptors;
 }
 
 export function getRoleJourneySummary(
