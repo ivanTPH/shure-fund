@@ -25,6 +25,36 @@ function getEvidenceStatusTone(status: string) {
   return "bg-slate-100 text-slate-700";
 }
 
+function getReadinessLabel(readiness: StageDetailModel["actionReadiness"][keyof StageDetailModel["actionReadiness"]]) {
+  if (readiness.readinessState === "available") return "Primary action";
+  if (readiness.readinessState === "complete") return "Completed";
+  return "Unavailable";
+}
+
+function getReadinessMessage(
+  readiness: StageDetailModel["actionReadiness"][keyof StageDetailModel["actionReadiness"]],
+  formMessage?: string,
+) {
+  if (formMessage) {
+    return formMessage;
+  }
+
+  const missing = readiness.missingPrerequisites[0];
+  if (missing && readiness.readinessState !== "available" && readiness.readinessState !== "complete") {
+    return missing;
+  }
+
+  if (readiness.readinessState === "waiting_on_other_role" && readiness.nextOwnerLabel) {
+    return `${readiness.reasonLabel} ${readiness.nextOwnerLabel} must act first.`;
+  }
+
+  if (readiness.readinessState === "waiting_on_prerequisite" && readiness.nextConditionLabel) {
+    return `${readiness.reasonLabel} ${readiness.nextConditionLabel}`;
+  }
+
+  return readiness.reasonLabel;
+}
+
 export default function EvidencePanel({
   detail,
   evidenceTitle,
@@ -42,24 +72,51 @@ export default function EvidencePanel({
   onAddEvidence: () => void;
   onUpdateEvidenceStatus: (requirementId: string, status: EvidenceStatus) => void;
 }) {
-  const canAddItem = detail.availableActions.addEvidence && evidenceTitle.trim().length > 0;
-  const addItemHelp = !detail.availableActions.addEvidence
-    ? detail.availableActions.addEvidenceReason
-    : evidenceTitle.trim().length === 0
-      ? detail.sectionGuidance.evidence.recommendedAction
-      : "Adds a new item to this work package immediately.";
+  const canAddItem = detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length > 0;
+  const addItemHelp = getReadinessMessage(
+    detail.actionReadiness.addEvidence,
+    detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length === 0
+      ? "Enter a supporting item title before adding it to this work package."
+      : undefined,
+  );
+  const reviewHelp = getReadinessMessage(detail.actionReadiness.reviewEvidence);
 
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Supporting Documents & Supporting Information</h3>
-          <p className="mt-1 text-sm text-slate-500">Status: {detail.evidenceState.replaceAll("_", " ")}</p>
-          <p className="mt-2 text-sm text-slate-600">{detail.sectionGuidance.evidence.recommendedAction}</p>
-          {!detail.availableActions.addEvidence && !detail.availableActions.reviewEvidence ? (
+          <p className="mt-1 text-sm text-slate-500">Status: {detail.evidenceSummary.reviewStatusLabel}</p>
+          <p className="mt-2 text-sm text-slate-600">{detail.evidenceSummary.headline}</p>
+          <p className="mt-1 text-sm text-slate-600">{detail.evidenceSummary.nextEvidenceStepLabel ?? detail.sectionGuidance.evidence.recommendedAction}</p>
+          {!detail.actionReadiness.addEvidence.isAvailable && !detail.actionReadiness.reviewEvidence.isAvailable ? (
             <p className="mt-2 text-xs text-slate-500">This role can view evidence only.</p>
           ) : null}
         </div>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Sufficiency</p>
+            <p className="mt-1 text-sm text-slate-900">{detail.evidenceSummary.sufficiencyLabel}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Accepted</p>
+            <p className="mt-1 text-sm text-slate-900">{detail.evidenceSummary.acceptedCountLabel}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Pending</p>
+            <p className="mt-1 text-sm text-slate-900">{detail.evidenceSummary.pendingCountLabel}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Rejected</p>
+            <p className="mt-1 text-sm text-slate-900">{detail.evidenceSummary.rejectedCountLabel}</p>
+          </div>
+        </div>
+        {detail.evidenceSummary.blockingConditionLabel ? (
+          <p className="mt-3 text-sm text-slate-600">{detail.evidenceSummary.blockingConditionLabel}</p>
+        ) : null}
       </div>
 
       <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -89,7 +146,7 @@ export default function EvidencePanel({
           </button>
         </div>
         <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          {canAddItem ? "Primary action" : "Unavailable"}
+          {canAddItem ? "Primary action" : getReadinessLabel(detail.actionReadiness.addEvidence)}
         </p>
         <p className="mt-1 text-xs text-slate-500">{addItemHelp}</p>
       </div>
@@ -99,7 +156,7 @@ export default function EvidencePanel({
           <article
             key={item.id}
             className={`rounded-2xl border p-4 ${
-              detail.availableActions.reviewEvidence ? "border-slate-900/10 bg-slate-50" : "border-slate-200 bg-white"
+              detail.actionReadiness.reviewEvidence.isAvailable ? "border-slate-900/10 bg-slate-50" : "border-slate-200 bg-white"
             }`}
           >
             <div className="flex items-start justify-between gap-3">
@@ -122,9 +179,9 @@ export default function EvidencePanel({
                     key={status}
                     type="button"
                     onClick={() => onUpdateEvidenceStatus(item.id, status)}
-                    disabled={!detail.availableActions.reviewEvidence}
+                    disabled={!detail.actionReadiness.reviewEvidence.isAvailable}
                     className={`disabled:cursor-not-allowed ${
-                      getActionButtonClass(status === "accepted" ? "primary" : "secondary", !detail.availableActions.reviewEvidence)
+                      getActionButtonClass(status === "accepted" ? "primary" : "secondary", !detail.actionReadiness.reviewEvidence.isAvailable)
                     }`}
                   >
                     {status.replace("_", " ")}
@@ -132,11 +189,11 @@ export default function EvidencePanel({
                 ))}
               </div>
             </div>
-            {detail.availableActions.reviewEvidence ? (
-              <p className="mt-2 text-sm text-slate-600">Primary action: accept when the evidence is complete. Use the other controls when review cannot clear yet.</p>
+            {detail.actionReadiness.reviewEvidence.isAvailable ? (
+              <p className="mt-2 text-sm text-slate-600">{detail.evidenceSummary.nextEvidenceStepLabel ?? "Accept the evidence when it is complete. Use the other controls when review cannot clear yet."}</p>
             ) : null}
-            {!detail.availableActions.reviewEvidence ? (
-              <p className="mt-2 text-sm text-slate-600">{detail.availableActions.reviewEvidenceReason}</p>
+            {!detail.actionReadiness.reviewEvidence.isAvailable ? (
+              <p className="mt-2 text-sm text-slate-600">{reviewHelp}</p>
             ) : null}
           </article>
         ))}

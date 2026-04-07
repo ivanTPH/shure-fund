@@ -14,7 +14,7 @@ export type EvidenceType = "file" | "form";
 export type EvidenceStatus = "pending" | "accepted" | "rejected" | "requires_more";
 
 export type ApprovalRole = "commercial" | "professional" | "treasury";
-export type UserRole = ApprovalRole | "contractor" | "funder" | "subcontractor";
+export type UserRole = ApprovalRole | "contractor" | "funder" | "subcontractor" | "executive";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 

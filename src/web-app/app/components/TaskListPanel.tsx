@@ -103,18 +103,39 @@ export default function TaskListPanel({
                 </div>
                 <div className="mt-1 text-base font-semibold text-slate-950">{item.title}</div>
                 <div className="mt-1 text-sm text-slate-600">
-  <div><strong>Blocked by:</strong> {item.summary}</div>
-  <div className="text-slate-500">
-    <strong>To unlock:</strong>{" "}
-    {item.summary?.toLowerCase().includes("funding")
-      ? "Allocate funds or approve release"
-      : item.summary?.toLowerCase().includes("approval")
-      ? "Complete approval"
-      : item.summary?.toLowerCase().includes("evidence")
-      ? "Review and accept evidence"
-      : "Resolve blocking issue"}
-  </div>
-</div>
+                  <div><strong>{item.exceptionPath?.hasActiveExceptionPath ? "Exception path:" : item.exitState?.isClosedOrComplete ? "Current outcome:" : "Why surfaced:"}</strong> {item.exceptionPath?.headline ?? item.exitState?.headline ?? item.attentionReason?.reasonLabel ?? item.summary}</div>
+                  <div className="mt-1 text-slate-500">
+                    <strong>
+                      {item.exceptionPath?.hasActiveExceptionPath
+                        ? "Return to path:"
+                        : item.exitState?.isClosedOrComplete
+                        ? "Exception path:"
+                        : item.attentionReason?.requiresMyAction
+                        ? "Needs your action:"
+                        : item.attentionReason?.headline ?? "What happens next:"}
+                    </strong>{" "}
+                    {item.exceptionPath?.returnPathLabel ?? item.exitState?.reopenPathLabel ?? item.attentionReason?.supportingDetails[1] ?? item.nextActionLabel ?? item.summary}
+                  </div>
+                </div>
+                {item.exceptionPath?.hasActiveExceptionPath ? (
+                  <div className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <div><strong>Owner:</strong> {item.exceptionPath.ownerLabel ?? "Next owner"}</div>
+                    {item.exceptionPath.requiredDecisionLabel ? (
+                      <div className="mt-1"><strong>Decision:</strong> {item.exceptionPath.requiredDecisionLabel}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {item.handoff?.isWaitingOnAnotherRole ? (
+                  <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    <div><strong>Waiting on:</strong> {item.handoff.toRoleLabel ?? "Next owner"}</div>
+                    {item.handoff.expectedActionLabel ? (
+                      <div className="mt-1"><strong>Expected action:</strong> {item.handoff.expectedActionLabel}</div>
+                    ) : null}
+                    {item.handoff.unlockOutcomeLabel ? (
+                      <div className="mt-1 text-slate-500"><strong>Unlocks:</strong> {item.handoff.unlockOutcomeLabel}</div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {isFinancialAction(item) && typeof item.amount === "number" ? (
                   <div className="mt-2 text-sm font-semibold text-slate-900">Amount: {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(item.amount)}</div>
                 ) : null}
@@ -122,26 +143,20 @@ export default function TaskListPanel({
 
               <div className="flex flex-col gap-2 text-sm">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Owner</div>
-                  <div className="mt-1 font-medium text-slate-800">{item.ownerLabel}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Driver</div>
+                  <div className="mt-1 font-medium text-slate-800">{item.handoff?.toRoleLabel ?? item.attentionReason?.driverLabel ?? item.ownerLabel}</div>
                 </div>
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Status</div>
                   <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                    {item.statusLabel}
+                    {item.exceptionPath?.exceptionType.replaceAll("_", " ") ?? item.exitState?.outcomeLabel ?? item.attentionReason?.headline ?? item.statusLabel}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center md:justify-end">
                 <span className="inline-flex min-h-11 items-center justify-center gap-1 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-all duration-150 ease-out group-active:scale-[0.98]">
-                 {item.summary?.toLowerCase().includes("funding")
-  ? "Resolve funding gap"
-  : item.summary?.toLowerCase().includes("approval")
-  ? "Approve release"
-  : item.summary?.toLowerCase().includes("evidence")
-  ? "Review evidence"
-  : item.nextActionLabel ?? ctaLabel}
+                  {item.nextActionLabel ?? item.attentionReason?.supportingDetails[1] ?? ctaLabel}
                   <ChevronRight size={14} />
                 </span>
               </div>

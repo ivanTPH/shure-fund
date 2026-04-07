@@ -71,6 +71,780 @@ function SectionActionHeader({
   );
 }
 
+function SectionOutcomeNotice({
+  feedback,
+}: {
+  feedback: {
+    tone: "success" | "warning";
+    title: string;
+    detail: string;
+    progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
+    stateNowLabel: string;
+    stateNowDetail: string;
+    whatChanged: string[];
+    unlockedItems: string[];
+    remainingBlockers: string[];
+    nextOwner: string | null;
+    nextActionLabel: string | null;
+  };
+}) {
+  const stateToneClass =
+    feedback.progressionStatus === "advanced"
+      ? "bg-teal-950 text-white"
+      : feedback.progressionStatus === "ready_for_next_decision"
+        ? "bg-slate-900 text-white"
+        : feedback.progressionStatus === "waiting_on_other_role"
+          ? "bg-slate-100 text-slate-800"
+          : "bg-amber-100 text-amber-950";
+
+  return (
+    <div
+      className={`mb-4 rounded-2xl border p-4 ${
+        feedback.tone === "success" ? "border-teal-200 bg-teal-50" : "border-amber-200 bg-amber-50"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className={`text-sm font-semibold ${feedback.tone === "success" ? "text-teal-950" : "text-amber-950"}`}>
+            {feedback.title}
+          </p>
+          <p className={`mt-1 text-sm ${feedback.tone === "success" ? "text-teal-900" : "text-amber-900"}`}>
+            {feedback.nextActionLabel ?? feedback.detail}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+              feedback.tone === "success" ? "bg-white text-teal-950" : "bg-white text-amber-950"
+            }`}
+          >
+            What changed
+          </span>
+          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${stateToneClass}`}>
+            {feedback.stateNowLabel}
+          </span>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What changed</p>
+          <div className="mt-1 grid gap-1">
+            {feedback.whatChanged.map((item, index) => (
+              <p key={`changed-${index}`} className="text-sm text-slate-900">{item}</p>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What happens next</p>
+          <p className="mt-1 text-sm text-slate-900">{feedback.nextActionLabel ?? feedback.detail}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">State now</p>
+          <p className="mt-1 text-sm text-slate-900">{feedback.stateNowLabel}</p>
+          <p className="mt-1 text-xs text-slate-500">{feedback.stateNowDetail}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Unlocked / next owner</p>
+          {feedback.unlockedItems.length > 0 ? (
+            <div className="mt-1 grid gap-1">
+              {feedback.unlockedItems.map((item, index) => (
+                <p key={`unlocked-${index}`} className="text-sm text-slate-900">{item}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-slate-900">No additional control was unlocked.</p>
+          )}
+          <p className="mt-1 text-xs text-slate-500">
+            {feedback.nextOwner ? `Next owner ${feedback.nextOwner}` : "No further owner is required."}
+          </p>
+          <div className="mt-2 grid gap-1">
+            {feedback.remainingBlockers.length > 0 ? (
+              feedback.remainingBlockers.map((item, index) => (
+                <p key={`blocker-${index}`} className="text-xs text-slate-500">{index === 0 ? `Remaining blocker: ${item}` : item}</p>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500">No active blocker remains.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageDecisionSummaryCard({
+  summary,
+}: {
+  summary: StageDetailModel["decisionSummary"];
+}) {
+  const toneClass =
+    summary.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : summary.tone === "info"
+        ? "border-slate-200 bg-slate-50"
+        : summary.tone === "warning"
+          ? "border-amber-200 bg-amber-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stage decision summary</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{summary.statusLabel}</p>
+          <p className="mt-1 text-sm text-slate-600">{summary.actionabilityLabel}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {summary.releaseReadinessLabel}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Primary next decision</p>
+          <p className="mt-1 text-sm text-slate-900">{summary.primaryDecisionLabel ?? "No immediate decision required."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Owner / next owner</p>
+          <p className="mt-1 text-sm text-slate-900">{summary.currentOwnerLabel ?? "No current owner assigned."}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {summary.nextOwnerLabel ? `Next owner ${summary.nextOwnerLabel}` : "No further owner queued."}
+          </p>
+        </div>
+        <div className="xl:col-span-2">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking progression</p>
+          <div className="mt-1 grid gap-1">
+            {summary.blockerSummary.length > 0 ? (
+              summary.blockerSummary.map((blocker, index) => (
+                <p key={`summary-blocker-${index}`} className="text-sm text-slate-900">{blocker}</p>
+              ))
+            ) : (
+              <p className="text-sm text-slate-900">No active blocker is holding this stage.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageAttentionReasonCard({
+  reason,
+}: {
+  reason: StageDetailModel["attentionReason"];
+}) {
+  const toneClass =
+    reason.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : reason.tone === "info"
+        ? "border-slate-200 bg-slate-50"
+        : reason.tone === "warning"
+          ? "border-amber-200 bg-amber-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why this stage needs attention</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{reason.headline}</p>
+          <p className="mt-1 text-sm text-slate-600">{reason.reasonLabel}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {reason.driverLabel}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Governance condition</p>
+          <p className="mt-1 text-sm text-slate-900">{reason.reasonCategory}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Actionability</p>
+          <p className="mt-1 text-sm text-slate-900">
+            {reason.requiresMyAction ? "Needs your action now" : "Waiting on another role or prerequisite"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Owner / next owner</p>
+          <p className="mt-1 text-sm text-slate-900">{reason.ownerLabel ?? "No active owner"}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {reason.nextOwnerLabel ? `Next owner ${reason.nextOwnerLabel}` : "No further owner queued."}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Supporting details</p>
+          <div className="mt-1 grid gap-1">
+            {reason.supportingDetails.map((item, index) => (
+              <p key={`attention-detail-${index}`} className="text-sm text-slate-900">{item}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageFundingExplanationCard({
+  explanation,
+}: {
+  explanation: StageDetailModel["fundingExplanation"];
+}) {
+  const toneClass =
+    explanation.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : explanation.tone === "warning"
+        ? "border-amber-200 bg-amber-50"
+        : explanation.tone === "info"
+          ? "border-slate-200 bg-slate-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Financial explanation</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{explanation.coverageLabel}</p>
+          <p className="mt-1 text-sm text-slate-600">{explanation.headline}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {explanation.coverageState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Required cover</p>
+          <p className="mt-1 text-sm text-slate-900">{explanation.requiredCoverLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ringfenced</p>
+          <p className="mt-1 text-sm text-slate-900">{explanation.ringfencedLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Reserve</p>
+          <p className="mt-1 text-sm text-slate-900">{explanation.reserveLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Release position</p>
+          <p className="mt-1 text-sm text-slate-900">{explanation.releasableLabel}</p>
+          <p className="mt-1 text-xs text-slate-500">{explanation.shortfallLabel}</p>
+        </div>
+      </div>
+      {explanation.blockingConditionLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking financial condition</p>
+          <p className="mt-1 text-sm text-slate-900">{explanation.blockingConditionLabel}</p>
+        </div>
+      ) : null}
+      {explanation.nextFinancialStepLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next financial step</p>
+          <p className="mt-1 text-sm text-slate-900">{explanation.nextFinancialStepLabel}</p>
+        </div>
+      ) : null}
+      <div className="mt-3 grid gap-1">
+        {explanation.supportingLines.map((line, index) => (
+          <p key={`funding-explanation-${index}`} className="text-sm text-slate-600">{line}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StageRoleHandoffCard({
+  handoff,
+}: {
+  handoff: StageDetailModel["roleHandoff"];
+}) {
+  if (!handoff.isWaitingOnAnotherRole) {
+    return null;
+  }
+
+  const toneClass =
+    handoff.tone === "warning"
+      ? "border-amber-200 bg-amber-50"
+      : handoff.tone === "info"
+        ? "border-slate-200 bg-slate-50"
+        : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Current handoff</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{handoff.handoffHeadline}</p>
+          <p className="mt-1 text-sm text-slate-600">{handoff.handoffReasonLabel}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {handoff.toRoleLabel ?? "Next owner"}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Waiting on</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.toRoleLabel ?? "Next owner"}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {handoff.fromRoleLabel ? `Handed over from ${handoff.fromRoleLabel}` : "Awaiting the next governed owner."}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Expected action</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.expectedActionLabel ?? "Open the next governed step."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why waiting</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.blockingConditionLabel ?? handoff.handoffReasonLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Unlocks next</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This advances the next governed control step."}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageExitStateCard({
+  exitState,
+}: {
+  exitState: StageDetailModel["exitState"];
+}) {
+  if (!exitState.isClosedOrComplete) {
+    return null;
+  }
+
+  const toneClass =
+    exitState.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : exitState.tone === "warning"
+        ? "border-amber-200 bg-amber-50"
+        : exitState.tone === "info"
+          ? "border-slate-200 bg-slate-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Current outcome</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{exitState.outcomeLabel}</p>
+          <p className="mt-1 text-sm text-slate-600">{exitState.headline}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {exitState.exitState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Governed outcome</p>
+          <p className="mt-1 text-sm text-slate-900">{exitState.finalActionLabel ?? "No further normal progression is active."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Value outcome</p>
+          <p className="mt-1 text-sm text-slate-900">{exitState.valueOutcomeLabel ?? "No further value movement is active."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Remaining exposure</p>
+          <p className="mt-1 text-sm text-slate-900">{exitState.remainingExposureLabel ?? "No active exposure remains under normal progression."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Exception path</p>
+          <p className="mt-1 text-sm text-slate-900">{exitState.reopenPathLabel ?? "No reopen path is currently expected."}</p>
+        </div>
+      </div>
+      {exitState.supportingLines.length > 0 ? (
+        <div className="mt-3 grid gap-1">
+          {exitState.supportingLines.map((line, index) => (
+            <p key={`exit-support-${index}`} className="text-sm text-slate-600">{line}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageExceptionPathCard({
+  exceptionPath,
+}: {
+  exceptionPath: StageDetailModel["exceptionPath"];
+}) {
+  if (!exceptionPath.hasActiveExceptionPath) {
+    return null;
+  }
+
+  const toneClass =
+    exceptionPath.tone === "warning"
+      ? "border-amber-200 bg-amber-50"
+      : exceptionPath.tone === "info"
+        ? "border-slate-200 bg-slate-50"
+        : exceptionPath.tone === "success"
+          ? "border-teal-200 bg-teal-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Governed exception</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{exceptionPath.headline}</p>
+          <p className="mt-1 text-sm text-slate-600">{exceptionPath.exceptionReasonLabel}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {exceptionPath.exceptionType.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Owner</p>
+          <p className="mt-1 text-sm text-slate-900">{exceptionPath.ownerLabel ?? "No active owner"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Required decision</p>
+          <p className="mt-1 text-sm text-slate-900">{exceptionPath.requiredDecisionLabel ?? "Review the exception path."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Normal path paused</p>
+          <p className="mt-1 text-sm text-slate-900">{exceptionPath.normalPathPausedLabel ?? "Normal progression remains active."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Return path</p>
+          <p className="mt-1 text-sm text-slate-900">{exceptionPath.returnPathLabel ?? "No return path is currently defined."}</p>
+        </div>
+      </div>
+      {exceptionPath.outcomeRiskLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Outcome risk</p>
+          <p className="mt-1 text-sm text-slate-900">{exceptionPath.outcomeRiskLabel}</p>
+        </div>
+      ) : null}
+      {exceptionPath.supportingLines.length > 0 ? (
+        <div className="mt-3 grid gap-1">
+          {exceptionPath.supportingLines.map((line, index) => (
+            <p key={`exception-support-${index}`} className="text-sm text-slate-600">{line}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageReleaseSummaryCard({
+  releaseSummary,
+}: {
+  releaseSummary: StageDetailModel["releaseSummary"];
+}) {
+  const toneClass =
+    releaseSummary.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : releaseSummary.tone === "warning"
+        ? "border-amber-200 bg-amber-50"
+        : releaseSummary.tone === "info"
+          ? "border-slate-200 bg-slate-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Release position</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{releaseSummary.decisionLabel ?? releaseSummary.releaseState.replaceAll("_", " ")}</p>
+          <p className="mt-1 text-sm text-slate-600">{releaseSummary.headline}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {releaseSummary.releaseState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Eligible now</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.eligibleAmountLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Released</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.releasedAmountLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Still held</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.remainingHeldLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next release step</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.nextReleaseStepLabel ?? "No further release step is currently required."}</p>
+        </div>
+      </div>
+      {releaseSummary.blockingConditionLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking condition</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.blockingConditionLabel}</p>
+        </div>
+      ) : null}
+      {releaseSummary.exceptionInteractionLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Exception interaction</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.exceptionInteractionLabel}</p>
+        </div>
+      ) : null}
+      {releaseSummary.supportingLines.length > 0 ? (
+        <div className="mt-3 grid gap-1">
+          {releaseSummary.supportingLines.map((line, index) => (
+            <p key={`release-summary-${index}`} className="text-sm text-slate-600">{line}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageEvidenceSummaryCard({
+  evidenceSummary,
+}: {
+  evidenceSummary: StageDetailModel["evidenceSummary"];
+}) {
+  const toneClass =
+    evidenceSummary.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : evidenceSummary.tone === "warning"
+        ? "border-amber-200 bg-amber-50"
+        : evidenceSummary.tone === "info"
+          ? "border-slate-200 bg-slate-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Evidence position</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{evidenceSummary.sufficiencyLabel}</p>
+          <p className="mt-1 text-sm text-slate-600">{evidenceSummary.headline}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {evidenceSummary.evidenceState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Review status</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.reviewStatusLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Accepted</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.acceptedCountLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Pending</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.pendingCountLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Rejected</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.rejectedCountLabel}</p>
+        </div>
+      </div>
+      {evidenceSummary.blockingConditionLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking evidence condition</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.blockingConditionLabel}</p>
+        </div>
+      ) : null}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next owner</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.ownerLabel ?? "No active owner"}</p>
+        </div>
+        <div className="rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Unlocks next</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.nextEvidenceStepLabel ?? "No further evidence step is required."}</p>
+        </div>
+      </div>
+      {evidenceSummary.supportingLines.length > 0 ? (
+        <div className="mt-3 grid gap-1">
+          {evidenceSummary.supportingLines.map((line, index) => (
+            <p key={`evidence-summary-${index}`} className="text-sm text-slate-600">{line}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageApprovalSummaryCard({
+  approvalSummary,
+}: {
+  approvalSummary: StageDetailModel["approvalSummary"];
+}) {
+  const toneClass =
+    approvalSummary.tone === "success"
+      ? "border-teal-200 bg-teal-50"
+      : approvalSummary.tone === "warning"
+        ? "border-amber-200 bg-amber-50"
+        : approvalSummary.tone === "info"
+          ? "border-slate-200 bg-slate-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Approval position</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{approvalSummary.approvalProgressLabel}</p>
+          <p className="mt-1 text-sm text-slate-600">{approvalSummary.headline}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {approvalSummary.approvalState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active approval</p>
+          <p className="mt-1 text-sm text-slate-900">{approvalSummary.activeApprovalLabel ?? "No active approval step"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next approver</p>
+          <p className="mt-1 text-sm text-slate-900">{approvalSummary.nextApproverLabel ?? "No next approver queued"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Completed</p>
+          <p className="mt-1 text-sm text-slate-900">{approvalSummary.completedApprovals.length > 0 ? approvalSummary.completedApprovals.join(", ") : "None yet"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Pending</p>
+          <p className="mt-1 text-sm text-slate-900">{approvalSummary.pendingApprovals.length > 0 ? approvalSummary.pendingApprovals.join(", ") : "No pending approvals"}</p>
+        </div>
+      </div>
+      {approvalSummary.blockingConditionLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking condition</p>
+          <p className="mt-1 text-sm text-slate-900">{approvalSummary.blockingConditionLabel}</p>
+        </div>
+      ) : null}
+      <div className="mt-3 rounded-2xl bg-white/80 p-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Unlocks next</p>
+        <p className="mt-1 text-sm text-slate-900">{approvalSummary.nextApprovalStepLabel ?? "No further approval step is required."}</p>
+      </div>
+      {approvalSummary.supportingLines.length > 0 ? (
+        <div className="mt-3 grid gap-1">
+          {approvalSummary.supportingLines.map((line, index) => (
+            <p key={`approval-summary-${index}`} className="text-sm text-slate-600">{line}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageCasePathSummaryCard({
+  casePathSummary,
+}: {
+  casePathSummary: StageDetailModel["casePathSummary"];
+}) {
+  if (casePathSummary.caseState === "none") {
+    return null;
+  }
+
+  const toneClass =
+    casePathSummary.tone === "warning"
+      ? "border-amber-200 bg-amber-50"
+      : casePathSummary.tone === "success"
+        ? "border-teal-200 bg-teal-50"
+        : casePathSummary.tone === "info"
+          ? "border-slate-200 bg-slate-50"
+          : "border-slate-200 bg-white";
+
+  return (
+    <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Case path</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{casePathSummary.activePathLabel ?? "Resolved case path"}</p>
+          <p className="mt-1 text-sm text-slate-600">{casePathSummary.headline}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {casePathSummary.caseState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Owner</p>
+          <p className="mt-1 text-sm text-slate-900">{casePathSummary.ownerLabel ?? "No active case owner"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Required decision</p>
+          <p className="mt-1 text-sm text-slate-900">{casePathSummary.requiredDecisionLabel ?? "No case decision required."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Normal path impact</p>
+          <p className="mt-1 text-sm text-slate-900">{casePathSummary.normalPathImpactLabel ?? "Normal progression remains active."}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Return to progression</p>
+          <p className="mt-1 text-sm text-slate-900">{casePathSummary.returnToProgressionLabel ?? "No return path is currently needed."}</p>
+        </div>
+      </div>
+      {casePathSummary.riskLabel ? (
+        <div className="mt-3 rounded-2xl bg-white/80 p-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Risk</p>
+          <p className="mt-1 text-sm text-slate-900">{casePathSummary.riskLabel}</p>
+        </div>
+      ) : null}
+      {casePathSummary.supportingLines.length > 0 ? (
+        <div className="mt-3 grid gap-1">
+          {casePathSummary.supportingLines.map((line, index) => (
+            <p key={`case-path-${index}`} className="text-sm text-slate-600">{line}</p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageTimelineCard({
+  entries,
+}: {
+  entries: StageDetailModel["timelineEntries"];
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recent stage changes</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">Governed stage timeline</p>
+        </div>
+        <p className="text-xs text-slate-500">Most recent first</p>
+      </div>
+      <div className="mt-3 grid gap-3">
+        {entries.map((entry) => {
+          const toneClass =
+            entry.tone === "success"
+              ? "border-teal-200 bg-teal-50"
+              : entry.tone === "warning"
+                ? "border-amber-200 bg-amber-50"
+                : entry.tone === "info"
+                  ? "border-slate-200 bg-slate-100"
+                  : "border-slate-200 bg-white";
+
+          return (
+            <article key={entry.id} className={`rounded-2xl border p-3 ${toneClass}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{entry.headline}</p>
+                  {entry.detail ? <p className="mt-1 text-sm text-slate-600">{entry.detail}</p> : null}
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em]">
+                  <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-700">{entry.changeType}</span>
+                  <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-700">{entry.effect.replaceAll("_", " ")}</span>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                <span>{entry.actorLabel ?? "System"}</span>
+                <span>{entry.timestampLabel}</span>
+              </div>
+            </article>
+          );
+        })}
+        {entries.length === 0 ? <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No governed stage changes recorded yet.</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function getActionButtonClass(kind: "primary" | "secondary" | "warning", disabled: boolean) {
   if (kind === "primary") {
     return disabled
@@ -99,6 +873,44 @@ function getActionPriorityTone(priority: "Primary action" | "Secondary action" |
   }
 
   return "bg-slate-50 text-slate-500";
+}
+
+function getReadinessPriority(
+  readiness: StageDetailModel["actionReadiness"][keyof StageDetailModel["actionReadiness"]],
+): "Primary action" | "Secondary action" | "Unavailable" {
+  if (readiness.readinessState === "available") {
+    return readiness.tone === "info" ? "Primary action" : "Secondary action";
+  }
+
+  return "Unavailable";
+}
+
+function getReadinessReason(
+  readiness: StageDetailModel["actionReadiness"][keyof StageDetailModel["actionReadiness"]],
+  formMessage?: string,
+) {
+  if (formMessage) {
+    return formMessage;
+  }
+
+  const missing = readiness.missingPrerequisites[0];
+  if (missing && readiness.readinessState !== "available" && readiness.readinessState !== "complete") {
+    return missing;
+  }
+
+  if (readiness.readinessState === "complete") {
+    return readiness.reasonLabel;
+  }
+
+  if (readiness.readinessState === "waiting_on_other_role" && readiness.nextOwnerLabel) {
+    return `${readiness.reasonLabel} ${readiness.nextOwnerLabel} must act first.`;
+  }
+
+  if (readiness.readinessState === "waiting_on_prerequisite" && readiness.nextConditionLabel) {
+    return `${readiness.reasonLabel} ${readiness.nextConditionLabel}`;
+  }
+
+  return readiness.reasonLabel;
 }
 
 function ActionControlCard({
@@ -153,9 +965,18 @@ type StageDetailPanelProps = {
   detail: StageDetailModel;
   focusedSection: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
   actionFeedback: {
+    section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
     tone: "success" | "warning";
     title: string;
     detail: string;
+    progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
+    stateNowLabel: string;
+    stateNowDetail: string;
+    whatChanged: string[];
+    unlockedItems: string[];
+    remainingBlockers: string[];
+    nextOwner: string | null;
+    nextActionLabel: string | null;
   } | null;
   overrideReason: string;
   evidenceTitle: string;
@@ -239,46 +1060,41 @@ export default function StageDetailPanel({
   const stageWipTotal = detail.releaseDecision.releasableAmount + detail.releaseDecision.frozenAmount + detail.releaseDecision.blockedAmount;
   const parsedDisputeAmount = Number(disputeAmount);
   const parsedVariationAmount = Number(variationAmount);
-  const canFundStage = detail.availableActions.fundStage && detail.funding.gapToRequiredCover > 0;
-  const canReleaseStage = detail.availableActions.release && detail.releaseDecision.releasable;
-  const canApplyOverride = detail.availableActions.applyOverride && overrideReason.trim().length > 0;
-  const canOpenDispute =
-    detail.availableActions.openDispute &&
+  const canFundStage = detail.actionReadiness.fundStage.isAvailable && detail.funding.gapToRequiredCover > 0;
+  const canReleaseStage = detail.actionReadiness.release.isAvailable && detail.releaseDecision.releasable;
+  const canApplyOverride = detail.actionReadiness.applyOverride.isAvailable && overrideReason.trim().length > 0;
+  const canOpenDispute = detail.actionReadiness.openDispute.isAvailable &&
     disputeTitle.trim().length > 0 &&
     disputeReason.trim().length > 0 &&
     Number.isFinite(parsedDisputeAmount) &&
     parsedDisputeAmount > 0;
-  const canCreateVariation =
-    detail.availableActions.createVariation &&
+  const canCreateVariation = detail.actionReadiness.createVariation.isAvailable &&
     variationTitle.trim().length > 0 &&
     variationReason.trim().length > 0 &&
     Number.isFinite(parsedVariationAmount) &&
     parsedVariationAmount !== 0;
-  const fundReason = canFundStage
-    ? "Allocates the remaining amount and updates this work package immediately."
-    : detail.availableActions.fundStage
-      ? detail.sectionGuidance.funding.recommendedAction
-      : detail.availableActions.fundStageReason;
-  const releaseReason = canReleaseStage
-    ? "Releases the approved value and updates drawdown, blockers, and history immediately."
-    : detail.availableActions.release
-      ? detail.sectionGuidance.release.recommendedAction
-      : detail.availableActions.releaseReason;
-  const overrideReasonText = canApplyOverride
-    ? "Applies a governed treasury override with the reason recorded in the audit trail."
-    : overrideReason.trim().length === 0
+  const fundReason = getReadinessReason(detail.actionReadiness.fundStage);
+  const releaseReason = getReadinessReason(detail.actionReadiness.release);
+  const overrideReasonText = getReadinessReason(
+    detail.actionReadiness.applyOverride,
+    detail.actionReadiness.applyOverride.isAvailable && overrideReason.trim().length === 0
       ? "Enter an override reason before this control can be used."
-      : detail.availableActions.applyOverrideReason;
-  const openDisputeReasonText = canOpenDispute
-    ? "Raises a dispute and freezes only the affected value."
-    : detail.availableActions.openDispute
-      ? detail.sectionGuidance.dispute.recommendedAction
-      : detail.availableActions.openDisputeReason;
-  const createVariationReasonText = canCreateVariation
-    ? "Records the proposal and updates variation review state immediately."
-    : detail.availableActions.createVariation
-      ? detail.sectionGuidance.variation.recommendedAction
-      : detail.availableActions.createVariationReason;
+      : undefined,
+  );
+  const openDisputeReasonText = getReadinessReason(
+    detail.actionReadiness.openDispute,
+    detail.actionReadiness.openDispute.isAvailable &&
+      (!disputeTitle.trim().length || !disputeReason.trim().length || !Number.isFinite(parsedDisputeAmount) || parsedDisputeAmount <= 0)
+      ? "Enter a dispute title, reason, and frozen value before this control can be used."
+      : undefined,
+  );
+  const createVariationReasonText = getReadinessReason(
+    detail.actionReadiness.createVariation,
+    detail.actionReadiness.createVariation.isAvailable &&
+      (!variationTitle.trim().length || !variationReason.trim().length || !Number.isFinite(parsedVariationAmount) || parsedVariationAmount === 0)
+      ? "Enter a variation title, reason, and amount delta before this control can be used."
+      : undefined,
+  );
 
   useEffect(() => {
     const refMap = {
@@ -301,6 +1117,14 @@ export default function StageDetailPanel({
     return focusedSection === section
       ? "scroll-mt-28 rounded-2xl ring-2 ring-teal-200/80 transition"
       : "scroll-mt-28";
+  }
+
+  function renderSectionFeedback(section: typeof focusedSection) {
+    if (!actionFeedback || actionFeedback.section !== section) {
+      return null;
+    }
+
+    return <SectionOutcomeNotice feedback={actionFeedback} />;
   }
 
   return (
@@ -328,7 +1152,19 @@ export default function StageDetailPanel({
         </div>
       </div>
 
-      {actionFeedback ? (
+      <StageDecisionSummaryCard summary={detail.decisionSummary} />
+      <StageExitStateCard exitState={detail.exitState} />
+      <StageReleaseSummaryCard releaseSummary={detail.releaseSummary} />
+      <StageExceptionPathCard exceptionPath={detail.exceptionPath} />
+      <StageEvidenceSummaryCard evidenceSummary={detail.evidenceSummary} />
+      <StageApprovalSummaryCard approvalSummary={detail.approvalSummary} />
+      <StageCasePathSummaryCard casePathSummary={detail.casePathSummary} />
+      <StageFundingExplanationCard explanation={detail.fundingExplanation} />
+      <StageAttentionReasonCard reason={detail.attentionReason} />
+      <StageRoleHandoffCard handoff={detail.roleHandoff} />
+      <StageTimelineCard entries={detail.timelineEntries} />
+
+      {actionFeedback && actionFeedback.section === "overview" ? (
         <div
           className={`mb-4 rounded-2xl border px-4 py-3 ${
             actionFeedback.tone === "success"
@@ -388,6 +1224,7 @@ export default function StageDetailPanel({
 
       <div ref={fundingRef} className={`mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("funding")}`}>
         <SectionActionHeader title="Funding" guidance={detail.sectionGuidance.funding} />
+        {renderSectionFeedback("funding")}
         <p className="text-sm font-semibold text-slate-900">Control Summary</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-2xl bg-white p-3">
@@ -476,10 +1313,10 @@ export default function StageDetailPanel({
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-sm font-semibold text-slate-900">Release Decision</p>
-          <p className="mt-2 text-sm font-medium text-slate-950">{detail.releaseDecision.explanation.label}</p>
-          <p className="mt-1 text-sm text-slate-600">{detail.releaseDecision.explanation.reason}</p>
+          <p className="mt-2 text-sm font-medium text-slate-950">{detail.releaseSummary.decisionLabel ?? detail.releaseDecision.explanation.label}</p>
+          <p className="mt-1 text-sm text-slate-600">{detail.releaseSummary.headline}</p>
           <p className="mt-2 text-xs text-slate-500">
-            Releasable {currency.format(detail.releaseDecision.releasableAmount)} · Frozen {currency.format(detail.releaseDecision.frozenAmount)} · In progress {currency.format(detail.releaseDecision.blockedAmount)}
+            {detail.releaseSummary.eligibleAmountLabel} · {detail.releaseSummary.remainingHeldLabel}
           </p>
           <p className="mt-1 text-xs text-slate-500">Decision basis: {detail.releaseDecision.explanation.decisionBasis}</p>
           <p className="mt-1 text-xs text-slate-500">{detail.treasuryReadiness.label} · {detail.treasuryReadiness.reason}</p>
@@ -549,34 +1386,15 @@ export default function StageDetailPanel({
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Funding control</p>
             <ActionControlCard
               label="Fund Work Package"
-              priority={detail.sectionGuidance.funding.state === "act_now" ? "Primary action" : canFundStage ? "Secondary action" : "Unavailable"}
+              priority={getReadinessPriority(detail.actionReadiness.fundStage)}
               reason={fundReason}
               owner="Treasury"
               disabled={!canFundStage}
-              kind={detail.sectionGuidance.funding.state === "act_now" ? "primary" : "secondary"}
+              kind={getReadinessPriority(detail.actionReadiness.fundStage) === "Primary action" ? "primary" : "secondary"}
               onClick={onFundStage}
             />
           </div>
         ) : null}
-
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-900">Activity</p>
-            <p className="text-xs text-slate-500">Last updated {formatRelativeTime(detail.lastUpdatedAt)}</p>
-          </div>
-          <div className="mt-3 grid gap-3">
-            {detail.recentEvents.map((event) => (
-              <article key={event.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-900">{event.summary}</p>
-                  <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-slate-600">{event.eventType}</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">{(event.actor ?? "system").toString()} · {formatRelativeTime(event.timestamp)}</p>
-              </article>
-            ))}
-            {detail.recentEvents.length === 0 ? <p className="text-sm text-slate-500">No recent activity recorded.</p> : null}
-          </div>
-        </div>
 
         {detail.blockingRelease ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -594,15 +1412,20 @@ export default function StageDetailPanel({
 
       <div ref={releaseRef} className={`mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("release")}`}>
         <SectionActionHeader title="Release" guidance={detail.sectionGuidance.release} />
+        {renderSectionFeedback("release")}
         <p className="text-sm font-semibold text-slate-900">Drawdown Decision</p>
         <div className="mt-2 grid gap-2">
-          <p className="text-sm text-slate-600">{detail.releaseDecision.explanation.reason}</p>
+          <p className="text-sm text-slate-600">{detail.releaseSummary.headline}</p>
           <p className="text-sm text-slate-600">
-            {detail.releaseDecision.isPartialRelease
-              ? `Only ${currency.format(detail.releaseDecision.releasableAmount)} can release now. ${currency.format(detail.releaseDecision.frozenAmount)} remains frozen.`
-              : `Release amount available now: ${currency.format(detail.releaseDecision.releasableAmount)}.`}
+            {detail.releaseSummary.eligibleAmountLabel}. {detail.releaseSummary.releasedAmountLabel}. {detail.releaseSummary.remainingHeldLabel}.
           </p>
           <p className="text-sm text-slate-600">Decision basis: {detail.releaseDecision.explanation.decisionBasis}</p>
+          {detail.releaseSummary.blockingConditionLabel ? (
+            <p className="text-sm text-slate-600">Blocking condition: {detail.releaseSummary.blockingConditionLabel}</p>
+          ) : null}
+          {detail.releaseSummary.exceptionInteractionLabel ? (
+            <p className="text-sm text-slate-600">Exception interaction: {detail.releaseSummary.exceptionInteractionLabel}</p>
+          ) : null}
           {detail.releaseDecision.overridden ? (
             <p className="rounded-2xl bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900">
               Treasury override is active and clearly flagged. Drawdown proceeds as an override, not a normal release.
@@ -621,8 +1444,8 @@ export default function StageDetailPanel({
             </div>
             <ActionControlCard
               label="Release Funds"
-              priority={detail.sectionGuidance.release.state === "act_now" ? "Primary action" : canReleaseStage ? "Secondary action" : "Unavailable"}
-              reason={releaseReason}
+              priority={getReadinessPriority(detail.actionReadiness.release)}
+              reason={detail.releaseSummary.nextReleaseStepLabel ?? releaseReason}
               owner="Treasury"
               disabled={!canReleaseStage}
               kind="primary"
@@ -630,7 +1453,7 @@ export default function StageDetailPanel({
             />
             <ActionControlCard
               label="Apply Override"
-              priority={canApplyOverride ? "Secondary action" : "Unavailable"}
+              priority={getReadinessPriority(detail.actionReadiness.applyOverride)}
               reason={overrideReasonText}
               owner="Treasury"
               disabled={!canApplyOverride}
@@ -660,6 +1483,7 @@ export default function StageDetailPanel({
       <div className="mt-5 grid gap-6 xl:grid-cols-2">
         <div ref={evidenceRef} className={getSectionClass("evidence")}>
           <SectionActionHeader title="Evidence" guidance={detail.sectionGuidance.evidence} />
+          {renderSectionFeedback("evidence")}
           <EvidencePanel
             detail={detail}
             evidenceTitle={evidenceTitle}
@@ -672,6 +1496,7 @@ export default function StageDetailPanel({
         </div>
         <div ref={approvalsRef} className={getSectionClass("approvals")}>
           <SectionActionHeader title="Approvals" guidance={detail.sectionGuidance.approvals} />
+          {renderSectionFeedback("approvals")}
           <ApprovalPanel detail={detail} onApprove={onApprove} onReject={onReject} />
         </div>
       </div>
@@ -679,9 +1504,17 @@ export default function StageDetailPanel({
       <div className="mt-5 grid gap-6 xl:grid-cols-2">
         <section ref={disputeRef} className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("dispute")}`}>
           <SectionActionHeader title="Dispute" guidance={detail.sectionGuidance.dispute} />
+          {renderSectionFeedback("dispute")}
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Disputes</h3>
-            <p className="mt-1 text-sm text-slate-500">Freeze only the affected value while undisputed value can continue through control checks.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {detail.casePathSummary.activePathLabel === "Dispute path"
+                ? detail.casePathSummary.headline
+                : "Freeze only the affected value while undisputed value can continue through control checks."}
+            </p>
+            {detail.casePathSummary.activePathLabel === "Dispute path" ? (
+              <p className="mt-2 text-sm text-slate-600">{detail.casePathSummary.returnToProgressionLabel}</p>
+            ) : null}
           </div>
           <div className="mt-3 grid gap-3">
             <input
@@ -710,7 +1543,7 @@ export default function StageDetailPanel({
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dispute control</p>
               <ActionControlCard
                 label="Raise Dispute"
-                priority={detail.sectionGuidance.dispute.state === "act_now" ? "Primary action" : canOpenDispute ? "Secondary action" : "Unavailable"}
+                priority={getReadinessPriority(detail.actionReadiness.openDispute)}
                 reason={openDisputeReasonText}
                 owner={detail.sectionGuidance.dispute.ownerLabel}
                 disabled={!canOpenDispute}
@@ -734,8 +1567,8 @@ export default function StageDetailPanel({
                     <div className="grid gap-2 min-w-[15rem]">
                       <ActionControlCard
                         label="Resolve Dispute"
-                        priority={dispute.canResolve ? "Primary action" : "Unavailable"}
-                        reason={dispute.canResolve ? "Resolves the dispute and restores a cleaner payment position." : detail.availableActions.resolveDisputeReason}
+                        priority={getReadinessPriority(detail.actionReadiness.resolveDispute)}
+                        reason={getReadinessReason(detail.actionReadiness.resolveDispute)}
                         owner="Commercial"
                         disabled={!dispute.canResolve}
                         kind="secondary"
@@ -754,9 +1587,17 @@ export default function StageDetailPanel({
 
         <section ref={variationRef} className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getSectionClass("variation")}`}>
           <SectionActionHeader title="Variation" guidance={detail.sectionGuidance.variation} />
+          {renderSectionFeedback("variation")}
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Variations</h3>
-            <p className="mt-1 text-sm text-slate-500">Variations must be reviewed and funding-confirmed before activation.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {detail.casePathSummary.activePathLabel === "Variation path"
+                ? detail.casePathSummary.headline
+                : "Variations must be reviewed and funding-confirmed before activation."}
+            </p>
+            {detail.casePathSummary.activePathLabel === "Variation path" ? (
+              <p className="mt-2 text-sm text-slate-600">{detail.casePathSummary.returnToProgressionLabel}</p>
+            ) : null}
           </div>
           <div className="mt-3 grid gap-3">
             <input
@@ -785,7 +1626,7 @@ export default function StageDetailPanel({
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variation control</p>
               <ActionControlCard
                 label="Propose Variation"
-                priority={detail.sectionGuidance.variation.state === "act_now" ? "Primary action" : canCreateVariation ? "Secondary action" : "Unavailable"}
+                priority={getReadinessPriority(detail.actionReadiness.createVariation)}
                 reason={createVariationReasonText}
                 owner={detail.sectionGuidance.variation.ownerLabel}
                 disabled={!canCreateVariation}
@@ -810,7 +1651,7 @@ export default function StageDetailPanel({
                       <>
                         <div className="grid gap-2">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            {variation.canApprove ? "Primary action" : "Unavailable"}
+                            {getReadinessPriority(detail.actionReadiness.reviewVariation)}
                           </p>
                           <button
                             type="button"
@@ -821,7 +1662,9 @@ export default function StageDetailPanel({
                             Approve Variation
                           </button>
                           <p className="text-xs text-slate-500">
-                            {variation.canApprove ? "Approves the variation and moves it toward activation." : detail.availableActions.reviewVariationReason}
+                            {variation.canApprove
+                              ? "Approves the variation and moves it toward activation."
+                              : getReadinessReason(detail.actionReadiness.reviewVariation)}
                           </p>
                         </div>
                         <div className="grid gap-2">
@@ -837,7 +1680,7 @@ export default function StageDetailPanel({
                             Reject
                           </button>
                           {!variation.canReject ? (
-                            <p className="text-xs text-slate-500">{detail.availableActions.reviewVariationReason}</p>
+                            <p className="text-xs text-slate-500">{getReadinessReason(detail.actionReadiness.reviewVariation)}</p>
                           ) : (
                             <p className="text-xs text-slate-500">Rejects the variation and leaves the current scope unchanged.</p>
                           )}
@@ -847,7 +1690,7 @@ export default function StageDetailPanel({
                     {variation.status === "approved" ? (
                       <div className="grid gap-2">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          {variation.canActivate ? "Primary action" : "Unavailable"}
+                          {getReadinessPriority(detail.actionReadiness.activateVariation)}
                         </p>
                         <button
                           type="button"
@@ -858,7 +1701,9 @@ export default function StageDetailPanel({
                           Activate
                         </button>
                         <p className="text-xs text-slate-500">
-                          {variation.canActivate ? "Activates the approved change into the live payment controls." : detail.availableActions.activateVariationReason}
+                          {variation.canActivate
+                            ? "Activates the approved change into the live payment controls."
+                            : getReadinessReason(detail.actionReadiness.activateVariation)}
                         </p>
                       </div>
                     ) : null}

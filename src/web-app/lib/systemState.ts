@@ -258,6 +258,10 @@ export interface HomeTaskItem {
   statusLabel: WorkflowProgressLabel;
   issueCount?: number;
   actionType?: ActionType;
+  attentionReason?: StageAttentionReason;
+  handoff?: StageRoleHandoff;
+  exitState?: StageExitState;
+  exceptionPath?: StageExceptionPath;
 }
 
 export interface HomeTaskSections {
@@ -1255,6 +1259,7 @@ export function deriveHomeTaskSections(
         summary,
         nextActionLabel: primary.nextActionLabel ?? primary.title,
         issueCount: sorted.length > 1 ? sorted.length : undefined,
+        attentionReason: primary.attentionReason,
       };
     });
 
@@ -1268,6 +1273,13 @@ export function deriveHomeTaskSections(
     const mapActionToTask = (action: ActionQueueItem): HomeTaskItem => {
       const stage = action.stageId ? project.stages.find((item) => item.id === action.stageId) ?? null : null;
       const contract = stage ? project.contracts.find((item) => item.id === stage.contractId) ?? null : null;
+      const attentionReason = getAttentionReasonFromActionTask({
+        summary: action.blockerLabel ?? action.detail,
+        nextActionLabel: action.title,
+        ownerLabel: formatRoleLabel(action.requiredRole ?? role),
+        actionKey: action.actionKey,
+        statusLabel: stage ? deriveWorkflowProgressLabel(stage, project.funding.position) : "In review",
+      });
       return {
         id: action.id,
         projectId: project.project.id,
@@ -1284,6 +1296,13 @@ export function deriveHomeTaskSections(
         actionKey: action.actionKey,
         statusLabel: stage ? deriveWorkflowProgressLabel(stage, project.funding.position) : "In review",
         actionType: action.type,
+        attentionReason,
+        handoff: getTaskRoleHandoff({
+          ownerLabel: formatRoleLabel(action.requiredRole ?? role),
+          attentionReason,
+          nextActionLabel: action.title,
+          summary: action.blockerLabel ?? action.detail,
+        }),
       };
     };
 
@@ -1297,7 +1316,18 @@ export function deriveHomeTaskSections(
     });
 
     otherActions.forEach((action) => {
-      waitingOnOthers.push(mapActionToTask(action));
+      const item = mapActionToTask(action);
+      item.attentionReason = getAttentionReasonFromActionTask({
+        ...item,
+        nextActionLabel: undefined,
+      });
+      item.handoff = getTaskRoleHandoff({
+        ownerLabel: item.ownerLabel,
+        attentionReason: item.attentionReason,
+        nextActionLabel: undefined,
+        summary: item.summary,
+      });
+      waitingOnOthers.push(item);
     });
   });
 
@@ -2431,6 +2461,76 @@ export interface ProjectActivitySummary {
   lastActivityAt: string | null;
 }
 
+export interface ProjectWorkspaceSummary {
+  projectId: string;
+  projectName: string;
+  postureLabel: "Healthy / releasable" | "Blocked by approvals" | "Dispute-heavy / treasury constrained";
+  postureReason: string;
+  releaseReadyCount: number;
+  blockedCount: number;
+  releasableNow: number;
+  frozenValue: number;
+  lastActivityAt: string | null;
+}
+
+export interface AttentionTaskItem {
+  id: string;
+  projectId: string;
+  projectName: string;
+  stageId?: string;
+  stageName?: string;
+  title: string;
+  reason: string;
+  nextStep: string;
+  priority: ActionPriority;
+  ownerLabel: string;
+  attentionReason?: StageAttentionReason;
+  handoff?: StageRoleHandoff;
+  exitState?: StageExitState;
+  exceptionPath?: StageExceptionPath;
+  readinessState: "actionable" | "watch";
+  roleRelevance: "direct" | "indirect" | "read_only";
+  deepLinkTarget?: {
+    projectId: string;
+    stageId?: string;
+    section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
+  };
+}
+
+export interface StageAttentionReason {
+  headline: string;
+  reasonCategory: "funding" | "approval" | "evidence" | "dispute" | "variation" | "release" | "general";
+  reasonLabel: string;
+  requiresMyAction: boolean;
+  ownerLabel: string | null;
+  nextOwnerLabel: string | null;
+  driverLabel: string;
+  supportingDetails: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export function getUserFacingRoleLabel(role: FundingUserRole) {
+  if (role === "contractor") return "Project Manager";
+  if (role === "commercial") return "Commercial";
+  if (role === "professional") return "Evidence Reviewer";
+  if (role === "treasury") return "Treasury";
+  if (role === "executive") return "Executive";
+  if (role === "subcontractor") return "Subcontractor";
+  return "Funder";
+}
+
+function getActingRoleSummary(role: FundingUserRole): ActingRoleSummary {
+  return {
+    key: role,
+    label: getUserFacingRoleLabel(role),
+    readOnly: role === "executive" || role === "funder" || role === "subcontractor",
+  };
+}
+
+function getPermissionReason(enabled: boolean, requiredRoleLabel: string, enabledMessage: string) {
+  return enabled ? enabledMessage : `${requiredRoleLabel} role required.`;
+}
+
 export interface DashboardDecisionSnapshot {
   balance: number;
   wip: number;
@@ -2457,6 +2557,154 @@ export interface StageDecisionPack {
   latestActivity: string;
 }
 
+export interface StageDecisionSummary {
+  statusLabel: string;
+  actionabilityLabel: string;
+  primaryDecisionLabel: string | null;
+  currentOwnerLabel: string | null;
+  nextOwnerLabel: string | null;
+  blockerSummary: string[];
+  releaseReadinessLabel: string;
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageFundingExplanation {
+  headline: string;
+  coverageState: "covered" | "buffer_at_risk" | "underfunded" | "releasable" | "released" | "not_ready";
+  coverageLabel: string;
+  ringfencedLabel: string;
+  requiredCoverLabel: string;
+  reserveLabel: string;
+  releasableLabel: string;
+  shortfallLabel: string;
+  blockingConditionLabel: string | null;
+  nextFinancialStepLabel: string | null;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageActionOutcomeSummary {
+  section: StageDetailSectionKey;
+  tone: "success" | "warning";
+  title: string;
+  detail: string;
+  whatChanged: string[];
+  unlockedItems: string[];
+  remainingBlockers: string[];
+  nextOwner: string | null;
+  nextActionLabel: string | null;
+  progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
+  stateNowLabel: string;
+  stateNowDetail: string;
+}
+
+export interface StageRoleHandoff {
+  isWaitingOnAnotherRole: boolean;
+  fromRoleLabel: string | null;
+  toRoleLabel: string | null;
+  handoffHeadline: string;
+  handoffReasonLabel: string;
+  expectedActionLabel: string | null;
+  unlockOutcomeLabel: string | null;
+  blockingConditionLabel: string | null;
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageExitState {
+  isClosedOrComplete: boolean;
+  exitState: "complete" | "released" | "withheld" | "in_dispute" | "varied" | "superseded" | "still_active";
+  headline: string;
+  outcomeLabel: string;
+  finalActionLabel: string | null;
+  valueOutcomeLabel: string | null;
+  remainingExposureLabel: string | null;
+  reopenPathLabel: string | null;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageExceptionPath {
+  hasActiveExceptionPath: boolean;
+  exceptionType: "dispute" | "variation" | "override" | "withheld_release" | "other";
+  headline: string;
+  exceptionReasonLabel: string;
+  normalPathPausedLabel: string | null;
+  ownerLabel: string | null;
+  requiredDecisionLabel: string | null;
+  returnPathLabel: string | null;
+  outcomeRiskLabel: string | null;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageReleaseDecisionSummary {
+  isReleaseEligible: boolean;
+  releaseState: "eligible" | "partially_eligible" | "withheld" | "blocked" | "released" | "not_ready";
+  headline: string;
+  eligibleAmountLabel: string;
+  releasedAmountLabel: string;
+  remainingHeldLabel: string;
+  decisionLabel: string | null;
+  blockingConditionLabel: string | null;
+  exceptionInteractionLabel: string | null;
+  nextReleaseStepLabel: string | null;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageEvidenceSummary {
+  evidenceState: "missing" | "submitted" | "under_review" | "accepted" | "partially_accepted" | "rejected" | "not_required";
+  headline: string;
+  sufficiencyLabel: string;
+  reviewStatusLabel: string;
+  blockingConditionLabel: string | null;
+  nextEvidenceStepLabel: string | null;
+  ownerLabel: string | null;
+  acceptedCountLabel: string;
+  pendingCountLabel: string;
+  rejectedCountLabel: string;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageApprovalSummary {
+  approvalState: "not_started" | "in_progress" | "approved" | "partially_approved" | "blocked" | "not_ready";
+  headline: string;
+  approvalProgressLabel: string;
+  activeApprovalLabel: string | null;
+  nextApproverLabel: string | null;
+  completedApprovals: string[];
+  pendingApprovals: string[];
+  blockingConditionLabel: string | null;
+  nextApprovalStepLabel: string | null;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageCasePathSummary {
+  caseState: "none" | "dispute_active" | "variation_active" | "dispute_resolved" | "variation_resolved" | "blocked_by_case";
+  headline: string;
+  activePathLabel: string | null;
+  ownerLabel: string | null;
+  requiredDecisionLabel: string | null;
+  normalPathImpactLabel: string | null;
+  returnToProgressionLabel: string | null;
+  riskLabel: string | null;
+  supportingLines: string[];
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
+export interface StageTimelineEntry {
+  id: string;
+  timestampLabel: string;
+  headline: string;
+  detail: string | null;
+  actorLabel: string | null;
+  changeType: "funding" | "approval" | "evidence" | "dispute" | "variation" | "release" | "status" | "audit";
+  effect: "progressed" | "blocked" | "paused" | "updated";
+  tone: "success" | "info" | "warning" | "neutral";
+}
+
 export interface LedgerTransactionItem {
   id: string;
   timestamp: string;
@@ -2475,12 +2723,49 @@ export interface ApprovalPanelItem {
   status: FundingApprovalStatus;
   canAct: boolean;
   sequenceBlocked: boolean;
+  unavailableReason: string;
+  readiness: StageActionReadiness;
+}
+
+export interface ActingRoleSummary {
+  key: FundingUserRole;
+  label: string;
+  readOnly: boolean;
+}
+
+export type StageDetailSectionKey =
+  | "overview"
+  | "funding"
+  | "approvals"
+  | "evidence"
+  | "dispute"
+  | "variation"
+  | "release";
+
+export interface StageSectionGuidance {
+  key: StageDetailSectionKey;
+  status: string;
+  summary: string;
+  nextStep: string;
+  recommendedAction: string;
+  ownerLabel: string;
+  state: "act_now" | "waiting" | "blocked" | "clear";
 }
 
 export interface StageDetailModel {
   projectName: string;
   stage: SystemStageRecord;
   blockers: StageBlocker[];
+  decisionSummary: StageDecisionSummary;
+  fundingExplanation: StageFundingExplanation;
+  roleHandoff: StageRoleHandoff;
+  exitState: StageExitState;
+  exceptionPath: StageExceptionPath;
+  releaseSummary: StageReleaseDecisionSummary;
+  evidenceSummary: StageEvidenceSummary;
+  approvalSummary: StageApprovalSummary;
+  casePathSummary: StageCasePathSummary;
+  attentionReason: StageAttentionReason;
   operationalStatus: OperationalStageStatus;
   releaseDecision: ReleaseDecisionCard;
   treasuryReadiness: TreasuryReadinessSummary;
@@ -2491,6 +2776,7 @@ export interface StageDetailModel {
   lastDecisionAt: string | null;
   notificationCue: ActivityCue | null;
   recentEvents: ActivityEventView[];
+  timelineEntries: StageTimelineEntry[];
   certifiedValue: number;
   payableValue: number;
   frozenValue: number;
@@ -2517,18 +2803,55 @@ export interface StageDetailModel {
     }
   >;
   approvals: ApprovalPanelItem[];
+  actionReadiness: {
+    fundStage: StageActionReadiness;
+    release: StageActionReadiness;
+    applyOverride: StageActionReadiness;
+    addEvidence: StageActionReadiness;
+    reviewEvidence: StageActionReadiness;
+    openDispute: StageActionReadiness;
+    resolveDispute: StageActionReadiness;
+    createVariation: StageActionReadiness;
+    reviewVariation: StageActionReadiness;
+    activateVariation: StageActionReadiness;
+  };
   ledgerTransactions: LedgerTransactionItem[];
+  actingRole: ActingRoleSummary;
+  sectionGuidance: Record<StageDetailSectionKey, StageSectionGuidance>;
   availableActions: {
     addEvidence: boolean;
+    addEvidenceReason: string;
+    reviewEvidence: boolean;
+    reviewEvidenceReason: string;
     fundStage: boolean;
+    fundStageReason: string;
     applyOverride: boolean;
+    applyOverrideReason: string;
     release: boolean;
+    releaseReason: string;
     openDispute: boolean;
+    openDisputeReason: string;
     resolveDispute: boolean;
+    resolveDisputeReason: string;
     createVariation: boolean;
+    createVariationReason: string;
     reviewVariation: boolean;
+    reviewVariationReason: string;
     activateVariation: boolean;
+    activateVariationReason: string;
   };
+}
+
+export interface StageActionReadiness {
+  actionKey: string;
+  label: string;
+  isAvailable: boolean;
+  readinessState: "available" | "waiting_on_prerequisite" | "waiting_on_other_role" | "not_permitted" | "complete";
+  reasonLabel: string;
+  missingPrerequisites: string[];
+  nextConditionLabel: string | null;
+  nextOwnerLabel: string | null;
+  tone: "success" | "info" | "warning" | "neutral";
 }
 
 export interface RoleJourneySummary {
@@ -3416,6 +3739,119 @@ export function getFundingSummarySentence(fundingSummary: FundingSummary) {
   return `${dashboardCurrency.format(fundingSummary.wipTotal)} of work this period: ${dashboardCurrency.format(fundingSummary.releasableFunds)} ready to release, ${dashboardCurrency.format(fundingSummary.frozenFunds)} disputed, ${dashboardCurrency.format(fundingSummary.inProgressFunds)} in progress. ${dashboardCurrency.format(fundingSummary.projectBalance)} cash held, ${dashboardCurrency.format(balanceDelta)} ${balanceDeltaLabel}.`;
 }
 
+function getStageFundingExplanation({
+  stage,
+  funding,
+  projectFunding,
+  reserveBuffer,
+  releaseDecision,
+}: {
+  stage: SystemStageRecord;
+  funding: FundingStageSummary;
+  projectFunding: FundingSummary;
+  reserveBuffer: number;
+  releaseDecision: ReleaseDecisionCard;
+}): StageFundingExplanation {
+  const reserveShortfall = Math.max(reserveBuffer - projectFunding.availableProjectFunds, 0);
+  const stageFullyReleased = stage.releasedAmount >= stage.requiredAmount;
+  const coverageState: StageFundingExplanation["coverageState"] =
+    stageFullyReleased
+      ? "released"
+      : releaseDecision.releasable
+        ? "releasable"
+        : funding.gapToRequiredCover > 0
+          ? "underfunded"
+          : reserveShortfall > 0
+            ? "buffer_at_risk"
+            : releaseDecision.releasableAmount === 0
+              ? "not_ready"
+              : "covered";
+
+  const coverageLabel =
+    coverageState === "released"
+      ? "Released"
+      : coverageState === "releasable"
+        ? "Releasable now"
+        : coverageState === "underfunded"
+          ? "Underfunded against required cover"
+          : coverageState === "buffer_at_risk"
+            ? "Covered, but reserve buffer is at risk"
+            : coverageState === "covered"
+              ? "Covered by ringfenced funds"
+              : "Covered, but not yet eligible for release";
+
+  const blockingConditionLabel =
+    coverageState === "underfunded"
+      ? `Required cover exceeds ringfenced funds by ${dashboardCurrency.format(funding.gapToRequiredCover)}.`
+      : coverageState === "buffer_at_risk"
+        ? `Project reserve buffer is short by ${dashboardCurrency.format(reserveShortfall)}.`
+        : releaseDecision.frozenAmount > 0 && releaseDecision.releasableAmount === 0
+          ? "Frozen disputed value is preventing release."
+          : releaseDecision.releasableAmount > 0 && !releaseDecision.releasable
+            ? releaseDecision.explanation.reason
+            : releaseDecision.releasableAmount === 0 && releaseDecision.blockedAmount > 0
+              ? "No approved value within current WIP is yet eligible for release."
+              : null;
+
+  const nextFinancialStepLabel =
+    coverageState === "underfunded"
+      ? "Allocate funds until ringfenced value meets required cover."
+      : coverageState === "buffer_at_risk"
+        ? "Top up project cash to restore the reserve buffer."
+        : coverageState === "releasable"
+          ? "Treasury can release the approved value now."
+          : releaseDecision.frozenAmount > 0 && releaseDecision.releasableAmount === 0
+            ? "Resolve the dispute or clear the frozen amount before release."
+            : releaseDecision.releasableAmount === 0
+              ? "Keep funds ringfenced until approvals, evidence, or dispute position produce releasable value."
+              : null;
+
+  const supportingLines = [
+    `${dashboardCurrency.format(projectFunding.projectBalance)} cash held against ${dashboardCurrency.format(projectFunding.wipTotal)} WIP, leaving ${dashboardCurrency.format(projectFunding.shortfall > 0 ? projectFunding.shortfall : projectFunding.surplusCash)} ${projectFunding.shortfall > 0 ? "shortfall" : "surplus"}.`,
+    `${dashboardCurrency.format(releaseDecision.releasableAmount)} releasable, ${dashboardCurrency.format(releaseDecision.frozenAmount)} frozen, ${dashboardCurrency.format(releaseDecision.blockedAmount)} still in progress within this stage.`,
+    releaseDecision.explanation.decisionBasis,
+  ];
+
+  return {
+    headline:
+      coverageState === "released"
+        ? "This stage has already released its current payable value."
+        : coverageState === "releasable"
+          ? "Ringfenced funds and approvals have produced releasable value."
+          : coverageState === "underfunded"
+            ? "Ringfenced funds do not yet meet required cover for this stage."
+            : coverageState === "buffer_at_risk"
+              ? "Stage cover is in place, but the project reserve buffer is below target."
+              : coverageState === "covered"
+                ? "Required cover is in place, with funds still waiting for release conditions."
+                : "Required cover is in place, but this stage is not yet financially ready to release.",
+    coverageState,
+    coverageLabel,
+    ringfencedLabel: `Ringfenced to this stage: ${dashboardCurrency.format(funding.allocatedFunds)}`,
+    requiredCoverLabel: `Required cover for current WIP: ${dashboardCurrency.format(funding.requiredFunds)}`,
+    reserveLabel: `Project reserve buffer: ${dashboardCurrency.format(reserveBuffer)}`,
+    releasableLabel:
+      releaseDecision.releasableAmount > 0
+        ? `Releasable now: ${dashboardCurrency.format(releaseDecision.releasableAmount)}`
+        : "Releasable now: £0",
+    shortfallLabel:
+      funding.gapToRequiredCover > 0
+        ? `Shortfall to required cover: ${dashboardCurrency.format(funding.gapToRequiredCover)}`
+        : "Shortfall to required cover: £0",
+    blockingConditionLabel,
+    nextFinancialStepLabel,
+    supportingLines,
+    tone:
+      coverageState === "released" || coverageState === "releasable"
+        ? "success"
+        : coverageState === "covered" || coverageState === "not_ready"
+          ? "info"
+          : coverageState === "buffer_at_risk" || coverageState === "underfunded"
+            ? "warning"
+            : "neutral",
+  };
+}
+
 export function getStageBlockers(state: SystemStateRecord, stageId: string): StageBlocker[] {
   const stage = state.stages.find((entry) => entry.id === stageId);
 
@@ -3723,6 +4159,450 @@ function getPrimaryGroupedAction(groupedActions: FundingActionGroup[]) {
   })[0];
 }
 
+function canRoleActionGroup(role: FundingUserRole, action: FundingActionGroup) {
+  if (role === "executive" || role === "funder" || role === "subcontractor") {
+    return false;
+  }
+
+  if (action.actionableBy === "system") {
+    return false;
+  }
+
+  if (action.actionType === "review_evidence") {
+    return role === "professional";
+  }
+
+  if (action.actionType === "fund_stage" || action.actionType === "release_funding" || action.actionType === "activate_variation") {
+    return role === "treasury";
+  }
+
+  if (action.actionType === "approve_stage") {
+    return role === action.actionableBy;
+  }
+
+  if (action.actionType === "review_dispute" || action.actionType === "review_variation") {
+    return role === "commercial" || role === "treasury";
+  }
+
+  return false;
+}
+
+function getStageDetailSectionForBlocker(blocker?: StageBlocker["code"]) {
+  if (blocker === "evidence") return "evidence" as const;
+  if (blocker === "approvals") return "approvals" as const;
+  if (blocker === "disputed") return "dispute" as const;
+  if (blocker === "variation") return "variation" as const;
+  if (blocker === "funding") return "funding" as const;
+  if (blocker === "on_hold") return "overview" as const;
+  return "release" as const;
+}
+
+function getStageDetailSectionForAction(actionType: QueueActionType) {
+  if (actionType === "fund_stage") return "funding" as const;
+  if (actionType === "review_evidence") return "evidence" as const;
+  if (actionType === "approve_stage") return "approvals" as const;
+  if (actionType === "release_funding") return "release" as const;
+  if (actionType === "review_dispute") return "dispute" as const;
+  if (actionType === "review_variation" || actionType === "activate_variation") return "variation" as const;
+  return "overview" as const;
+}
+
+function getStageSectionGuidance({
+  state,
+  stage,
+  user,
+  funding,
+  operationalStatus,
+  releaseDecision,
+  disputeSummary,
+  variationSummary,
+  evidenceState,
+  approvalState,
+  approvals,
+  availableActions,
+}: {
+  state: SystemStateRecord;
+  stage: SystemStageRecord;
+  user: UserRecord;
+  funding: FundingStageSummary;
+  operationalStatus: StageDetailModel["operationalStatus"];
+  releaseDecision: ReleaseDecisionCard;
+  disputeSummary: DisputeOperationalSummary;
+  variationSummary: VariationOperationalSummary;
+  evidenceState: DerivedEvidenceState;
+  approvalState: StageDetailModel["approvalState"];
+  approvals: ApprovalPanelItem[];
+  availableActions: StageDetailModel["availableActions"];
+}): Record<StageDetailSectionKey, StageSectionGuidance> {
+  const nextPendingApproval = approvals.find((approval) => approval.status !== "approved");
+  const actionableApproval = approvals.find((approval) => approval.canAct);
+  const actionableVariation = (stage.variations ?? []).find((variation) =>
+    variation.status === "pending"
+      ? ((user.role === "commercial" && !variation.commercialApprovedAt) ||
+          (user.role === "treasury" && Boolean(variation.commercialApprovedAt) && !variation.treasuryApprovedAt))
+      : variation.status === "approved" && user.role === "treasury",
+  );
+  const hasOpenDispute = (stage.disputes ?? []).some((dispute) => dispute.status === "open");
+  const openDispute = (stage.disputes ?? []).find((dispute) => dispute.status === "open");
+  const firstBlocker = getStageBlockers(state, stage.id)[0];
+
+  const fundingGuidance: StageSectionGuidance =
+    funding.gapToRequiredCover > 0
+      ? {
+          key: "funding",
+          status: availableActions.fundStage ? "Needs action now" : "Waiting on Treasury",
+          summary:
+            funding.gapToRequiredCover > 0
+              ? `This work package is short of ${dashboardCurrency.format(funding.gapToRequiredCover)} against current WIP.`
+              : "Funding is aligned to current WIP.",
+          nextStep: funding.gapToRequiredCover > 0 ? "Allocate funds to align the work package to WIP." : "No funding action is needed.",
+          recommendedAction: availableActions.fundStage ? "Allocate the remaining funding." : availableActions.fundStageReason,
+          ownerLabel: "Treasury",
+          state: availableActions.fundStage ? "act_now" : "waiting",
+        }
+      : {
+          key: "funding",
+          status: "Ready",
+          summary: "Funding is aligned to the current WIP position.",
+          nextStep: "No funding action is needed.",
+          recommendedAction: "Monitor balance against changing WIP.",
+          ownerLabel: "Treasury",
+          state: "clear",
+        };
+
+  const evidenceGuidance: StageSectionGuidance =
+    evidenceState === "accepted"
+      ? {
+          key: "evidence",
+          status: "Ready",
+          summary: "Required evidence has been accepted.",
+          nextStep: "No evidence action is needed.",
+          recommendedAction: "Continue monitoring for any further submissions.",
+          ownerLabel: "Evidence",
+          state: "clear",
+        }
+      : evidenceState === "missing"
+        ? {
+            key: "evidence",
+            status: availableActions.addEvidence ? "Needs action now" : "Prerequisite missing",
+            summary: "Required evidence is still missing.",
+            nextStep: "Add the missing supporting item before review can complete.",
+            recommendedAction: availableActions.addEvidence ? "Add the missing evidence item." : availableActions.addEvidenceReason,
+            ownerLabel: availableActions.addEvidence ? getUserFacingRoleLabel(user.role) : "Project Manager",
+            state: availableActions.addEvidence ? "act_now" : "blocked",
+          }
+        : {
+            key: "evidence",
+            status: availableActions.reviewEvidence ? "Needs action now" : "Waiting on others",
+            summary: "Evidence has been submitted and is waiting for review.",
+            nextStep: "Review the current evidence submission.",
+            recommendedAction: availableActions.reviewEvidence ? "Accept, reject, or request more evidence." : availableActions.reviewEvidenceReason,
+            ownerLabel: "Evidence Reviewer",
+            state: availableActions.reviewEvidence ? "act_now" : "waiting",
+          };
+
+  const approvalsGuidance: StageSectionGuidance =
+    approvalState === "approved"
+      ? {
+          key: "approvals",
+          status: "Ready",
+          summary: "All required approvals are complete.",
+          nextStep: "No approval action is needed.",
+          recommendedAction: "Proceed to the next control step.",
+          ownerLabel: "Commercial",
+          state: "clear",
+        }
+      : approvalState === "rejected"
+        ? {
+            key: "approvals",
+            status: actionableApproval ? "Needs action now" : "Blocked",
+            summary: "A required approval has been rejected.",
+            nextStep: "Resolve the rejected approval before release can proceed.",
+            recommendedAction: actionableApproval ? `Record the ${actionableApproval.role} approval decision.` : firstBlocker?.label ?? "Resolve the approval blocker.",
+            ownerLabel: actionableApproval ? getUserFacingRoleLabel(actionableApproval.role) : (nextPendingApproval ? getUserFacingRoleLabel(nextPendingApproval.role) : "Commercial"),
+            state: actionableApproval ? "act_now" : "blocked",
+          }
+        : actionableApproval
+          ? {
+              key: "approvals",
+              status: "Needs action now",
+              summary: `${getUserFacingRoleLabel(actionableApproval.role)} approval is ready for decision.`,
+              nextStep: "Approve or reject the current approval step.",
+              recommendedAction: `Record the ${getUserFacingRoleLabel(actionableApproval.role).toLowerCase()} approval.`,
+              ownerLabel: getUserFacingRoleLabel(actionableApproval.role),
+              state: "act_now",
+            }
+          : {
+              key: "approvals",
+              status: approvalState === "blocked" ? "Prerequisite missing" : "Waiting on others",
+              summary:
+                approvalState === "blocked"
+                  ? "Approvals cannot progress until evidence is accepted."
+                  : `Approval is waiting on ${nextPendingApproval ? getUserFacingRoleLabel(nextPendingApproval.role) : "the next reviewer"}.`,
+              nextStep:
+                approvalState === "blocked"
+                  ? "Complete the evidence step before approvals can continue."
+                  : "Wait for the next approval step to complete.",
+              recommendedAction:
+                approvalState === "blocked"
+                  ? "Clear the evidence prerequisite first."
+                  : `${nextPendingApproval ? getUserFacingRoleLabel(nextPendingApproval.role) : "The next reviewer"} must act.`,
+              ownerLabel: nextPendingApproval ? getUserFacingRoleLabel(nextPendingApproval.role) : "Commercial",
+              state: approvalState === "blocked" ? "blocked" : "waiting",
+            };
+
+  const disputeGuidance: StageSectionGuidance =
+    !hasOpenDispute
+      ? {
+          key: "dispute",
+          status: "No dispute",
+          summary: "No disputed value is currently freezing payment.",
+          nextStep: "No dispute action is needed.",
+          recommendedAction: "Monitor for new dispute activity only if the position changes.",
+          ownerLabel: "Commercial",
+          state: "clear",
+        }
+      : {
+          key: "dispute",
+          status: availableActions.resolveDispute ? "Needs action now" : "Waiting on others",
+          summary: disputeSummary.reason,
+          nextStep: "Resolve the open dispute to restore a cleaner payment position.",
+          recommendedAction: availableActions.resolveDispute ? `Resolve ${openDispute?.title ?? "the open dispute"}.` : availableActions.resolveDisputeReason,
+          ownerLabel: "Commercial",
+          state: availableActions.resolveDispute ? "act_now" : "waiting",
+        };
+
+  const variationGuidance: StageSectionGuidance =
+    variationSummary.status === "No variation"
+      ? {
+          key: "variation",
+          status: "No variation",
+          summary: "No variation is currently affecting this work package.",
+          nextStep: "No variation action is needed.",
+          recommendedAction: availableActions.createVariation ? "Only propose a variation if the scope changes." : availableActions.createVariationReason,
+          ownerLabel: "Commercial",
+          state: "clear",
+        }
+      : actionableVariation
+        ? {
+            key: "variation",
+            status: "Needs action now",
+            summary: variationSummary.reason,
+            nextStep:
+              actionableVariation.status === "approved"
+                ? "Activate the approved variation."
+                : "Review the pending variation decision.",
+            recommendedAction:
+              actionableVariation.status === "approved"
+                ? "Activate the approved variation."
+                : "Approve or reject the pending variation.",
+            ownerLabel: actionableVariation.status === "approved" ? "Treasury" : getUserFacingRoleLabel(user.role),
+            state: "act_now",
+          }
+        : variationSummary.blocking
+          ? {
+              key: "variation",
+              status: "Waiting on others",
+              summary: variationSummary.reason,
+              nextStep: "Wait for the current variation review to complete.",
+              recommendedAction: availableActions.reviewVariation ? "Review the pending variation." : availableActions.reviewVariationReason,
+              ownerLabel: "Commercial",
+              state: "waiting",
+            }
+          : {
+              key: "variation",
+              status: variationSummary.status,
+              summary: variationSummary.reason,
+              nextStep: "No immediate variation action is needed.",
+              recommendedAction: "Monitor the active variation state.",
+              ownerLabel: variationSummary.status === "Approved variation" ? "Treasury" : "Commercial",
+              state: "clear",
+            };
+
+  const releaseGuidance: StageSectionGuidance =
+    releaseDecision.releasableAmount > 0
+      ? {
+          key: "release",
+          status: availableActions.release ? "Needs action now" : "Waiting on Treasury",
+          summary: releaseDecision.explanation.reason,
+          nextStep:
+            releaseDecision.isPartialRelease
+              ? "Release the undisputed approved value and keep the frozen amount held."
+              : "Release the approved value now.",
+          recommendedAction: availableActions.release ? "Execute the current release decision." : availableActions.releaseReason,
+          ownerLabel: "Treasury",
+          state: availableActions.release ? "act_now" : "waiting",
+        }
+      : {
+          key: "release",
+          status: "Blocked",
+          summary: releaseDecision.explanation.reason,
+          nextStep: operationalStatus.nextStep,
+          recommendedAction: firstBlocker ? firstBlocker.label : "Clear the current blocker before release can proceed.",
+          ownerLabel: firstBlocker ? getBlockerResponsibilityCue(firstBlocker.code) : "Treasury",
+          state: "blocked",
+        };
+
+  return {
+    overview: {
+      key: "overview",
+      status: operationalStatus.label,
+      summary: operationalStatus.reason,
+      nextStep: operationalStatus.nextStep,
+      recommendedAction: operationalStatus.nextStep,
+      ownerLabel: firstBlocker ? getBlockerResponsibilityCue(firstBlocker.code) : "Ops",
+      state:
+        operationalStatus.tone === "positive"
+          ? "clear"
+          : operationalStatus.tone === "blocked"
+            ? "blocked"
+            : "waiting",
+    },
+    funding: fundingGuidance,
+    approvals: approvalsGuidance,
+    evidence: evidenceGuidance,
+    dispute: disputeGuidance,
+    variation: variationGuidance,
+    release: releaseGuidance,
+  };
+}
+
+export function getPrimaryActionForRole(
+  state: SystemStateRecord,
+  projectId: string,
+  role: FundingUserRole = getUserRecord(state).role,
+) {
+  const queue = getActionQueue(state, projectId) as FundingActionQueueItem[];
+  return queue.find((item) => canRoleActionGroup(role, item.primaryAction)) ?? null;
+}
+
+export function getRoleInboxItems(
+  state: SystemStateRecord,
+  role: FundingUserRole = getUserRecord(state).role,
+  projectId?: string,
+): AttentionTaskItem[] {
+  const scopedProjects = state.projects.filter((project) => !projectId || project.id === projectId);
+  const items: AttentionTaskItem[] = [];
+
+  scopedProjects.forEach((project) => {
+    if (role === "executive") {
+      const decisions = getReleaseDecisions(state, project.id)
+        .filter((decision) => decision.explanation.label !== "Can release")
+        .slice(0, 3);
+
+      decisions.forEach((decision) => {
+        const detail = getStageDetail(state, decision.stageId);
+        items.push({
+          id: `exec-${project.id}-${decision.stageId}`,
+          projectId: project.id,
+          projectName: project.name,
+          stageId: decision.stageId,
+          stageName: decision.stageName,
+          title: `${decision.stageName} exception`,
+          reason: decision.explanation.reason,
+          nextStep: detail.operationalStatus.nextStep,
+          priority: decision.explanation.label === "Cannot release" ? "critical" : "high",
+          ownerLabel: detail.blockers[0] ? getBlockerResponsibilityCue(detail.blockers[0].code) : "Treasury",
+          attentionReason: detail.attentionReason,
+          handoff: detail.roleHandoff,
+          exitState: detail.exitState,
+          exceptionPath: detail.exceptionPath,
+          readinessState: "watch",
+          roleRelevance: "read_only",
+          deepLinkTarget: {
+            projectId: project.id,
+            stageId: decision.stageId,
+            section: getStageDetailSectionForBlocker(detail.blockers[0]?.code),
+          },
+        });
+      });
+
+      return;
+    }
+
+    if (role === "contractor") {
+      state.stages
+        .filter((stage) => stage.projectId === project.id && stage.releasedAmount < stage.requiredAmount)
+        .forEach((stage) => {
+          const detail = getStageDetail(state, stage.id);
+
+          if (detail.blockers.length === 0 && detail.operationalStatus.label === "Ready for release") {
+            return;
+          }
+
+          items.push({
+            id: `pm-${project.id}-${stage.id}`,
+            projectId: project.id,
+            projectName: project.name,
+            stageId: stage.id,
+            stageName: stage.name,
+            title: `Coordinate ${stage.name}`,
+            reason: detail.operationalStatus.reason,
+            nextStep: detail.operationalStatus.nextStep,
+            priority: detail.blockers[0]?.priority ?? "medium",
+            ownerLabel: detail.blockers[0] ? getBlockerResponsibilityCue(detail.blockers[0].code) : "Ops",
+            attentionReason: detail.attentionReason,
+            handoff: detail.roleHandoff,
+            exitState: detail.exitState,
+            exceptionPath: detail.exceptionPath,
+            readinessState: detail.availableActions.addEvidence || detail.availableActions.openDispute || detail.availableActions.createVariation ? "actionable" : "watch",
+            roleRelevance: detail.availableActions.addEvidence || detail.availableActions.openDispute || detail.availableActions.createVariation ? "direct" : "indirect",
+            deepLinkTarget: {
+              projectId: project.id,
+              stageId: stage.id,
+              section: getStageDetailSectionForBlocker(detail.blockers[0]?.code),
+            },
+          });
+        });
+
+      return;
+    }
+
+    const queue = getActionQueue(state, project.id) as FundingActionQueueItem[];
+    queue
+      .filter((item) => canRoleActionGroup(role, item.primaryAction))
+      .forEach((item) => {
+        const detail = getStageDetail(state, item.stageId);
+        items.push({
+          id: `queue-${item.id}-${role}`,
+          projectId: item.projectId,
+          projectName: item.projectName,
+          stageId: item.stageId,
+          stageName: item.stageName,
+          title: item.primaryAction.title,
+          reason: item.primaryAction.detail,
+          nextStep: item.operationalStatus.nextStep,
+          priority: item.priority,
+          ownerLabel: getUserFacingRoleLabel(role),
+          attentionReason: detail.attentionReason,
+          handoff: detail.roleHandoff,
+          exitState: detail.exitState,
+          exceptionPath: detail.exceptionPath,
+          readinessState: "actionable",
+          roleRelevance: "direct",
+          deepLinkTarget: {
+            projectId: item.projectId,
+            stageId: item.stageId,
+            section: getStageDetailSectionForAction(item.primaryAction.actionType),
+          },
+        });
+      });
+  });
+
+  return items.sort((left, right) => {
+    const priorityDelta = getActionPriorityRank(left.priority) - getActionPriorityRank(right.priority);
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+
+    if (left.projectName !== right.projectName) {
+      return left.projectName.localeCompare(right.projectName);
+    }
+
+    return (left.stageName ?? left.title).localeCompare(right.stageName ?? right.title);
+  });
+}
+
 export function getResponsibilityCue(actionableBy: FundingActionGroup["actionableBy"], actionType: QueueActionType) {
   if (actionableBy === "treasury" || actionType === "fund_stage" || actionType === "release_funding" || actionType === "activate_variation") {
     return "Treasury";
@@ -3806,6 +4686,126 @@ function mapActivityEventView(state: SystemStateRecord, event: SystemEventRecord
   };
 }
 
+function formatTimelineTimestamp(timestamp: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function getTimelineChangeType(event: ActivityEventView): StageTimelineEntry["changeType"] {
+  if (event.eventType === "funding") return "funding";
+  if (event.eventType === "approval") return "approval";
+  if (event.eventType === "evidence") return "evidence";
+  if (event.eventType === "dispute") return "dispute";
+  if (event.eventType === "variation") return "variation";
+  if (event.eventType === "release") return "release";
+  return "audit";
+}
+
+function getTimelineEffect(event: ActivityEventView): StageTimelineEntry["effect"] {
+  if (event.eventType === "approval") {
+    const decision = event.details?.decision;
+    return decision === "approved" ? "progressed" : decision === "rejected" ? "blocked" : "updated";
+  }
+
+  if (event.eventType === "evidence") {
+    const status = event.details?.status;
+    return status === "accepted"
+      ? "progressed"
+      : status === "rejected" || status === "requires_more"
+        ? "blocked"
+        : "updated";
+  }
+
+  if (event.eventType === "funding") {
+    return event.summary.includes("allocated") ? "progressed" : "updated";
+  }
+
+  if (event.eventType === "dispute") {
+    return event.summary.includes("resolved") ? "progressed" : "blocked";
+  }
+
+  if (event.eventType === "variation") {
+    if (event.summary.includes("activated") || event.summary.includes("approved")) return "progressed";
+    if (event.summary.includes("rejected")) return "blocked";
+    return "paused";
+  }
+
+  if (event.eventType === "release") {
+    return "progressed";
+  }
+
+  return "updated";
+}
+
+function getTimelineTone(effect: StageTimelineEntry["effect"]): StageTimelineEntry["tone"] {
+  if (effect === "progressed") return "success";
+  if (effect === "blocked") return "warning";
+  if (effect === "paused") return "info";
+  return "neutral";
+}
+
+function getTimelineDetail(event: ActivityEventView): string | null {
+  if (event.eventType === "funding") {
+    const amount = typeof event.details?.amount === "number" ? dashboardCurrency.format(Number(event.details.amount)) : null;
+    return amount ? `${amount} moved through stage funding controls.` : "Funding position updated.";
+  }
+
+  if (event.eventType === "approval") {
+    const role = typeof event.details?.role === "string" ? getUserFacingRoleLabel(event.details.role as FundingUserRole) : null;
+    const decision = typeof event.details?.decision === "string" ? event.details.decision.replaceAll("_", " ") : null;
+    return role && decision ? `${role} decision recorded as ${decision}.` : "Approval state updated.";
+  }
+
+  if (event.eventType === "evidence") {
+    const status = typeof event.details?.status === "string" ? event.details.status.replaceAll("_", " ") : null;
+    return status ? `Evidence review is now ${status}.` : "Evidence record updated.";
+  }
+
+  if (event.eventType === "dispute") {
+    const amount = typeof event.details?.amount === "number" ? dashboardCurrency.format(Number(event.details.amount)) : null;
+    return amount
+      ? event.summary.includes("resolved")
+        ? `${amount} is no longer frozen by dispute.`
+        : `${amount} is now frozen pending dispute resolution.`
+      : "Dispute position updated.";
+  }
+
+  if (event.eventType === "variation") {
+    if (event.summary.includes("activated")) return "Approved change is now live in this stage.";
+    if (event.summary.includes("approved")) return "Variation cleared review and can move toward activation.";
+    if (event.summary.includes("rejected")) return "Variation will not change the current stage scope.";
+    return "Variation is under governed review.";
+  }
+
+  if (event.eventType === "release") {
+    const amount = typeof event.details?.amount === "number" ? dashboardCurrency.format(Number(event.details.amount)) : null;
+    if (event.details?.override) return "Treasury override is now part of the release basis.";
+    return amount ? `${amount} moved out of trust against this stage.` : "Release control state updated.";
+  }
+
+  return null;
+}
+
+export function getStageTimeline(state: SystemStateRecord, stageId: string, limit = 6): StageTimelineEntry[] {
+  return getRecentStageEvents(state, stageId, limit).map((event) => {
+    const effect = getTimelineEffect(event);
+    return {
+      id: event.id,
+      timestampLabel: formatTimelineTimestamp(event.timestamp),
+      headline: event.summary,
+      detail: getTimelineDetail(event),
+      actorLabel: event.actor ? getUserFacingRoleLabel(event.actor) : null,
+      changeType: getTimelineChangeType(event),
+      effect,
+      tone: getTimelineTone(effect),
+    };
+  });
+}
+
 export function getRecentStageEvents(state: SystemStateRecord, stageId: string, limit = 5): ActivityEventView[] {
   return sortEventsNewestFirst((state.eventHistory ?? []).filter((event) => event.stageId === stageId))
     .slice(0, limit)
@@ -3858,6 +4858,46 @@ export function getProjectActivitySummary(state: SystemStateRecord, projectId: s
   return {
     recentEvents,
     lastActivityAt: recentEvents[0]?.timestamp ?? null,
+  };
+}
+
+export function getProjectWorkspaceSummary(state: SystemStateRecord, projectId: string): ProjectWorkspaceSummary {
+  const project = getProjectRecord(state, projectId);
+  const summaryStrip = getDashboardSummaryStrip(state, projectId);
+  const releaseDecisions = getReleaseDecisions(state, projectId);
+  const fundingSummary = getFundingSummary(state, projectId);
+  const projectActivity = getProjectActivitySummary(state, projectId);
+  const blockedByApprovals = releaseDecisions.some(
+    (decision) =>
+      decision.explanation.label === "Cannot release" &&
+      decision.explanation.reason === "Approval incomplete.",
+  );
+
+  let postureLabel: ProjectWorkspaceSummary["postureLabel"] = "Healthy / releasable";
+  let postureReason = "Approved value is available to release with no dominant control blocker.";
+
+  if (fundingSummary.frozenFunds > 0 || summaryStrip.treasuryBlockedPackages > 0) {
+    postureLabel = "Dispute-heavy / treasury constrained";
+    postureReason =
+      releaseDecisions.find((decision) => decision.frozenAmount > 0)?.explanation.reason ??
+      "Frozen value or treasury blockers are constraining release.";
+  } else if (blockedByApprovals || summaryStrip.blockedPackages > summaryStrip.releaseReadyPackages) {
+    postureLabel = "Blocked by approvals";
+    postureReason =
+      releaseDecisions.find((decision) => decision.explanation.reason === "Approval incomplete.")?.explanation.reason ??
+      "Approvals remain the principal gate before release can progress.";
+  }
+
+  return {
+    projectId,
+    projectName: project.name,
+    postureLabel,
+    postureReason,
+    releaseReadyCount: summaryStrip.releaseReadyPackages,
+    blockedCount: summaryStrip.blockedPackages,
+    releasableNow: summaryStrip.releasableNow,
+    frozenValue: summaryStrip.frozenValue,
+    lastActivityAt: projectActivity.lastActivityAt,
   };
 }
 
@@ -3952,6 +4992,1300 @@ export function getStageDecisionPack(detail: StageDetailModel): StageDecisionPac
         : "Treasury",
     decisionBasis: detail.releaseDecision.explanation.decisionBasis,
     latestActivity: detail.recentEvents[0]?.summary ?? "No recent activity recorded.",
+  };
+}
+
+function formatStateLabel(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function getNextActionOwner(detail: StageDetailModel) {
+  const orderedSections: StageDetailSectionKey[] = ["funding", "evidence", "approvals", "dispute", "variation", "release"];
+  const activeGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.state === "act_now" || guidance.state === "waiting" || guidance.state === "blocked");
+
+  return activeGuidance?.ownerLabel ?? "No further action owner";
+}
+
+function getStageDecisionSummary(detail: Pick<
+  StageDetailModel,
+  "operationalStatus" | "releaseDecision" | "blockers" | "sectionGuidance"
+>): StageDecisionSummary {
+  const orderedSections: StageDetailSectionKey[] = ["funding", "evidence", "approvals", "dispute", "variation", "release"];
+  const activeGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.state === "act_now" || guidance.state === "waiting" || guidance.state === "blocked");
+  const queuedGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.ownerLabel !== activeGuidance?.ownerLabel && (guidance.state === "act_now" || guidance.state === "waiting"));
+
+  const actionabilityLabel =
+    activeGuidance?.state === "act_now"
+      ? "Actionable now"
+      : activeGuidance?.state === "waiting"
+        ? `Waiting on ${activeGuidance.ownerLabel}`
+        : activeGuidance?.state === "blocked"
+          ? "Blocked by prerequisite"
+          : detail.releaseDecision.releasableAmount > 0
+            ? "Actionable now"
+            : "No immediate action";
+
+  const primaryDecisionLabel =
+    activeGuidance?.recommendedAction ??
+    (detail.releaseDecision.releasableAmount > 0 ? detail.releaseDecision.explanation.label : null);
+
+  const currentOwnerLabel =
+    activeGuidance?.ownerLabel ??
+    (detail.releaseDecision.releasableAmount > 0 ? "Treasury" : null);
+
+  const nextOwnerLabel =
+    queuedGuidance?.ownerLabel ??
+    (detail.releaseDecision.releasableAmount > 0 ? "Treasury" : currentOwnerLabel);
+
+  const releaseReadinessLabel =
+    detail.releaseDecision.releasableAmount > 0
+      ? detail.releaseDecision.frozenAmount > 0
+        ? "Partially releasable"
+        : "Releasable"
+      : detail.releaseDecision.explanation.label === "Cannot release"
+        ? "Not yet eligible"
+        : "Pending";
+
+  const tone: StageDecisionSummary["tone"] =
+    detail.releaseDecision.releasableAmount > 0
+      ? "success"
+      : activeGuidance?.state === "act_now"
+        ? "info"
+        : activeGuidance?.state === "waiting" || activeGuidance?.state === "blocked" || detail.blockers.length > 0
+          ? "warning"
+          : "neutral";
+
+  return {
+    statusLabel: detail.operationalStatus.label,
+    actionabilityLabel,
+    primaryDecisionLabel,
+    currentOwnerLabel,
+    nextOwnerLabel,
+    blockerSummary: detail.blockers.map((blocker) => blocker.label),
+    releaseReadinessLabel,
+    tone,
+  };
+}
+
+function getStageRoleHandoff(detail: Pick<
+  StageDetailModel,
+  "actingRole" | "sectionGuidance" | "decisionSummary" | "attentionReason" | "blockers" | "operationalStatus" | "releaseDecision"
+>): StageRoleHandoff {
+  const orderedSections: StageDetailSectionKey[] = ["funding", "evidence", "approvals", "dispute", "variation", "release"];
+  const activeWaitingGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.state === "waiting");
+  const queuedGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.key !== activeWaitingGuidance?.key && (guidance.state === "act_now" || guidance.state === "waiting"));
+
+  if (!activeWaitingGuidance) {
+    return {
+      isWaitingOnAnotherRole: false,
+      fromRoleLabel: null,
+      toRoleLabel: null,
+      handoffHeadline: "No active handoff",
+      handoffReasonLabel: detail.attentionReason.reasonLabel,
+      expectedActionLabel: null,
+      unlockOutcomeLabel: null,
+      blockingConditionLabel: detail.blockers[0]?.label ?? null,
+      tone: "neutral",
+    };
+  }
+
+  const toRoleLabel = activeWaitingGuidance.ownerLabel ?? detail.decisionSummary.nextOwnerLabel;
+  const fromRoleLabel = detail.actingRole.label !== toRoleLabel ? detail.actingRole.label : detail.decisionSummary.currentOwnerLabel;
+  const unlockOutcomeLabel =
+    queuedGuidance?.summary ??
+    (detail.releaseDecision.releasableAmount > 0
+      ? "This will unlock the release decision."
+      : detail.operationalStatus.nextStep);
+
+  return {
+    isWaitingOnAnotherRole: true,
+    fromRoleLabel,
+    toRoleLabel,
+    handoffHeadline: `Waiting on ${toRoleLabel ?? "next owner"}`,
+    handoffReasonLabel: activeWaitingGuidance.summary,
+    expectedActionLabel: activeWaitingGuidance.recommendedAction,
+    unlockOutcomeLabel,
+    blockingConditionLabel: detail.blockers[0]?.label ?? null,
+    tone: detail.blockers.length > 0 ? "warning" : "info",
+  };
+}
+
+function getStageExitState(detail: Pick<
+  StageDetailModel,
+  "stage" | "operationalStatus" | "releaseDecision" | "disputeSummary" | "variationSummary" | "blockers" | "decisionSummary"
+>): StageExitState {
+  const fullyReleased = detail.stage.releasedAmount >= detail.stage.requiredAmount && detail.stage.requiredAmount > 0;
+  const frozenOnly =
+    detail.disputeSummary.frozenValue > 0 &&
+    detail.releaseDecision.releasableAmount === 0 &&
+    detail.releaseDecision.blockedAmount === 0;
+  const cleanComplete =
+    !fullyReleased &&
+    detail.releaseDecision.releasableAmount === 0 &&
+    detail.releaseDecision.blockedAmount === 0 &&
+    detail.disputeSummary.frozenValue === 0 &&
+    detail.blockers.length === 0;
+  const supersededByVariation =
+    !fullyReleased &&
+    detail.variationSummary.status === "Approved variation" &&
+    detail.releaseDecision.releasableAmount === 0 &&
+    detail.releaseDecision.blockedAmount === 0 &&
+    detail.blockers.length === 0;
+
+  const exitState: StageExitState["exitState"] =
+    fullyReleased
+      ? detail.variationSummary.status === "Approved variation" ? "varied" : "released"
+      : frozenOnly
+        ? detail.disputeSummary.status === "Blocked by dispute" ? "in_dispute" : "withheld"
+        : supersededByVariation
+          ? "superseded"
+          : cleanComplete
+            ? "complete"
+            : "still_active";
+
+  const isClosedOrComplete = exitState !== "still_active";
+  const releasedValue = dashboardCurrency.format(detail.stage.releasedAmount);
+  const requiredValue = dashboardCurrency.format(detail.stage.requiredAmount);
+  const frozenValue = dashboardCurrency.format(detail.disputeSummary.frozenValue);
+
+  const outcomeLabel =
+    exitState === "released"
+      ? "Released under current controls"
+      : exitState === "varied"
+        ? "Released after governed variation"
+        : exitState === "complete"
+          ? "No further governed action required"
+          : exitState === "withheld"
+            ? "Value withheld from release"
+            : exitState === "in_dispute"
+              ? "Held in dispute"
+              : exitState === "superseded"
+                ? "Superseded by variation handling"
+                : "Still active";
+
+  const finalActionLabel =
+    exitState === "released" || exitState === "varied"
+      ? "Release executed"
+      : exitState === "withheld" || exitState === "in_dispute"
+        ? "Dispute hold applied"
+        : exitState === "superseded"
+          ? "Variation moved this stage out of normal progression"
+          : exitState === "complete"
+            ? "No additional action required"
+            : null;
+
+  const valueOutcomeLabel =
+    exitState === "released" || exitState === "varied"
+      ? `${releasedValue} released against ${requiredValue} required value.`
+      : exitState === "withheld" || exitState === "in_dispute"
+        ? `${frozenValue} remains withheld from release.`
+        : exitState === "complete"
+          ? `${releasedValue} released with no remaining payable value in active progression.`
+          : exitState === "superseded"
+            ? "Current value position is being carried through governed variation handling."
+            : null;
+
+  const remainingExposureLabel =
+    exitState === "withheld" || exitState === "in_dispute"
+      ? `${frozenValue} remains exposed through dispute.`
+      : detail.releaseDecision.blockedAmount > 0
+        ? `${dashboardCurrency.format(detail.releaseDecision.blockedAmount)} remains in progress outside current release.`
+        : null;
+
+  const reopenPathLabel =
+    exitState === "released" || exitState === "varied" || exitState === "complete"
+      ? "Can reopen only through a governed dispute, variation, or treasury exception path."
+      : exitState === "withheld" || exitState === "in_dispute"
+        ? "Can progress again once the dispute is resolved or an approved exception changes the hold."
+        : exitState === "superseded"
+          ? "Can return to active progression if the variation path is reversed or changed under governance."
+          : null;
+
+  return {
+    isClosedOrComplete,
+    exitState,
+    headline:
+      exitState === "released"
+        ? "This stage has reached its released outcome."
+        : exitState === "varied"
+          ? "This stage has reached a governed release outcome through variation."
+          : exitState === "complete"
+            ? "This stage no longer needs active governed progression."
+            : exitState === "withheld"
+              ? "This stage is no longer progressing because value is being withheld."
+              : exitState === "in_dispute"
+                ? "This stage is currently held in dispute rather than active progression."
+                : exitState === "superseded"
+                  ? "This stage has moved out of normal progression into variation handling."
+                  : detail.operationalStatus.reason,
+    outcomeLabel,
+    finalActionLabel,
+    valueOutcomeLabel,
+    remainingExposureLabel,
+    reopenPathLabel,
+    supportingLines: [
+      detail.releaseDecision.explanation.reason,
+      detail.variationSummary.status !== "No variation" ? detail.variationSummary.reason : null,
+      detail.disputeSummary.status !== "No dispute" ? detail.disputeSummary.reason : null,
+    ].filter((line): line is string => Boolean(line)),
+    tone:
+      exitState === "released" || exitState === "varied" || exitState === "complete"
+        ? "success"
+        : exitState === "withheld" || exitState === "in_dispute" || exitState === "superseded"
+          ? "warning"
+          : "neutral",
+  };
+}
+
+function getStageExceptionPath(detail: Pick<
+  StageDetailModel,
+  "stage" | "releaseDecision" | "disputeSummary" | "variationSummary" | "blockers" | "roleHandoff" | "decisionSummary" | "operationalStatus"
+>): StageExceptionPath {
+  const hasOverride = Boolean(detail.stage.override?.active) || detail.releaseDecision.overridden;
+  const hasDisputeException = detail.disputeSummary.status !== "No dispute";
+  const hasVariationException = detail.variationSummary.status !== "No variation";
+  const hasWithheldRelease =
+    detail.releaseDecision.explanation.label === "Cannot release" &&
+    detail.releaseDecision.releasableAmount > 0 &&
+    !detail.releaseDecision.overridden;
+
+  const exceptionType: StageExceptionPath["exceptionType"] =
+    hasOverride
+      ? "override"
+      : hasDisputeException
+        ? "dispute"
+        : hasVariationException
+          ? "variation"
+          : hasWithheldRelease
+            ? "withheld_release"
+            : detail.blockers.length > 0 && detail.decisionSummary.actionabilityLabel.includes("Waiting")
+              ? "other"
+              : "other";
+
+  const hasActiveExceptionPath =
+    hasOverride ||
+    hasDisputeException ||
+    hasVariationException ||
+    hasWithheldRelease;
+
+  if (!hasActiveExceptionPath) {
+    return {
+      hasActiveExceptionPath: false,
+      exceptionType: "other",
+      headline: "No active exception path",
+      exceptionReasonLabel: detail.operationalStatus.reason,
+      normalPathPausedLabel: null,
+      ownerLabel: null,
+      requiredDecisionLabel: null,
+      returnPathLabel: null,
+      outcomeRiskLabel: null,
+      supportingLines: [],
+      tone: "neutral",
+    };
+  }
+
+  return {
+    hasActiveExceptionPath: true,
+    exceptionType,
+    headline:
+      exceptionType === "override"
+        ? "Treasury override path is active"
+        : exceptionType === "dispute"
+          ? "Dispute handling has replaced normal progression"
+          : exceptionType === "variation"
+            ? "Variation handling has moved the stage into exception review"
+            : exceptionType === "withheld_release"
+              ? "Release is being withheld under exception handling"
+              : "A governed exception path is active",
+    exceptionReasonLabel:
+      exceptionType === "override"
+        ? detail.stage.override?.reason ?? detail.releaseDecision.explanation.reason
+        : exceptionType === "dispute"
+          ? detail.disputeSummary.reason
+          : exceptionType === "variation"
+            ? detail.variationSummary.reason
+            : detail.releaseDecision.explanation.reason,
+    normalPathPausedLabel:
+      exceptionType === "override"
+        ? "Normal blocked release controls are being bypassed under treasury override."
+        : exceptionType === "dispute"
+          ? "Normal release progression is paused while disputed value remains frozen."
+          : exceptionType === "variation"
+            ? "Normal stage progression is paused until the variation decision path completes."
+            : "Normal release progression is paused pending an exception decision.",
+    ownerLabel:
+      exceptionType === "override"
+        ? "Treasury"
+        : exceptionType === "dispute"
+          ? detail.roleHandoff.toRoleLabel ?? "Commercial"
+          : exceptionType === "variation"
+            ? detail.roleHandoff.toRoleLabel ?? (detail.variationSummary.status === "Approved variation" ? "Treasury" : "Commercial")
+            : detail.roleHandoff.toRoleLabel ?? detail.decisionSummary.nextOwnerLabel,
+    requiredDecisionLabel:
+      exceptionType === "override"
+        ? "Review or honour the recorded treasury override decision."
+        : exceptionType === "dispute"
+          ? "Resolve the dispute or confirm the held position."
+          : exceptionType === "variation"
+            ? detail.variationSummary.status === "Approved variation"
+              ? "Activate the approved variation or amend the exception path."
+              : "Review and decide the variation."
+            : "Decide whether release should remain withheld or return to the normal path.",
+    returnPathLabel:
+      exceptionType === "override"
+        ? "Remove reliance on override by clearing the underlying blockers."
+        : exceptionType === "dispute"
+          ? "Resolve the dispute so undisputed value can return to the governed release path."
+          : exceptionType === "variation"
+            ? "Complete the variation path so the stage can return to governed forward progression."
+            : "Clear the withholding condition so the normal release path can resume.",
+    outcomeRiskLabel:
+      exceptionType === "override"
+        ? "Release is proceeding with an exceptional control posture."
+        : exceptionType === "dispute"
+          ? `${dashboardCurrency.format(detail.disputeSummary.frozenValue)} remains exposed through the dispute path.`
+          : exceptionType === "variation"
+            ? "Scope, value, or sequence may change before normal progression resumes."
+            : "Approved value exists, but release remains withheld until the exception decision clears.",
+    supportingLines: [
+      detail.releaseDecision.explanation.decisionBasis,
+      exceptionType === "override" ? `Override blockers: ${(detail.stage.override?.overriddenBlockers ?? detail.blockers.map((blocker) => blocker.label)).join(", ")}` : null,
+      exceptionType === "dispute" ? `Frozen value ${dashboardCurrency.format(detail.disputeSummary.frozenValue)}; releasable value ${dashboardCurrency.format(detail.disputeSummary.releasableValue)}.` : null,
+      exceptionType === "variation" ? detail.variationSummary.status : null,
+    ].filter((line): line is string => Boolean(line)),
+    tone: "warning",
+  };
+}
+
+function getStageReleaseDecisionSummary(detail: Pick<
+  StageDetailModel,
+  "stage" | "releaseDecision" | "fundingExplanation" | "blockers" | "exceptionPath"
+>): StageReleaseDecisionSummary {
+  const releasedAmount = detail.stage.releasedAmount;
+  const fullyReleased = releasedAmount >= detail.stage.requiredAmount && detail.stage.requiredAmount > 0;
+  const hasHeldValue = detail.releaseDecision.frozenAmount > 0 || detail.releaseDecision.blockedAmount > 0;
+  const releaseState: StageReleaseDecisionSummary["releaseState"] =
+    fullyReleased
+      ? "released"
+      : detail.releaseDecision.releasable && detail.releaseDecision.frozenAmount > 0
+        ? "partially_eligible"
+        : detail.releaseDecision.releasable
+          ? "eligible"
+          : detail.releaseDecision.releasableAmount > 0
+            ? "withheld"
+            : detail.blockers.length > 0
+              ? "blocked"
+              : "not_ready";
+
+  const heldAmount = detail.releaseDecision.frozenAmount + detail.releaseDecision.blockedAmount;
+
+  return {
+    isReleaseEligible: detail.releaseDecision.releasable,
+    releaseState,
+    headline:
+      releaseState === "released"
+        ? "Release has already been executed for the current eligible value."
+        : releaseState === "eligible"
+          ? "Release is currently available under the normal governed path."
+          : releaseState === "partially_eligible"
+            ? "Release can progress in part while some value remains held."
+            : releaseState === "withheld"
+              ? "Release is being withheld despite approved value being present."
+              : releaseState === "blocked"
+                ? "Release is currently blocked by a control condition."
+                : "Release is not yet ready because no value is currently eligible.",
+    eligibleAmountLabel: `Eligible now: ${dashboardCurrency.format(detail.releaseDecision.releasableAmount)}`,
+    releasedAmountLabel: `Released to date: ${dashboardCurrency.format(releasedAmount)}`,
+    remainingHeldLabel: `Still held: ${dashboardCurrency.format(heldAmount)}`,
+    decisionLabel: detail.releaseDecision.explanation.label,
+    blockingConditionLabel:
+      releaseState === "withheld" || releaseState === "blocked" || releaseState === "not_ready"
+        ? detail.releaseDecision.explanation.reason
+        : null,
+    exceptionInteractionLabel:
+      detail.exceptionPath.hasActiveExceptionPath
+        ? detail.exceptionPath.headline
+        : detail.releaseDecision.overridden
+          ? "Treasury override is influencing this release decision."
+          : null,
+    nextReleaseStepLabel:
+      releaseState === "released"
+        ? "No further release decision is currently required."
+        : releaseState === "eligible" || releaseState === "partially_eligible"
+          ? "Treasury can execute the current release decision."
+          : detail.exceptionPath.hasActiveExceptionPath
+            ? detail.exceptionPath.requiredDecisionLabel
+            : detail.fundingExplanation.nextFinancialStepLabel ?? "Clear the blocking condition before release can proceed.",
+    supportingLines: [
+      detail.releaseDecision.explanation.decisionBasis,
+      detail.releaseDecision.overridden ? "This decision is proceeding through a governed treasury override." : null,
+      detail.releaseDecision.isPartialRelease
+        ? `${dashboardCurrency.format(detail.releaseDecision.frozenAmount)} remains frozen while the eligible portion can progress.`
+        : null,
+    ].filter((line): line is string => Boolean(line)),
+    tone:
+      releaseState === "released" || releaseState === "eligible"
+        ? "success"
+        : releaseState === "partially_eligible" || releaseState === "not_ready"
+          ? "info"
+          : "warning",
+  };
+}
+
+function getStageEvidenceSummary(detail: Pick<
+  StageDetailModel,
+  "evidence" | "evidenceState" | "sectionGuidance" | "actionReadiness" | "blockers"
+>): StageEvidenceSummary {
+  const requiredEvidence = detail.evidence.filter((item) => item.required);
+  const requiredCount = requiredEvidence.length;
+  const acceptedCount = requiredEvidence.filter((item) => item.record?.status === "accepted").length;
+  const rejectedCount = requiredEvidence.filter((item) => item.record?.status === "rejected" || item.record?.status === "requires_more").length;
+  const pendingCount = requiredEvidence.filter((item) => item.record?.status === "pending").length;
+  const missingCount = requiredEvidence.filter((item) => item.record === null).length;
+
+  const evidenceState: StageEvidenceSummary["evidenceState"] =
+    requiredCount === 0
+      ? "not_required"
+      : rejectedCount > 0
+        ? "rejected"
+        : detail.evidenceState === "accepted"
+          ? "accepted"
+          : missingCount === requiredCount
+            ? "missing"
+            : acceptedCount > 0
+              ? "partially_accepted"
+              : pendingCount > 0
+                ? "under_review"
+                : "submitted";
+
+  return {
+    evidenceState,
+    headline:
+      evidenceState === "accepted"
+        ? "Required evidence is accepted and no longer holding progression."
+        : evidenceState === "missing"
+          ? "Required evidence is still missing."
+          : evidenceState === "rejected"
+            ? "Evidence review outcome is holding progression."
+            : evidenceState === "partially_accepted"
+              ? "Some evidence is accepted, but the stage is still waiting on the remaining evidence outcome."
+              : evidenceState === "under_review" || evidenceState === "submitted"
+                ? "Evidence is present but still under review."
+                : "This stage does not require evidence to progress.",
+    sufficiencyLabel:
+      evidenceState === "accepted"
+        ? "Evidence sufficient"
+        : evidenceState === "not_required"
+          ? "No evidence required"
+          : evidenceState === "partially_accepted"
+            ? "Evidence partly sufficient"
+            : "Evidence not yet sufficient",
+    reviewStatusLabel:
+      evidenceState === "accepted"
+        ? "Review complete"
+        : evidenceState === "rejected"
+          ? "Review outcome needs attention"
+          : evidenceState === "under_review" || evidenceState === "submitted" || evidenceState === "partially_accepted"
+            ? "Review in progress"
+            : evidenceState === "missing"
+              ? "Awaiting submission"
+              : "No review required",
+    blockingConditionLabel:
+      detail.blockers.find((blocker) => blocker.code === "evidence")?.label ??
+      (evidenceState === "rejected" ? "Evidence review has not accepted the current submission." : null),
+    nextEvidenceStepLabel:
+      evidenceState === "accepted" || evidenceState === "not_required"
+        ? "No further evidence step is required."
+        : detail.sectionGuidance.evidence.nextStep,
+    ownerLabel:
+      detail.actionReadiness.reviewEvidence.isAvailable || detail.actionReadiness.reviewEvidence.readinessState === "waiting_on_other_role"
+        ? detail.actionReadiness.reviewEvidence.nextOwnerLabel
+        : detail.actionReadiness.addEvidence.nextOwnerLabel,
+    acceptedCountLabel: `${acceptedCount} of ${requiredCount} required accepted`,
+    pendingCountLabel: `${pendingCount + missingCount} awaiting evidence or review`,
+    rejectedCountLabel: `${rejectedCount} rejected or needs more`,
+    supportingLines: [
+      detail.sectionGuidance.evidence.summary,
+      detail.sectionGuidance.evidence.recommendedAction,
+    ].filter((line, index, lines) => Boolean(line) && lines.indexOf(line) === index),
+    tone:
+      evidenceState === "accepted" || evidenceState === "not_required"
+        ? "success"
+        : evidenceState === "under_review" || evidenceState === "submitted" || evidenceState === "partially_accepted"
+          ? "info"
+          : "warning",
+  };
+}
+
+function getStageApprovalSummary(detail: Pick<
+  StageDetailModel,
+  "approvals" | "approvalState" | "sectionGuidance" | "blockers"
+>): StageApprovalSummary {
+  const completedApprovals = detail.approvals
+    .filter((approval) => approval.status === "approved")
+    .map((approval) => getUserFacingRoleLabel(approval.role));
+  const pendingApprovals = detail.approvals
+    .filter((approval) => approval.status !== "approved")
+    .map((approval) => getUserFacingRoleLabel(approval.role));
+  const activeApproval = detail.approvals.find((approval) => approval.readiness.readinessState === "available");
+  const nextWaitingApproval = detail.approvals.find(
+    (approval) =>
+      approval.readiness.readinessState === "waiting_on_other_role" ||
+      approval.readiness.readinessState === "waiting_on_prerequisite",
+  );
+
+  const approvalState: StageApprovalSummary["approvalState"] =
+    detail.approvalState === "approved"
+      ? "approved"
+      : detail.approvalState === "partially_approved"
+        ? "partially_approved"
+        : detail.approvalState === "rejected"
+          ? "blocked"
+          : detail.approvalState === "blocked"
+            ? "not_ready"
+            : pendingApprovals.length > 0
+              ? "in_progress"
+              : "not_started";
+
+  return {
+    approvalState,
+    headline:
+      approvalState === "approved"
+        ? "All required approvals are complete."
+        : approvalState === "partially_approved"
+          ? "Approval chain is in progress with some steps already complete."
+          : approvalState === "blocked" || approvalState === "not_ready"
+            ? "Approval progression is currently being held."
+            : activeApproval
+              ? "An approval decision can be recorded now."
+              : "Approval chain is waiting for the next governed step.",
+    approvalProgressLabel:
+      completedApprovals.length === 0
+        ? `0 of ${detail.approvals.length} approvals complete`
+        : `${completedApprovals.length} of ${detail.approvals.length} approvals complete`,
+    activeApprovalLabel: activeApproval ? getUserFacingRoleLabel(activeApproval.role) : null,
+    nextApproverLabel:
+      activeApproval
+        ? getUserFacingRoleLabel(activeApproval.role)
+        : nextWaitingApproval
+          ? nextWaitingApproval.readiness.nextOwnerLabel ?? getUserFacingRoleLabel(nextWaitingApproval.role)
+          : detail.sectionGuidance.approvals.ownerLabel,
+    completedApprovals,
+    pendingApprovals,
+    blockingConditionLabel: detail.blockers.find((blocker) => blocker.code === "approvals" || blocker.code === "evidence")?.label ?? null,
+    nextApprovalStepLabel: detail.sectionGuidance.approvals.nextStep,
+    supportingLines: [
+      detail.sectionGuidance.approvals.summary,
+      detail.sectionGuidance.approvals.recommendedAction,
+    ].filter((line, index, lines) => Boolean(line) && lines.indexOf(line) === index),
+    tone:
+      approvalState === "approved"
+        ? "success"
+        : approvalState === "partially_approved" || approvalState === "in_progress"
+          ? "info"
+          : "warning",
+  };
+}
+
+function getStageCasePathSummary(detail: Pick<
+  StageDetailModel,
+  "disputeSummary" | "variationSummary" | "blockers" | "roleHandoff" | "exceptionPath" | "sectionGuidance"
+>): StageCasePathSummary {
+  const disputeResolved = detail.disputeSummary.status === "No dispute";
+  const variationResolved = detail.variationSummary.status === "No variation";
+  const disputeActive = !disputeResolved;
+  const variationActive = !variationResolved;
+  const blockedByCase = detail.blockers.some((blocker) => blocker.code === "disputed" || blocker.code === "variation");
+
+  const caseState: StageCasePathSummary["caseState"] =
+    blockedByCase
+      ? "blocked_by_case"
+      : disputeActive
+        ? "dispute_active"
+        : variationActive
+          ? "variation_active"
+          : detail.exceptionPath.exceptionType === "dispute"
+            ? "dispute_resolved"
+            : detail.exceptionPath.exceptionType === "variation"
+              ? "variation_resolved"
+              : "none";
+
+  if (caseState === "none") {
+    return {
+      caseState,
+      headline: "No dispute or variation path is active.",
+      activePathLabel: null,
+      ownerLabel: null,
+      requiredDecisionLabel: null,
+      normalPathImpactLabel: null,
+      returnToProgressionLabel: null,
+      riskLabel: null,
+      supportingLines: [],
+      tone: "neutral",
+    };
+  }
+
+  const disputeOwner = detail.roleHandoff.toRoleLabel ?? "Commercial";
+  const variationOwner =
+    detail.variationSummary.status === "Approved variation"
+      ? "Treasury"
+      : detail.roleHandoff.toRoleLabel ?? "Commercial";
+
+  return {
+    caseState,
+    headline:
+      caseState === "dispute_active" || caseState === "blocked_by_case" && disputeActive
+        ? "Dispute handling is currently controlling progression."
+        : caseState === "variation_active" || caseState === "blocked_by_case" && variationActive
+          ? "Variation handling is currently controlling progression."
+          : caseState === "dispute_resolved"
+            ? "Dispute path has cleared."
+            : "Variation path has cleared.",
+    activePathLabel:
+      disputeActive
+        ? "Dispute path"
+        : variationActive
+          ? "Variation path"
+          : "Resolved case path",
+    ownerLabel:
+      disputeActive
+        ? disputeOwner
+        : variationActive
+          ? variationOwner
+          : null,
+    requiredDecisionLabel:
+      disputeActive
+        ? "Resolve the dispute or confirm the held value."
+        : variationActive
+          ? detail.variationSummary.status === "Approved variation"
+            ? "Activate the approved variation."
+            : "Review and decide the variation."
+          : "No case decision is currently required.",
+    normalPathImpactLabel:
+      disputeActive
+        ? "Normal release progression is paused while disputed value remains frozen."
+        : variationActive
+          ? "Normal scope and release progression are paused while the variation path is active."
+          : "Normal progression can resume.",
+    returnToProgressionLabel:
+      disputeActive
+        ? "Resolve the dispute so undisputed value can return to the governed forward path."
+        : variationActive
+          ? "Complete the variation decision path so the stage can return to governed forward progression."
+          : "Forward progression is no longer being held by a case path.",
+    riskLabel:
+      disputeActive
+        ? `${dashboardCurrency.format(detail.disputeSummary.frozenValue)} remains exposed through dispute handling.`
+        : variationActive
+          ? detail.variationSummary.reason
+          : null,
+    supportingLines: [
+      disputeActive ? detail.disputeSummary.reason : null,
+      variationActive ? detail.variationSummary.reason : null,
+      disputeActive ? detail.sectionGuidance.dispute.recommendedAction : null,
+      variationActive ? detail.sectionGuidance.variation.recommendedAction : null,
+    ].filter((line, index, lines): line is string => Boolean(line) && lines.indexOf(line) === index),
+    tone:
+      disputeActive || variationActive || blockedByCase
+        ? "warning"
+        : "success",
+  };
+}
+
+function getTaskRoleHandoff(task: Pick<HomeTaskItem, "ownerLabel" | "attentionReason" | "nextActionLabel" | "summary">): StageRoleHandoff | undefined {
+  if (!task.attentionReason || task.attentionReason.headline !== "Waiting on another role") {
+    return undefined;
+  }
+
+  return {
+    isWaitingOnAnotherRole: true,
+    fromRoleLabel: null,
+    toRoleLabel: task.attentionReason.ownerLabel ?? task.ownerLabel,
+    handoffHeadline: `Waiting on ${task.attentionReason.ownerLabel ?? task.ownerLabel}`,
+    handoffReasonLabel: task.attentionReason.reasonLabel,
+    expectedActionLabel: task.nextActionLabel ?? task.attentionReason.supportingDetails[1] ?? null,
+    unlockOutcomeLabel: task.attentionReason.supportingDetails[0] ?? task.summary,
+    blockingConditionLabel: task.attentionReason.driverLabel,
+    tone: task.attentionReason.tone,
+  };
+}
+
+function getReadinessTone(readinessState: StageActionReadiness["readinessState"]): StageActionReadiness["tone"] {
+  if (readinessState === "available") return "info";
+  if (readinessState === "complete") return "success";
+  if (readinessState === "waiting_on_prerequisite" || readinessState === "waiting_on_other_role") return "warning";
+  return "neutral";
+}
+
+function buildActionReadiness({
+  actionKey,
+  label,
+  isAvailable,
+  isComplete = false,
+  isPermitted,
+  permissionReason,
+  guidance,
+  missingPrerequisites = [],
+  nextConditionLabel,
+  nextOwnerLabel,
+  availableReason,
+  completeReason,
+}: {
+  actionKey: string;
+  label: string;
+  isAvailable: boolean;
+  isComplete?: boolean;
+  isPermitted: boolean;
+  permissionReason: string;
+  guidance: StageSectionGuidance;
+  missingPrerequisites?: string[];
+  nextConditionLabel?: string | null;
+  nextOwnerLabel?: string | null;
+  availableReason: string;
+  completeReason: string;
+}): StageActionReadiness {
+  let readinessState: StageActionReadiness["readinessState"];
+  let reasonLabel: string;
+
+  if (isComplete) {
+    readinessState = "complete";
+    reasonLabel = completeReason;
+  } else if (isAvailable) {
+    readinessState = "available";
+    reasonLabel = availableReason;
+  } else if (!isPermitted) {
+    readinessState = "not_permitted";
+    reasonLabel = permissionReason;
+  } else if (guidance.state === "waiting") {
+    readinessState = "waiting_on_other_role";
+    reasonLabel = guidance.summary;
+  } else {
+    readinessState = "waiting_on_prerequisite";
+    reasonLabel = guidance.summary;
+  }
+
+  return {
+    actionKey,
+    label,
+    isAvailable,
+    readinessState,
+    reasonLabel,
+    missingPrerequisites,
+    nextConditionLabel: nextConditionLabel ?? guidance.nextStep,
+    nextOwnerLabel: nextOwnerLabel ?? guidance.ownerLabel,
+    tone: getReadinessTone(readinessState),
+  };
+}
+
+function getMissingPrerequisitesForSection(sectionKey: StageDetailSectionKey, detail: Pick<
+  StageDetailModel,
+  "blockers" | "approvalState" | "evidenceState" | "funding" | "releaseDecision" | "variationSummary" | "disputeSummary"
+>): string[] {
+  if (sectionKey === "funding") {
+    return detail.funding.gapToRequiredCover > 0 ? [`Funding gap of ${dashboardCurrency.format(detail.funding.gapToRequiredCover)} remains.`] : [];
+  }
+
+  if (sectionKey === "approvals") {
+    if (detail.evidenceState !== "accepted") {
+      return ["Evidence must be accepted before approvals can complete."];
+    }
+    return detail.approvalState === "rejected" ? ["A required approval has been rejected."] : [];
+  }
+
+  if (sectionKey === "evidence") {
+    return detail.evidenceState === "missing" ? ["Required evidence is missing."] : [];
+  }
+
+  if (sectionKey === "dispute") {
+    return detail.disputeSummary.status !== "No dispute" ? ["Open disputed value remains frozen."] : [];
+  }
+
+  if (sectionKey === "variation") {
+    return detail.variationSummary.blocking ? [detail.variationSummary.reason] : [];
+  }
+
+  if (sectionKey === "release") {
+    return detail.blockers.map((blocker) => blocker.label);
+  }
+
+  return [];
+}
+
+function getStageActionReadinessModel(detail: Pick<
+  StageDetailModel,
+  | "availableActions"
+  | "sectionGuidance"
+  | "funding"
+  | "releaseDecision"
+  | "approvalState"
+  | "evidenceState"
+  | "blockers"
+  | "variationSummary"
+  | "disputeSummary"
+>): StageDetailModel["actionReadiness"] {
+  const fundingMissing = getMissingPrerequisitesForSection("funding", detail);
+  const evidenceMissing = getMissingPrerequisitesForSection("evidence", detail);
+  const approvalMissing = getMissingPrerequisitesForSection("approvals", detail);
+  const disputeMissing = getMissingPrerequisitesForSection("dispute", detail);
+  const variationMissing = getMissingPrerequisitesForSection("variation", detail);
+  const releaseMissing = getMissingPrerequisitesForSection("release", detail);
+
+  return {
+    fundStage: buildActionReadiness({
+      actionKey: "fundStage",
+      label: "Fund Work Package",
+      isAvailable: detail.availableActions.fundStage && detail.funding.gapToRequiredCover > 0,
+      isComplete: detail.funding.gapToRequiredCover === 0,
+      isPermitted: detail.availableActions.fundStage,
+      permissionReason: detail.availableActions.fundStageReason,
+      guidance: detail.sectionGuidance.funding,
+      missingPrerequisites: fundingMissing,
+      availableReason: "Treasury can allocate the remaining funding now.",
+      completeReason: "Funding is already aligned to the current WIP position.",
+    }),
+    release: buildActionReadiness({
+      actionKey: "release",
+      label: "Release Funds",
+      isAvailable: detail.availableActions.release && detail.releaseDecision.releasable,
+      isComplete: detail.releaseDecision.releasableAmount === 0 && detail.releaseDecision.blockedAmount === 0 && detail.releaseDecision.frozenAmount === 0,
+      isPermitted: detail.availableActions.release,
+      permissionReason: detail.availableActions.releaseReason,
+      guidance: detail.sectionGuidance.release,
+      missingPrerequisites: releaseMissing,
+      availableReason: "Treasury can execute the current release decision now.",
+      completeReason: "No further release is currently needed for this stage.",
+    }),
+    applyOverride: buildActionReadiness({
+      actionKey: "applyOverride",
+      label: "Apply Override",
+      isAvailable: detail.availableActions.applyOverride,
+      isPermitted: detail.availableActions.applyOverride,
+      permissionReason: detail.availableActions.applyOverrideReason,
+      guidance: detail.sectionGuidance.release,
+      missingPrerequisites: [],
+      availableReason: "Treasury can apply a governed override when required.",
+      completeReason: "Override is not currently needed.",
+    }),
+    addEvidence: buildActionReadiness({
+      actionKey: "addEvidence",
+      label: "Add Item",
+      isAvailable: detail.availableActions.addEvidence,
+      isComplete: detail.evidenceState === "accepted",
+      isPermitted: detail.availableActions.addEvidence,
+      permissionReason: detail.availableActions.addEvidenceReason,
+      guidance: detail.sectionGuidance.evidence,
+      missingPrerequisites: evidenceMissing,
+      availableReason: "Supporting information can be added in this role.",
+      completeReason: "Required evidence is already accepted.",
+    }),
+    reviewEvidence: buildActionReadiness({
+      actionKey: "reviewEvidence",
+      label: "Review Evidence",
+      isAvailable: detail.availableActions.reviewEvidence,
+      isComplete: detail.evidenceState === "accepted",
+      isPermitted: detail.availableActions.reviewEvidence,
+      permissionReason: detail.availableActions.reviewEvidenceReason,
+      guidance: detail.sectionGuidance.evidence,
+      missingPrerequisites: evidenceMissing,
+      availableReason: "Evidence can be reviewed and decided now.",
+      completeReason: "Evidence review is already complete.",
+    }),
+    openDispute: buildActionReadiness({
+      actionKey: "openDispute",
+      label: "Raise Dispute",
+      isAvailable: detail.availableActions.openDispute,
+      isPermitted: detail.availableActions.openDispute,
+      permissionReason: detail.availableActions.openDisputeReason,
+      guidance: detail.sectionGuidance.dispute,
+      missingPrerequisites: disputeMissing,
+      availableReason: "A dispute can be raised in this role.",
+      completeReason: "No dispute action is currently needed.",
+    }),
+    resolveDispute: buildActionReadiness({
+      actionKey: "resolveDispute",
+      label: "Resolve Dispute",
+      isAvailable: detail.availableActions.resolveDispute && detail.disputeSummary.status !== "No dispute",
+      isComplete: detail.disputeSummary.status === "No dispute",
+      isPermitted: detail.availableActions.resolveDispute,
+      permissionReason: detail.availableActions.resolveDisputeReason,
+      guidance: detail.sectionGuidance.dispute,
+      missingPrerequisites: disputeMissing,
+      availableReason: "The current dispute can be resolved in this role.",
+      completeReason: "No open dispute remains to resolve.",
+    }),
+    createVariation: buildActionReadiness({
+      actionKey: "createVariation",
+      label: "Propose Variation",
+      isAvailable: detail.availableActions.createVariation,
+      isPermitted: detail.availableActions.createVariation,
+      permissionReason: detail.availableActions.createVariationReason,
+      guidance: detail.sectionGuidance.variation,
+      missingPrerequisites: variationMissing,
+      availableReason: "A variation can be proposed in this role.",
+      completeReason: "No variation proposal is currently needed.",
+    }),
+    reviewVariation: buildActionReadiness({
+      actionKey: "reviewVariation",
+      label: "Review Variation",
+      isAvailable: detail.availableActions.reviewVariation && detail.variationSummary.status === "Pending review",
+      isComplete: detail.variationSummary.status === "No variation",
+      isPermitted: detail.availableActions.reviewVariation,
+      permissionReason: detail.availableActions.reviewVariationReason,
+      guidance: detail.sectionGuidance.variation,
+      missingPrerequisites: variationMissing,
+      availableReason: "The pending variation can be reviewed now.",
+      completeReason: "No pending variation review remains.",
+    }),
+    activateVariation: buildActionReadiness({
+      actionKey: "activateVariation",
+      label: "Activate Variation",
+      isAvailable: detail.availableActions.activateVariation && detail.variationSummary.status === "Approved variation",
+      isComplete: detail.variationSummary.status !== "Approved variation",
+      isPermitted: detail.availableActions.activateVariation,
+      permissionReason: detail.availableActions.activateVariationReason,
+      guidance: detail.sectionGuidance.variation,
+      missingPrerequisites: variationMissing,
+      availableReason: "The approved variation can be activated now.",
+      completeReason: "No approved variation is waiting for activation.",
+    }),
+  };
+}
+
+function getApprovalReadiness(
+  approval: Pick<ApprovalPanelItem, "role" | "status" | "canAct" | "sequenceBlocked" | "unavailableReason">,
+  detail: Pick<StageDetailModel, "sectionGuidance" | "approvalState" | "evidenceState">
+): StageActionReadiness {
+  const isComplete = approval.status === "approved";
+  const readinessState: StageActionReadiness["readinessState"] =
+    isComplete
+      ? "complete"
+      : approval.canAct
+        ? "available"
+        : approval.sequenceBlocked || detail.approvalState === "blocked"
+          ? approval.sequenceBlocked
+            ? "waiting_on_other_role"
+            : "waiting_on_prerequisite"
+          : "not_permitted";
+
+  return {
+    actionKey: `approval-${approval.role}`,
+    label: `${getUserFacingRoleLabel(approval.role)} approval`,
+    isAvailable: approval.canAct,
+    readinessState,
+    reasonLabel:
+      readinessState === "complete"
+        ? "Approval already completed."
+        : readinessState === "available"
+          ? `Record the ${getUserFacingRoleLabel(approval.role).toLowerCase()} approval now.`
+          : approval.unavailableReason,
+    missingPrerequisites:
+      detail.approvalState === "blocked" && detail.evidenceState !== "accepted"
+        ? ["Evidence must be accepted before this approval can proceed."]
+        : approval.sequenceBlocked
+          ? ["An earlier approval step must complete first."]
+          : [],
+    nextConditionLabel:
+      readinessState === "complete"
+        ? null
+        : approval.sequenceBlocked
+          ? "Wait for the earlier approval step to complete."
+          : detail.approvalState === "blocked"
+            ? detail.sectionGuidance.approvals.nextStep
+            : detail.sectionGuidance.approvals.nextStep,
+    nextOwnerLabel:
+      readinessState === "waiting_on_other_role"
+        ? approval.sequenceBlocked
+          ? "Commercial"
+          : getUserFacingRoleLabel(approval.role)
+        : getUserFacingRoleLabel(approval.role),
+    tone: getReadinessTone(readinessState),
+  };
+}
+
+function mapSectionToAttentionCategory(section: StageDetailSectionKey): StageAttentionReason["reasonCategory"] {
+  if (section === "funding") return "funding";
+  if (section === "approvals") return "approval";
+  if (section === "evidence") return "evidence";
+  if (section === "dispute") return "dispute";
+  if (section === "variation") return "variation";
+  if (section === "release") return "release";
+  return "general";
+}
+
+function canActOnAttentionSection(detail: Pick<StageDetailModel, "availableActions" | "approvals" | "actingRole">, section: StageDetailSectionKey) {
+  if (section === "funding") return detail.availableActions.fundStage;
+  if (section === "approvals") return detail.approvals.some((approval) => approval.canAct);
+  if (section === "evidence") return detail.availableActions.reviewEvidence || detail.availableActions.addEvidence;
+  if (section === "dispute") return detail.availableActions.resolveDispute || detail.availableActions.openDispute;
+  if (section === "variation") return detail.availableActions.reviewVariation || detail.availableActions.createVariation || detail.availableActions.activateVariation;
+  if (section === "release") return detail.availableActions.release;
+  return !detail.actingRole.readOnly;
+}
+
+export function getStageAttentionReason(detail: Pick<
+  StageDetailModel,
+  "sectionGuidance" | "blockers" | "releaseDecision" | "decisionSummary" | "availableActions" | "approvals" | "actingRole"
+>): StageAttentionReason {
+  const orderedSections: StageDetailSectionKey[] = ["funding", "evidence", "approvals", "dispute", "variation", "release", "overview"];
+  const surfacedGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.state === "act_now" || guidance.state === "waiting" || guidance.state === "blocked")
+    ?? detail.sectionGuidance.overview;
+  const queuedGuidance = orderedSections
+    .map((section) => detail.sectionGuidance[section])
+    .find((guidance) => guidance.key !== surfacedGuidance.key && (guidance.state === "act_now" || guidance.state === "waiting"));
+  const requiresMyAction = surfacedGuidance.state === "act_now" && canActOnAttentionSection(detail, surfacedGuidance.key);
+  const tone: StageAttentionReason["tone"] =
+    requiresMyAction
+      ? "info"
+      : surfacedGuidance.state === "waiting" || surfacedGuidance.state === "blocked" || detail.blockers.length > 0
+        ? "warning"
+        : detail.releaseDecision.releasableAmount > 0
+          ? "success"
+          : "neutral";
+
+  const headline =
+    surfacedGuidance.state === "act_now"
+      ? "Needs your action now"
+      : surfacedGuidance.state === "waiting"
+        ? "Waiting on another role"
+        : surfacedGuidance.state === "blocked"
+          ? "Blocked by prerequisite condition"
+          : detail.releaseDecision.releasableAmount > 0
+            ? "Releasable stage"
+            : "Stage under watch";
+
+  const driverLabel =
+    surfacedGuidance.key === "overview"
+      ? detail.decisionSummary.statusLabel
+      : surfacedGuidance.status;
+
+  const supportingDetails = [
+    surfacedGuidance.summary,
+    surfacedGuidance.nextStep,
+    detail.releaseDecision.explanation.reason,
+  ].filter((value, index, values) => value && values.indexOf(value) === index);
+
+  return {
+    headline,
+    reasonCategory: mapSectionToAttentionCategory(surfacedGuidance.key),
+    reasonLabel: surfacedGuidance.summary,
+    requiresMyAction,
+    ownerLabel: surfacedGuidance.ownerLabel ?? detail.decisionSummary.currentOwnerLabel,
+    nextOwnerLabel: queuedGuidance?.ownerLabel ?? detail.decisionSummary.nextOwnerLabel,
+    driverLabel,
+    supportingDetails,
+    tone,
+  };
+}
+
+function getAttentionReasonFromActionTask(task: Pick<HomeTaskItem, "summary" | "ownerLabel" | "nextActionLabel" | "statusLabel" | "actionKey">): StageAttentionReason {
+  const category: StageAttentionReason["reasonCategory"] =
+    task.actionKey === "add-funds" || task.actionKey === "allocate-stage-funding" || task.actionKey === "adjust-buffer"
+      ? "funding"
+      : task.actionKey === "review-evidence"
+        ? "evidence"
+        : task.actionKey === "approve-professional" || task.actionKey === "approve-commercial" || task.actionKey === "approve-treasury"
+          ? "approval"
+          : task.actionKey === "review-dispute"
+            ? "dispute"
+            : task.actionKey === "review-variation"
+              ? "variation"
+              : task.actionKey === "release-funding"
+                ? "release"
+                : "general";
+
+  const headline =
+    task.statusLabel === "Blocked"
+      ? "Blocked by prerequisite condition"
+      : task.nextActionLabel
+        ? "Needs your action now"
+        : "Waiting on another role";
+
+  return {
+    headline,
+    reasonCategory: category,
+    reasonLabel: task.summary,
+    requiresMyAction: Boolean(task.nextActionLabel),
+    ownerLabel: task.ownerLabel,
+    nextOwnerLabel: task.ownerLabel,
+    driverLabel: task.statusLabel,
+    supportingDetails: [task.summary, task.nextActionLabel ?? "Open the stage workspace for the next control step."],
+    tone: task.statusLabel === "Blocked" ? "warning" : task.nextActionLabel ? "info" : "neutral",
+  };
+}
+
+function getOutcomeState(detail: StageDetailModel): Pick<StageActionOutcomeSummary, "progressionStatus" | "stateNowLabel" | "stateNowDetail"> {
+  if (detail.releaseDecision.releasableAmount > 0 && detail.releaseDecision.explanation.label !== "Cannot release") {
+    return {
+      progressionStatus: "advanced",
+      stateNowLabel: "Releasable / advanced",
+      stateNowDetail: detail.releaseDecision.explanation.reason,
+    };
+  }
+
+  const actionableGuidance = Object.values(detail.sectionGuidance).find((guidance) => guidance.state === "act_now");
+  if (actionableGuidance) {
+    return {
+      progressionStatus: "ready_for_next_decision",
+      stateNowLabel: "Ready for next decision",
+      stateNowDetail: actionableGuidance.nextStep,
+    };
+  }
+
+  const waitingGuidance = Object.values(detail.sectionGuidance).find((guidance) => guidance.state === "waiting");
+  if (waitingGuidance) {
+    return {
+      progressionStatus: "waiting_on_other_role",
+      stateNowLabel: "Waiting on another role",
+      stateNowDetail: `${waitingGuidance.ownerLabel} must act next.`,
+    };
+  }
+
+  return {
+    progressionStatus: "still_blocked",
+    stateNowLabel: "Still blocked",
+    stateNowDetail: detail.blockers[0]?.label ?? detail.operationalStatus.nextStep,
+  };
+}
+
+export function getStageActionOutcomeSummary(
+  before: StageDetailModel,
+  after: StageDetailModel,
+  section: StageDetailSectionKey,
+): StageActionOutcomeSummary {
+  const latestEvent = after.recentEvents[0];
+  const blockerDelta = before.blockers.length - after.blockers.length;
+  const releasableDelta = after.releaseDecision.releasableAmount - before.releaseDecision.releasableAmount;
+  const frozenDelta = after.releaseDecision.frozenAmount - before.releaseDecision.frozenAmount;
+
+  const defaultWhatChanged =
+    latestEvent?.summary ??
+    `${after.stage.name} moved to ${after.operationalStatus.label.toLowerCase()}.`;
+  const stateNow = getOutcomeState(after);
+  const nextStepGuidance = after.sectionGuidance[section];
+  const nextOwner = getNextActionOwner(after);
+
+  let whatChanged = [defaultWhatChanged];
+  let unlockedItems = blockerDelta > 0 ? [`${blockerDelta} blocker${blockerDelta === 1 ? "" : "s"} cleared.`] : [];
+  let nextActionLabel: string | null = nextStepGuidance.nextStep;
+
+  if (section === "funding") {
+    whatChanged = [
+      after.funding.gapToRequiredCover === 0 && before.funding.gapToRequiredCover > 0
+        ? "Funding is now aligned to the current WIP position."
+        : `Funding gap is now ${dashboardCurrency.format(after.funding.gapToRequiredCover)} against WIP.`,
+    ];
+    unlockedItems =
+      before.funding.gapToRequiredCover > 0 && after.funding.gapToRequiredCover === 0
+        ? ["Funding no longer blocks this work package."]
+        : unlockedItems;
+    nextActionLabel = after.sectionGuidance.funding.nextStep;
+  } else if (section === "approvals") {
+    whatChanged = [
+      before.approvalState !== after.approvalState
+        ? `Approval status moved from ${formatStateLabel(before.approvalState)} to ${formatStateLabel(after.approvalState)}.`
+        : defaultWhatChanged,
+    ];
+    unlockedItems =
+      before.approvalState !== "approved" && after.approvalState === "approved"
+        ? [
+            releasableDelta > 0
+              ? "Approved value is now available for release."
+              : "Approval is complete and the next control can continue.",
+          ]
+        : unlockedItems;
+    nextActionLabel = after.sectionGuidance.approvals.nextStep;
+  } else if (section === "evidence") {
+    whatChanged = [
+      before.evidenceState !== after.evidenceState
+        ? `Evidence status moved from ${formatStateLabel(before.evidenceState)} to ${formatStateLabel(after.evidenceState)}.`
+        : defaultWhatChanged,
+    ];
+    unlockedItems =
+      before.evidenceState !== "accepted" && after.evidenceState === "accepted"
+        ? [
+            after.approvalState === "blocked"
+              ? "Evidence is accepted, but another control still blocks progress."
+              : "Evidence is accepted and approvals can continue.",
+          ]
+        : unlockedItems;
+    nextActionLabel = after.sectionGuidance.evidence.nextStep;
+  } else if (section === "dispute") {
+    whatChanged = [
+      frozenDelta < 0
+        ? `Frozen value reduced to ${dashboardCurrency.format(after.releaseDecision.frozenAmount)}.`
+        : frozenDelta > 0
+          ? `Frozen value increased to ${dashboardCurrency.format(after.releaseDecision.frozenAmount)}.`
+          : defaultWhatChanged,
+    ];
+    unlockedItems =
+      before.releaseDecision.frozenAmount > 0 && after.releaseDecision.frozenAmount === 0
+        ? [
+            releasableDelta > 0
+              ? "Disputed value is cleared and approved value can now release."
+              : "The dispute hold is cleared.",
+          ]
+        : unlockedItems;
+    nextActionLabel = after.sectionGuidance.dispute.nextStep;
+  } else if (section === "variation") {
+    whatChanged = [
+      before.variationSummary.status !== after.variationSummary.status
+        ? `Variation moved from ${before.variationSummary.status.toLowerCase()} to ${after.variationSummary.status.toLowerCase()}.`
+        : defaultWhatChanged,
+    ];
+    unlockedItems =
+      before.variationSummary.status !== after.variationSummary.status && after.variationSummary.status === "Approved variation"
+        ? ["The approved variation can now move toward activation."]
+        : before.variationSummary.status !== after.variationSummary.status && after.variationSummary.status === "No variation"
+          ? ["Variation review no longer blocks this work package."]
+          : unlockedItems;
+    nextActionLabel = after.sectionGuidance.variation.nextStep;
+  } else if (section === "release") {
+    const releasedDelta = Math.max(after.stage.releasedAmount - before.stage.releasedAmount, 0);
+    whatChanged = [
+      releasedDelta > 0
+        ? `${dashboardCurrency.format(releasedDelta)} has been released from this work package.`
+        : defaultWhatChanged,
+    ];
+    unlockedItems =
+      before.releaseDecision.explanation.label !== after.releaseDecision.explanation.label
+        ? [`Release status is now ${after.releaseDecision.explanation.label.toLowerCase()}.`]
+        : before.releaseDecision.releasableAmount === 0 && after.releaseDecision.releasableAmount > 0
+          ? ["Approved value is now available for release."]
+          : unlockedItems;
+    nextActionLabel = after.sectionGuidance.release.nextStep;
+  }
+
+  if (whatChanged.length === 0) {
+    whatChanged = [defaultWhatChanged];
+  }
+
+  const remainingBlockers = after.blockers.map((blocker) => blocker.label);
+
+  return {
+    section,
+    tone: after.blockers.length <= before.blockers.length ? "success" : "warning",
+    title: latestEvent?.summary ?? after.operationalStatus.label,
+    detail: after.operationalStatus.nextStep,
+    whatChanged,
+    unlockedItems,
+    remainingBlockers,
+    nextOwner: nextOwner === "No further action owner" ? null : nextOwner,
+    nextActionLabel,
+    progressionStatus: stateNow.progressionStatus,
+    stateNowLabel: stateNow.stateNowLabel,
+    stateNowDetail: stateNow.stateNowDetail,
   };
 }
 
@@ -4103,16 +6437,218 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
   const disputeSummary = getDisputeOperationalSummary(state, stage);
   const variationSummary = getVariationOperationalSummary(stage);
   const projectFunding = getFundingSummary(state, stage.projectId);
+  const actingRole = getActingRoleSummary(user.role);
+  const canAddEvidence = ["contractor", "commercial"].includes(user.role);
+  const canReviewEvidence = user.role === "professional";
+  const canFundStage = user.role === "treasury";
+  const canApplyOverride = user.role === "treasury";
+  const canRelease = user.role === "treasury";
+  const canOpenDispute = ["contractor", "commercial"].includes(user.role);
+  const canResolveDispute = ["commercial", "treasury"].includes(user.role);
+  const canCreateVariation = ["contractor", "commercial"].includes(user.role);
+  const canReviewVariation = ["commercial", "treasury"].includes(user.role);
+  const canActivateVariation = user.role === "treasury";
+  const availableActions = {
+    addEvidence: canAddEvidence,
+    addEvidenceReason: getPermissionReason(canAddEvidence, "Project Manager or Commercial", "Supporting items can be added in this role."),
+    reviewEvidence: canReviewEvidence,
+    reviewEvidenceReason: getPermissionReason(canReviewEvidence, "Evidence reviewer", "Evidence decisions can be recorded in this role."),
+    fundStage: canFundStage,
+    fundStageReason: getPermissionReason(canFundStage, "Treasury", "Treasury can allocate funds to this work package."),
+    applyOverride: canApplyOverride,
+    applyOverrideReason: getPermissionReason(canApplyOverride, "Treasury", "Treasury can apply a governed override."),
+    release: canRelease,
+    releaseReason: getPermissionReason(canRelease, "Treasury", "Treasury can execute release when controls clear."),
+    openDispute: canOpenDispute,
+    openDisputeReason: getPermissionReason(canOpenDispute, "Project Manager or Commercial", "A dispute can be raised in this role."),
+    resolveDispute: canResolveDispute,
+    resolveDisputeReason: getPermissionReason(canResolveDispute, "Commercial or Treasury", "The dispute can be resolved in this role."),
+    createVariation: canCreateVariation,
+    createVariationReason: getPermissionReason(canCreateVariation, "Project Manager or Commercial", "A variation can be proposed in this role."),
+    reviewVariation: canReviewVariation,
+    reviewVariationReason: getPermissionReason(canReviewVariation, "Commercial or Treasury", "Variation review is available in this role."),
+    activateVariation: canActivateVariation,
+    activateVariationReason: getPermissionReason(canActivateVariation, "Treasury", "Treasury can activate an approved variation."),
+  };
+  const approvals = stage.requiredApprovalRoles.map((role) => {
+    const approval = state.approvals.find((entry) => entry.stageId === stageId && entry.role === role);
+    const canAct = user.role === role && canApprovalRoleAct(state, stage, role) && approval?.status !== "approved";
+    const sequenceBlocked = Boolean(stage.approvalSequence?.length) && !canApprovalRoleAct(state, stage, role);
+    const placeholderReadinessState: StageActionReadiness["readinessState"] =
+      canAct ? "available" : approval?.status === "approved" ? "complete" : "waiting_on_prerequisite";
+    const placeholderTone: StageActionReadiness["tone"] =
+      approval?.status === "approved" ? "success" : canAct ? "info" : "warning";
+
+    return {
+      id: approval?.id ?? `${stageId}-${role}`,
+      role,
+      status: approval?.status ?? "pending",
+      canAct,
+      sequenceBlocked,
+      unavailableReason:
+        approval?.status === "approved"
+          ? "Approval already completed."
+          : sequenceBlocked
+            ? "Waiting for the earlier approval step."
+            : canAct
+              ? `${getUserFacingRoleLabel(role)} can act now.`
+              : `${getUserFacingRoleLabel(role)} role required.`,
+      readiness: {
+        actionKey: `approval-${role}`,
+        label: `${getUserFacingRoleLabel(role)} approval`,
+        isAvailable: canAct,
+        readinessState: placeholderReadinessState,
+        reasonLabel:
+          approval?.status === "approved"
+            ? "Approval already completed."
+            : sequenceBlocked
+              ? "Waiting for the earlier approval step."
+              : canAct
+                ? `${getUserFacingRoleLabel(role)} can act now.`
+                : `${getUserFacingRoleLabel(role)} role required.`,
+        missingPrerequisites: [],
+        nextConditionLabel: null,
+        nextOwnerLabel: getUserFacingRoleLabel(role),
+        tone: placeholderTone,
+      },
+    };
+  });
+  const approvalState = getApprovalStateSummary(state, stage);
+  const evidenceState = getEvidenceState(state, stageId);
+  const operationalStatus = getOperationalStageStatus(state, stage);
+  const stageBlockers = getStageBlockers(state, stageId);
+  const sectionGuidance = getStageSectionGuidance({
+    state,
+    stage,
+    user,
+    funding,
+    operationalStatus,
+    releaseDecision,
+    disputeSummary,
+    variationSummary,
+    evidenceState,
+    approvalState,
+    approvals,
+    availableActions,
+  });
+  const actionReadiness = getStageActionReadinessModel({
+    availableActions,
+    sectionGuidance,
+    funding,
+    releaseDecision,
+    approvalState,
+    evidenceState,
+    blockers: stageBlockers,
+    variationSummary,
+    disputeSummary,
+  });
+  const hydratedApprovals = approvals.map((approval) => ({
+    ...approval,
+    readiness: getApprovalReadiness(approval, {
+      sectionGuidance,
+      approvalState,
+      evidenceState,
+    }),
+  }));
 
   if (!project) {
     throw new Error(`Unable to derive stage detail for ${stageId}`);
   }
 
+  const decisionSummary = getStageDecisionSummary({
+    operationalStatus,
+    releaseDecision,
+    blockers: stageBlockers,
+    sectionGuidance,
+  });
+  const attentionReason = getStageAttentionReason({
+    sectionGuidance,
+    blockers: stageBlockers,
+    releaseDecision,
+    decisionSummary,
+    availableActions,
+    approvals: hydratedApprovals,
+    actingRole,
+  });
+  const roleHandoff = getStageRoleHandoff({
+    actingRole,
+    sectionGuidance,
+    decisionSummary,
+    attentionReason,
+    blockers: stageBlockers,
+    operationalStatus,
+    releaseDecision,
+  });
+  const exitState = getStageExitState({
+    stage,
+    operationalStatus,
+    releaseDecision,
+    disputeSummary,
+    variationSummary,
+    blockers: stageBlockers,
+    decisionSummary,
+  });
+  const exceptionPath = getStageExceptionPath({
+    stage,
+    releaseDecision,
+    disputeSummary,
+    variationSummary,
+    blockers: stageBlockers,
+    roleHandoff,
+    decisionSummary,
+    operationalStatus,
+  });
+  const fundingExplanation = getStageFundingExplanation({
+    stage,
+    funding,
+    projectFunding,
+    reserveBuffer: project.reserveBuffer,
+    releaseDecision,
+  });
+  const releaseSummary = getStageReleaseDecisionSummary({
+    stage,
+    releaseDecision,
+    fundingExplanation,
+    blockers: stageBlockers,
+    exceptionPath,
+  });
+  const evidenceSummary = getStageEvidenceSummary({
+    evidence: getEvidenceViews(state, stageId),
+    evidenceState,
+    sectionGuidance,
+    actionReadiness,
+    blockers: stageBlockers,
+  });
+  const approvalSummary = getStageApprovalSummary({
+    approvals: hydratedApprovals,
+    approvalState,
+    sectionGuidance,
+    blockers: stageBlockers,
+  });
+  const casePathSummary = getStageCasePathSummary({
+    disputeSummary,
+    variationSummary,
+    blockers: stageBlockers,
+    roleHandoff,
+    exceptionPath,
+    sectionGuidance,
+  });
+
   return {
     projectName: project.name,
     stage,
-    blockers: getStageBlockers(state, stageId),
-    operationalStatus: getOperationalStageStatus(state, stage),
+    blockers: stageBlockers,
+    decisionSummary,
+    fundingExplanation,
+    roleHandoff,
+    exitState,
+    exceptionPath,
+    releaseSummary,
+    evidenceSummary,
+    approvalSummary,
+    casePathSummary,
+    attentionReason,
+    operationalStatus,
     releaseDecision,
     treasuryReadiness: releaseDecision.treasuryReadiness,
     funding,
@@ -4123,16 +6659,17 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     lastDecisionAt: getStageLastDecisionAt(state, stageId),
     notificationCue: getStageActivityCue(state, stageId),
     recentEvents: getRecentStageEvents(state, stageId, 5),
+    timelineEntries: getStageTimeline(state, stageId, 6),
     certifiedValue: stage.requiredAmount,
     payableValue: getPayableValue(stage),
     frozenValue: getFrozenValue(stage),
     disputeSummary,
     variationSummary,
-    evidenceState: getEvidenceState(state, stageId),
-    approvalState: getApprovalStateSummary(state, stage),
+    evidenceState,
+    approvalState,
     disputes: (stage.disputes ?? []).map((dispute) => ({
       ...dispute,
-      canResolve: dispute.status === "open" && ["commercial", "treasury"].includes(user.role),
+      canResolve: dispute.status === "open" && canResolveDispute,
     })),
     variations: (stage.variations ?? []).map((variation) => ({
       ...variation,
@@ -4153,29 +6690,12 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
             : "Disputed variation",
     })),
     evidence: getEvidenceViews(state, stageId),
-    approvals: stage.requiredApprovalRoles.map((role) => {
-      const approval = state.approvals.find((entry) => entry.stageId === stageId && entry.role === role);
-
-      return {
-        id: approval?.id ?? `${stageId}-${role}`,
-        role,
-        status: approval?.status ?? "pending",
-        canAct: user.role === role && canApprovalRoleAct(state, stage, role) && approval?.status !== "approved",
-        sequenceBlocked: Boolean(stage.approvalSequence?.length) && !canApprovalRoleAct(state, stage, role),
-      };
-    }),
+    approvals: hydratedApprovals,
+    actionReadiness,
     ledgerTransactions: getLedgerTransactions(state, stage.projectId, stageId),
-    availableActions: {
-      addEvidence: ["contractor", "subcontractor", "professional", "commercial"].includes(user.role),
-      fundStage: user.role === "treasury",
-      applyOverride: user.role === "treasury",
-      release: user.role === "treasury",
-      openDispute: ["contractor", "commercial"].includes(user.role),
-      resolveDispute: ["commercial", "treasury"].includes(user.role),
-      createVariation: ["contractor", "commercial"].includes(user.role),
-      reviewVariation: ["commercial", "treasury"].includes(user.role),
-      activateVariation: user.role === "treasury",
-    },
+    actingRole,
+    sectionGuidance,
+    availableActions,
   };
 }
 

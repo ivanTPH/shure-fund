@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { initialSystemState } from "@/lib/demoData";
 import {
@@ -20,11 +20,16 @@ import {
   getLedgerTransactions,
   getOperationalSummary,
   getProjectActivitySummary,
+  getPrimaryActionForRole,
+  getProjectWorkspaceSummary,
   getResponsibilityCue,
   getReleaseDecisions,
+  getRoleInboxItems,
   getRoleJourneySummary,
+  getStageActionOutcomeSummary,
   getStageBlockers,
   getStageDetail,
+  getUserFacingRoleLabel,
   giveApproval,
   initializeSystemState,
   openDispute,
@@ -35,6 +40,7 @@ import {
   setCurrentUser,
   updateEvidenceStatus,
   type DashboardAudienceMode,
+  type StageDetailSectionKey,
 } from "@/lib/systemState";
 import type {
   EvidenceStatus,
@@ -81,13 +87,48 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+    <section className="rounded-[30px] border border-slate-200/70 bg-white/96 p-6 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.35)]">
+      <div className="mb-5">
+        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
         {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
       </div>
       {children}
     </section>
+  );
+}
+
+function ExpandableSection({
+  title,
+  subtitle,
+  children,
+  defaultOpen = false,
+  open,
+  onToggle,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
+}) {
+  return (
+    <details
+      open={open ?? defaultOpen}
+      onToggle={(event) => onToggle?.((event.currentTarget as HTMLDetailsElement).open)}
+      className="rounded-[28px] border border-slate-200/70 bg-slate-50/75 p-5 shadow-[0_16px_36px_-34px_rgba(15,23,42,0.3)]"
+    >
+      <summary className="cursor-pointer list-none">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+            {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">Details</span>
+        </div>
+      </summary>
+      <div className="mt-5">{children}</div>
+    </details>
   );
 }
 
@@ -109,11 +150,14 @@ function formatRelativeTime(timestamp?: string | null) {
 export default function ShureFundDashboard() {
   const [state, setState] = useState<SystemStateRecord>(() => initializeSystemState(initialSystemState));
   const [audienceMode, setAudienceMode] = useState<DashboardAudienceMode>("operations");
+  const [selectedProjectId, setSelectedProjectId] = useState(initialSystemState.projects[0]?.id ?? "");
   const [selectedStageId, setSelectedStageId] = useState("stage-foundation");
+  const [selectedStageSection, setSelectedStageSection] = useState<"overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release">("overview");
   const [depositAmount, setDepositAmount] = useState("50000");
   const [fundingSource, setFundingSource] = useState<FundingSourceType | "">("");
   const [isAddingFunds, setIsAddingFunds] = useState(false);
   const [showFundingCalculation, setShowFundingCalculation] = useState(false);
+  const [showStageDetail, setShowStageDetail] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [evidenceTitle, setEvidenceTitle] = useState("");
   const [evidenceType, setEvidenceType] = useState<EvidenceType>("file");
@@ -123,26 +167,58 @@ export default function ShureFundDashboard() {
   const [variationTitle, setVariationTitle] = useState("");
   const [variationReason, setVariationReason] = useState("");
   const [variationAmount, setVariationAmount] = useState("10000");
+  const [actionFeedback, setActionFeedback] = useState<{
+    stageId: string;
+    section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
+    tone: "success" | "warning";
+    title: string;
+    detail: string;
+    progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
+    stateNowLabel: string;
+    stateNowDetail: string;
+    whatChanged: string[];
+    unlockedItems: string[];
+    remainingBlockers: string[];
+    nextOwner: string | null;
+    nextActionLabel: string | null;
+  } | null>(null);
 
-  const project = state.projects[0];
+  const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId)!;
+  const roleSwitchUsers = useMemo(
+    () => state.users.filter((entry) => ["contractor", "commercial", "professional", "treasury", "executive"].includes(entry.role)),
+    [state.users],
+  );
+  const projectStages = useMemo(() => state.stages.filter((stage) => stage.projectId === project.id), [state, project.id]);
+  const activeStageId = projectStages.some((stage) => stage.id === selectedStageId)
+    ? selectedStageId
+    : projectStages[0]?.id ?? selectedStageId;
   const fundingSummary = useMemo(() => getFundingSummary(state, project.id), [state, project.id]);
   const actionQueue = useMemo(() => getActionQueue(state, project.id), [state, project.id]);
   const releaseDecisions = useMemo(() => getReleaseDecisions(state, project.id), [state, project.id]);
   const controlSummary = useMemo(() => getOperationalSummary(state, project.id), [state, project.id]);
-  const stageDetail = useMemo(() => getStageDetail(state, selectedStageId), [state, selectedStageId]);
-  const stageBlockers = useMemo(() => getStageBlockers(state, selectedStageId), [state, selectedStageId]);
+  const stageDetail = useMemo(() => getStageDetail(state, activeStageId), [state, activeStageId]);
+  const stageBlockers = useMemo(() => getStageBlockers(state, activeStageId), [state, activeStageId]);
   const ledgerTransactions = useMemo(() => getLedgerTransactions(state, project.id), [state, project.id]);
   const journey = useMemo(() => getRoleJourneySummary(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
   const summaryStrip = useMemo(() => getDashboardSummaryStrip(state, project.id), [state, project.id]);
   const decisionPack = useMemo(() => getDashboardDecisionPack(state, project.id), [state, project.id]);
   const decisionSnapshot = useMemo(() => getDashboardDecisionSnapshot(state, project.id), [state, project.id]);
   const projectActivity = useMemo(() => getProjectActivitySummary(state, project.id), [state, project.id]);
+  const activeProjectSummary = useMemo(() => getProjectWorkspaceSummary(state, project.id), [state, project.id]);
+  const currentProjectInbox = useMemo(() => getRoleInboxItems(state, currentUser.role, project.id), [state, currentUser.role, project.id]);
+  const allProjectInbox = useMemo(() => getRoleInboxItems(state, currentUser.role), [state, currentUser.role]);
+  const portfolioProjects = useMemo(
+    () => state.projects.map((entry) => getProjectWorkspaceSummary(state, entry.id)),
+    [state],
+  );
   const shortfallActive = fundingSummary.shortfall > 0;
   const fundingSummarySentence = getFundingSummarySentence(fundingSummary);
+  const crossProjectAttentionCount = allProjectInbox.filter((item) => item.projectId !== project.id).length;
 
-  const selectedDecision = releaseDecisions.find((entry) => entry.stageId === selectedStageId)!;
-  const primaryAction = actionQueue[0] ?? null;
+  const selectedDecision = releaseDecisions.find((entry) => entry.stageId === activeStageId)!;
+  const primaryAction = useMemo(() => getPrimaryActionForRole(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
+  const projectLeadAction = actionQueue[0] ?? null;
   const primaryActionDetail = useMemo(
     () => (primaryAction ? getStageDetail(state, primaryAction.stageId) : null),
     [primaryAction, state],
@@ -174,8 +250,76 @@ export default function ShureFundDashboard() {
             ? "Select a funding source."
             : "Treasury only.";
 
+  useEffect(() => {
+    if (projectStages.some((stage) => stage.id === selectedStageId)) {
+      return;
+    }
+
+    const nextStageId = projectStages[0]?.id ?? "";
+    if (nextStageId && nextStageId !== selectedStageId) {
+      setSelectedStageId(nextStageId);
+    }
+    setSelectedStageSection("overview");
+    setActionFeedback(null);
+  }, [projectStages, selectedStageId]);
+
+  function handleWorkspaceItemSelect(item: (typeof currentProjectInbox)[number]) {
+    if (item.deepLinkTarget?.projectId && item.deepLinkTarget.projectId !== project.id) {
+      setSelectedProjectId(item.deepLinkTarget.projectId);
+    }
+
+    if (item.deepLinkTarget?.stageId) {
+      setSelectedStageId(item.deepLinkTarget.stageId);
+    }
+
+    setSelectedStageSection(item.deepLinkTarget?.section ?? "overview");
+    setShowStageDetail(true);
+  }
+
   function commit(updater: (current: SystemStateRecord) => SystemStateRecord) {
     setState((current) => updater(current));
+  }
+
+  function runStageAction(
+    stageId: string,
+    section: StageDetailSectionKey,
+    successTitle: string,
+    updater: (current: SystemStateRecord) => SystemStateRecord,
+    blockedTitle: string,
+  ) {
+    let nextFeedback: typeof actionFeedback = null;
+
+    setState((current) => {
+      const beforeDetail = getStageDetail(current, stageId);
+      const next = updater(current);
+
+      if (next === current) {
+        const fallbackOutcome = getStageActionOutcomeSummary(beforeDetail, beforeDetail, section);
+        nextFeedback = {
+          ...fallbackOutcome,
+          stageId,
+          tone: "warning",
+          title: blockedTitle,
+          detail: beforeDetail.operationalStatus.nextStep,
+          whatChanged: [beforeDetail.sectionGuidance[section].summary],
+          unlockedItems: [],
+        };
+        return current;
+      }
+
+      const nextDetail = getStageDetail(next, stageId);
+      nextFeedback = {
+        ...getStageActionOutcomeSummary(beforeDetail, nextDetail, section),
+        stageId,
+      };
+      if (!nextFeedback.title) {
+        nextFeedback.title = successTitle;
+      }
+
+      return next;
+    });
+
+    setActionFeedback(nextFeedback);
   }
 
   function handleDeposit() {
@@ -191,7 +335,7 @@ export default function ShureFundDashboard() {
           project.id,
           amount,
           fundingSource,
-          fundingSource === "contractor" ? selectedStageId : undefined,
+          fundingSource === "contractor" ? activeStageId : undefined,
         ),
       );
     } finally {
@@ -200,24 +344,103 @@ export default function ShureFundDashboard() {
   }
 
   function handleEvidenceUpdate(requirementId: string, status: EvidenceStatus) {
-    commit((current) => updateEvidenceStatus(current, requirementId, status));
+    runStageAction(
+      activeStageId,
+      "evidence",
+      "Evidence updated.",
+      (current) => updateEvidenceStatus(current, requirementId, status),
+      "Evidence status did not change.",
+    );
   }
 
   function handleAddEvidence() {
-    commit((current) => addEvidence(current, selectedStageId, evidenceType, evidenceTitle));
+    runStageAction(
+      activeStageId,
+      "evidence",
+      "Evidence added.",
+      (current) => addEvidence(current, activeStageId, evidenceType, evidenceTitle),
+      "Evidence item could not be added.",
+    );
     setEvidenceTitle("");
   }
 
   function handleOpenDispute() {
-    commit((current) => openDispute(current, selectedStageId, disputeTitle, disputeReason, Number(disputeAmount)));
+    runStageAction(
+      activeStageId,
+      "dispute",
+      "Dispute raised.",
+      (current) => openDispute(current, activeStageId, disputeTitle, disputeReason, Number(disputeAmount)),
+      "Dispute could not be raised.",
+    );
     setDisputeTitle("");
     setDisputeReason("");
   }
 
   function handleCreateVariation() {
-    commit((current) => createVariation(current, selectedStageId, variationTitle, variationReason, Number(variationAmount)));
+    runStageAction(
+      activeStageId,
+      "variation",
+      "Variation proposed.",
+      (current) => createVariation(current, activeStageId, variationTitle, variationReason, Number(variationAmount)),
+      "Variation could not be proposed.",
+    );
     setVariationTitle("");
     setVariationReason("");
+  }
+
+  function handleFundStage() {
+    runStageAction(
+      stageDetail.stage.id,
+      "funding",
+      "Funding transferred.",
+      (current) => allocateStageFunds(current, stageDetail.stage.id),
+      "Funding could not be transferred.",
+    );
+  }
+
+  function handleReleaseStage() {
+    runStageAction(
+      stageDetail.stage.id,
+      "release",
+      "Release completed.",
+      (current) => releaseStage(current, stageDetail.stage.id),
+      "Release could not proceed.",
+    );
+  }
+
+  function handleApplyOverride() {
+    runStageAction(
+      stageDetail.stage.id,
+      "release",
+      "Override applied.",
+      (current) => applyOverride(current, stageDetail.stage.id, overrideReason),
+      "Override could not be applied.",
+    );
+    setOverrideReason("");
+  }
+
+  async function handleShareDecision() {
+    const shareTitle = `${project.name} decision pack`;
+    const shareText = [
+      `${selectedDecision.explanation.label} · ${currency.format(selectedDecision.releasableAmount)} releasable`,
+      selectedDecision.explanation.reason,
+      fundingSummarySentence,
+      `Next action: ${primaryAction?.primaryAction.title ?? "No immediate action required."}`,
+    ].join("\n");
+
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+        });
+        return;
+      } catch {
+        // Fall back to print if share is cancelled or unavailable.
+      }
+    }
+
+    window.print();
   }
 
   const modeTitle =
@@ -232,444 +455,435 @@ export default function ShureFundDashboard() {
       : audienceMode === "treasury"
         ? "Focus on releasable, frozen, and blocked value with treasury readiness and decision basis."
         : "Focus on balance, WIP, surplus capacity, frozen value, releasable value, and concise release confidence.";
+  const postureToneClass =
+    activeProjectSummary.postureLabel === "Healthy / releasable"
+      ? "bg-teal-300/20 text-teal-100"
+      : activeProjectSummary.postureLabel === "Blocked by approvals"
+        ? "bg-amber-300/20 text-amber-100"
+        : "bg-white/12 text-slate-100";
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.14),_transparent_30%),linear-gradient(180deg,#f9fbfc_0%,#f8fafc_46%,#eef5f6_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <section className="rounded-[32px] bg-slate-950 px-5 py-6 text-white shadow-[0_30px_80px_-40px_rgba(15,23,42,0.8)]">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.08),_transparent_28%),linear-gradient(180deg,#fbfcfc_0%,#f8fafc_44%,#f1f5f4_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8">
+        <section className="no-print rounded-[36px] bg-slate-950 px-6 py-7 text-white shadow-[0_28px_80px_-48px_rgba(15,23,42,0.75)]">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-teal-300">Shure.Fund</p>
-              <h1 className="mt-2 text-3xl font-semibold">{project.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300">
+              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.02em]">{project.name}</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
                 Rules-based construction funding control with synthetic ledger visibility, supporting information,
                 approval gating, dispute freezing, variation control, controlled drawdown, and immutable audit logging.
               </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300">
+                <span className={`rounded-full px-3 py-1 font-medium ${postureToneClass}`}>{activeProjectSummary.postureLabel}</span>
+                <span>Last activity {formatRelativeTime(projectActivity.lastActivityAt)}</span>
+                <span>{modeTitle} mode</span>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="rounded-2xl bg-white/8 p-3 text-sm">
-                <span className="mb-2 block text-slate-300">Acting User</span>
+                <span className="mb-2 block text-slate-300">Acting Role</span>
                 <select
                   className="w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white"
                   value={state.currentUserId}
                   onChange={(event) => commit((current) => setCurrentUser(current, event.target.value))}
                 >
-                  {state.users.map((user) => (
+                  {roleSwitchUsers.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.name} · {user.role}
+                      {getUserFacingRoleLabel(user.role)} · {user.name}
                     </option>
                   ))}
                 </select>
               </label>
               <div className="rounded-2xl bg-white/8 p-3 text-sm">
-                <span className="mb-2 block text-slate-300">Current Capability</span>
-                <p className="rounded-xl bg-white/10 px-3 py-3 font-medium capitalize">{currentUser.role}</p>
+                <span className="mb-2 block text-slate-300">Active Context</span>
+                <p className="rounded-xl bg-white/10 px-3 py-3 font-medium">{getUserFacingRoleLabel(currentUser.role)} · {project.name}</p>
               </div>
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 onClick={() => setAudienceMode(mode)}
                 className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  audienceMode === mode ? "bg-white text-slate-950" : "bg-white/10 text-white"
+                  audienceMode === mode ? "bg-white text-slate-950" : "bg-white/8 text-slate-200"
                 }`}
               >
                 {mode === "operations" ? "Operations" : mode === "treasury" ? "Treasury" : "Executive"}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={handleShareDecision}
+              className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
+            >
+              Share Decision
+            </button>
             <p className="text-sm text-slate-300">{modeTitle} view. {modeSummary}</p>
           </div>
         </section>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Release-ready</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.releaseReadyPackages}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Partially blocked</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.partiallyBlockedPackages}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Treasury ready</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.treasuryReadyPackages}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Treasury review</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{summaryStrip.treasuryReviewRequiredPackages}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Frozen value</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(summaryStrip.frozenValue)}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Releasable now</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(summaryStrip.releasableNow)}</p>
-          </div>
-        </div>
+        <section className="print-only hidden">
+          <div className="mx-auto max-w-5xl text-slate-950">
+            <div className="border-b border-slate-200 pb-6">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Shure.Fund Decision Pack</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.02em]">{project.name}</h1>
+              <p className="mt-2 text-sm text-slate-500">Prepared {new Date().toLocaleString("en-GB")}</p>
+            </div>
 
-        <SectionCard
-          title="Recent Changes"
-          subtitle={`Last activity ${formatRelativeTime(projectActivity.lastActivityAt)}.`}
-        >
-          <div className="grid gap-3 lg:grid-cols-5">
-            {projectActivity.recentEvents.map((event) => (
-              <article key={event.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-900">{event.summary}</p>
-                  <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-slate-600">
-                    {event.eventType}
-                  </span>
+            <section className="print-section mt-8">
+              <h2 className="text-lg font-semibold text-slate-950">Decision Summary</h2>
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-6">
+                <p className="text-sm text-slate-500">{stageDetail.stage.name}</p>
+                <div className="mt-2 flex items-end justify-between gap-6">
+                  <div>
+                    <p className="text-3xl font-semibold tracking-[-0.02em]">{selectedDecision.explanation.label}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{selectedDecision.explanation.reason}</p>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
+                    <p className="text-xs text-slate-500">Releasable now</p>
+                    <p className="mt-1 text-3xl font-semibold tracking-[-0.02em]">{currency.format(selectedDecision.releasableAmount)}</p>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  {(event.actor ?? "system").toString()} · {event.stageName ?? project.name}
-                </p>
-                <p className="mt-1 text-xs text-slate-400">{formatRelativeTime(event.timestamp)}</p>
-              </article>
-            ))}
-            {projectActivity.recentEvents.length === 0 ? (
-              <p className="text-sm text-slate-500">No recent changes recorded.</p>
-            ) : null}
-          </div>
-        </SectionCard>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-slate-500">Principal blocker</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{blockerSummaryText}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Next action</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{primaryAction?.primaryAction.title ?? "No immediate action required."}</p>
+                    <p className="mt-1 text-xs text-slate-500">Responsible role: {primaryResponsibilityCue ?? "None"}</p>
+                  </div>
+                </div>
+              </div>
+            </section>
 
+            <section className="print-section mt-8">
+              <h2 className="text-lg font-semibold text-slate-950">Funding Snapshot</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Balance</p>
+                  <p className="mt-2 text-2xl font-semibold">{currency.format(fundingSummary.projectBalance)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">WIP</p>
+                  <p className="mt-2 text-2xl font-semibold">{currency.format(fundingSummary.wipTotal)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">{shortfallActive ? "Shortfall" : "Surplus"}</p>
+                  <p className="mt-2 text-2xl font-semibold">{currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Releasable</p>
+                  <p className="mt-2 text-2xl font-semibold">{currency.format(fundingSummary.releasableFunds)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Frozen</p>
+                  <p className="mt-2 text-2xl font-semibold">{currency.format(fundingSummary.frozenFunds)}</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-slate-600">{fundingSummarySentence}</p>
+            </section>
+
+            <section className="print-section mt-8">
+              <h2 className="text-lg font-semibold text-slate-950">Key Blockers And Confidence</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Principal blocker theme</p>
+                  <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.blockerThemeLine.replace("Principal blocker theme: ", "")}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Treasury and release confidence</p>
+                  <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryConfidenceLine}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="print-section mt-8">
+              <h2 className="text-lg font-semibold text-slate-950">Selected Work Package</h2>
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-6">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-slate-500">Operational status</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.operationalStatus.label}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Release status</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.releaseDecision.explanation.label}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Treasury readiness</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.treasuryReadiness.label}</p>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">WIP</p>
+                    <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.releasableAmount + stageDetail.releaseDecision.frozenAmount + stageDetail.releaseDecision.blockedAmount)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">Releasable</p>
+                    <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.releasableAmount)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">Frozen</p>
+                    <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.frozenAmount)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">In progress</p>
+                    <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.blockedAmount)}</p>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-slate-500">Principal blocker</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.blockers[0]?.label ?? "No active blocker."}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Recent activity</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.recentEvents[0]?.summary ?? "No recent activity recorded."}</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <div className="no-print grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-4">
+          <SectionCard title="Projects" subtitle="Switch the active project workspace without changing the shared controls logic.">
+            <div className="grid gap-3">
+              {portfolioProjects.map((entry) => {
+                const selected = entry.projectId === project.id;
+                return (
+                  <button
+                    key={entry.projectId}
+                    type="button"
+                    onClick={() => setSelectedProjectId(entry.projectId)}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      selected ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{entry.projectName}</p>
+                        <p className={`mt-1 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>{entry.postureLabel}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                        selected ? "bg-white/15 text-white" : "bg-white text-slate-600"
+                      }`}>
+                        {entry.releaseReadyCount} ready
+                      </span>
+                    </div>
+                    <p className={`mt-2 text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>{entry.postureReason}</p>
+                    <div className={`mt-3 flex flex-wrap gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
+                      <span>Blocked {entry.blockedCount}</span>
+                      <span>Frozen {currency.format(entry.frozenValue)}</span>
+                      <span>Releasable {currency.format(entry.releasableNow)}</span>
+                    </div>
+                    <p className={`mt-2 text-xs ${selected ? "text-slate-400" : "text-slate-400"}`}>
+                      Updated {formatRelativeTime(entry.lastActivityAt)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Workspace" subtitle="Active project orientation for the current decision context.">
+            <div className="grid gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Project</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{project.name}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Operational posture</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{activeProjectSummary.postureLabel}</p>
+                <p className="mt-1 text-xs text-slate-500">{activeProjectSummary.postureReason}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Release-ready</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">{summaryStrip.releaseReadyPackages}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Blocked packages</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">{summaryStrip.blockedPackages}</p>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        </aside>
+
+        <div className="flex flex-col gap-8">
         <SectionCard
-          title="Decision Pack"
+          title={currentUser.role === "executive" ? "Exceptions Overview" : "What Needs Your Attention"}
           subtitle={
-            audienceMode === "executive"
-              ? "Report-safe summary of current funding, release posture, and control confidence."
-              : "Shareable decision summary derived directly from the live operating state."
+            currentUser.role === "executive"
+              ? "Read-only exceptions for the current decision context."
+              : "Role-aware inbox for the current project, with cross-project attention shown quietly."
           }
         >
-          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-col gap-2 border-b border-slate-200 pb-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Formal Reporting View</p>
-              <h3 className="text-xl font-semibold text-slate-950">Current Decision Pack</h3>
-              <p className="text-sm text-slate-600">Prepared from the same live funding, release, blocker, and activity state shown elsewhere in the dashboard.</p>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-900">Narrative Summary</p>
-                <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                  <p>{decisionPack.fundingPositionLine}</p>
-                  <p>{decisionPack.releasePostureLine}</p>
-                  <p>{decisionPack.blockerThemeLine}</p>
-                  <p>{decisionPack.treasuryConfidenceLine}</p>
-                  <p>{decisionPack.disputeExposureLine}</p>
-                  <p>{decisionPack.latestMaterialActivityLine}</p>
-                </div>
-                <p className="mt-4 text-xs text-slate-500">Key decision basis: {decisionSnapshot.keyDecisionBasis}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-900">Decision Snapshot</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Balance</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.balance)}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">WIP</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.wip)}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">{decisionSnapshot.shortfall > 0 ? "Shortfall" : "Surplus"}</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">
-                    {currency.format(decisionSnapshot.shortfall > 0 ? decisionSnapshot.shortfall : decisionSnapshot.surplus)}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Releasable</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.releasable)}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Frozen</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.frozen)}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">In progress</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(decisionSnapshot.inProgress)}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Release-ready</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{decisionSnapshot.releaseReadyCount}</p>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-xs text-slate-500">Blocked</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">{decisionSnapshot.blockedCount}</p>
-                </div>
-              </div>
-                <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">Principal blocker</p>
-                    <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.blockerThemeLine.replace("Principal blocker theme: ", "")}</p>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">Treasury confidence</p>
-                    <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryConfidenceLine}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </SectionCard>
-
-        {audienceMode === "operations" ? <JourneySummaryCard journey={journey} /> : null}
-
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr_1fr]">
-          {audienceMode !== "treasury" ? (
-          <SectionCard
-            title={audienceMode === "executive" ? "Executive Summary" : "Primary Next Action"}
-            subtitle={
-              audienceMode === "executive"
-                ? "A concise sponsor view of release confidence and cash position."
-                : "The single action most likely to move work forward next."
-            }
-          >
-            {primaryAction ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="grid gap-3">
+            {currentProjectInbox.slice(0, 4).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleWorkspaceItemSelect(item)}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-300"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm text-slate-500">
-                      {audienceMode === "executive" ? `${summaryStrip.releaseReadyPackages} ready · ${summaryStrip.blockedPackages} blocked` : primaryAction.stageName}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-slate-950">
-                      {audienceMode === "executive" ? `Releasable now ${currency.format(summaryStrip.releasableNow)}` : primaryAction.primaryAction.title}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {audienceMode === "executive"
-                        ? selectedDecision.explanation.reason
-                        : primaryAction.primaryAction.detail}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Decision basis: {audienceMode === "executive"
-                        ? selectedDecision.explanation.decisionBasis
-                        : primaryActionDetail?.releaseDecision.explanation.decisionBasis ?? "Based on current control state."}
+                    <p className="text-sm text-slate-500">{item.stageName ?? item.projectName}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-950">{item.title}</p>
+                    <p className="mt-2 text-sm text-slate-600">{item.reason}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>
+                    {item.priority}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-xs text-slate-500">What happens next</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{item.nextStep}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-xs text-slate-500">Owner</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{item.ownerLabel}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-xs text-slate-500">State</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{item.readinessState === "actionable" ? "Ready for you" : "Watch"}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+            {currentProjectInbox.length === 0 ? (
+              <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">
+                {currentUser.role === "executive"
+                  ? "No material exception needs executive attention in the selected project."
+                  : `No immediate ${getUserFacingRoleLabel(currentUser.role).toLowerCase()} task is waiting in this project.`}
+              </p>
+            ) : null}
+          </div>
+          {crossProjectAttentionCount > 0 ? (
+            <p className="mt-4 text-xs text-slate-500">
+              {crossProjectAttentionCount} additional attention item{crossProjectAttentionCount === 1 ? "" : "s"} sit in other projects.
+            </p>
+          ) : null}
+        </SectionCard>
+
+        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
+          <SectionCard title="Decision" subtitle="What can you do right now, why, and what happens next.">
+            <div
+              className={`rounded-[28px] border p-6 ${
+                selectedDecision.explanation.tone === "positive"
+                  ? "border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(236,253,245,0.92)_100%)]"
+                  : selectedDecision.explanation.tone === "warning"
+                    ? "border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,1)_0%,rgba(254,243,199,0.62)_100%)]"
+                    : "border-slate-300 bg-[linear-gradient(180deg,rgba(248,250,252,1)_0%,rgba(241,245,249,0.92)_100%)]"
+              }`}
+            >
+              <p className="text-sm text-slate-500">{stageDetail.stage.name}</p>
+              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-3xl font-semibold tracking-[-0.02em] text-slate-950">{selectedDecision.explanation.label}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{selectedDecision.explanation.reason}</p>
+                </div>
+                <div className="rounded-3xl bg-white/88 px-5 py-4 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.45)]">
+                  <p className="text-xs text-slate-500">Releasable now</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-[-0.02em] text-slate-950">{currency.format(selectedDecision.releasableAmount)}</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white/80 p-4">
+                  <p className="text-xs text-slate-500">Why</p>
+                  <p className="mt-1 text-sm font-medium text-slate-950">{blockerSummaryText}</p>
+                </div>
+                <div className="rounded-2xl bg-white/80 p-4">
+                  <p className="text-xs text-slate-500">What next</p>
+                  <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.operationalStatus.nextStep}</p>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Primary Action" subtitle="The single most important next step.">
+            {primaryAction ? (
+              <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-6">
+                <p className="text-sm text-slate-500">{primaryAction.stageName}</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">{primaryAction.primaryAction.title}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{primaryAction.primaryAction.detail}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-white p-4">
+                    <p className="text-xs text-slate-500">Responsible role</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{primaryResponsibilityCue}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-4">
+                    <p className="text-xs text-slate-500">Next step</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{primaryAction.operationalStatus.nextStep}</p>
+                  </div>
+                </div>
+              </div>
+            ) : projectLeadAction ? (
+              <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-6">
+                <p className="text-sm text-slate-500">{projectLeadAction.stageName}</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">No direct action in {getUserFacingRoleLabel(currentUser.role)}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{projectLeadAction.primaryAction.title}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-white p-4">
+                    <p className="text-xs text-slate-500">Action owner</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">
+                      {getResponsibilityCue(projectLeadAction.primaryAction.actionableBy, projectLeadAction.primaryAction.actionType)}
                     </p>
                   </div>
-                  {audienceMode !== "executive" ? (
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[primaryAction.priority]}`}>
-                      {primaryAction.priority}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                  {audienceMode === "executive" ? (
-                    <>
-                      <span className="rounded-full bg-white px-3 py-1">WIP: {currency.format(fundingSummary.wipTotal)}</span>
-                      <span className="rounded-full bg-white px-3 py-1">Frozen: {currency.format(summaryStrip.frozenValue)}</span>
-                      <span className="rounded-full bg-white px-3 py-1">{shortfallActive ? "Shortfall" : "Surplus"}: {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="rounded-full bg-white px-3 py-1">Responsibility: {primaryResponsibilityCue}</span>
-                      <span className="rounded-full bg-white px-3 py-1">{primaryAction.operationalStatus.label}</span>
-                      <span className="rounded-full bg-white px-3 py-1">Next step: {primaryAction.operationalStatus.nextStep}</span>
-                    </>
-                  )}
+                  <div className="rounded-2xl bg-white p-4">
+                    <p className="text-xs text-slate-500">Why you are read-only</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">This role can monitor the decision but cannot execute the governed next step.</p>
+                  </div>
                 </div>
               </div>
             ) : (
               <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No immediate action is required.</p>
             )}
           </SectionCard>
-          ) : null}
-
-          <SectionCard title="Release Decision" subtitle="Operational release state for the selected Work Package.">
-            <div
-              className={`rounded-2xl border p-4 ${
-                selectedDecision.explanation.tone === "positive"
-                  ? "border-teal-200 bg-teal-50"
-                  : selectedDecision.explanation.tone === "warning"
-                    ? "border-amber-200 bg-amber-50"
-                    : "border-slate-300 bg-slate-100"
-              }`}
-            >
-              <p className="text-sm text-slate-500">{stageDetail.stage.name}</p>
-              <p className="mt-1 text-lg font-semibold text-slate-950">{selectedDecision.explanation.label}</p>
-              <p className="mt-2 text-sm text-slate-600">{selectedDecision.explanation.reason}</p>
-              <p className="mt-2 text-xs text-slate-500">
-                Releasable {currency.format(selectedDecision.releasableAmount)} · Frozen {currency.format(selectedDecision.frozenAmount)} · In progress {currency.format(selectedDecision.blockedAmount)}
-              </p>
-              <p className="mt-2 text-xs text-slate-500">Updated {formatRelativeTime(stageDetail.lastUpdatedAt)}</p>
-              <p className="mt-2 text-xs text-slate-500">Decision basis: {selectedDecision.explanation.decisionBasis}</p>
-              <p className="mt-2 text-xs text-slate-500">Next step: {stageDetail.operationalStatus.nextStep}</p>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title={audienceMode === "treasury" ? "Control Confidence" : audienceMode === "executive" ? "Release Confidence" : "Blocker Summary"}
-            subtitle={
-              audienceMode === "treasury"
-                ? "Treasury and control confidence for the selected Work Package."
-                : audienceMode === "executive"
-                  ? "Concise confidence cues for sponsor review."
-                  : "Current blockers and operational ownership for the selected Work Package."
-            }
-          >
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">{stageDetail.treasuryReadiness.label}</p>
-              <p className="mt-1 text-lg font-semibold text-slate-950">{blockerSummaryText}</p>
-              <p className="mt-2 text-sm text-slate-600">{stageDetail.treasuryReadiness.reason}</p>
-              <p className="mt-2 text-xs text-slate-500">Decision basis: {selectedDecision.explanation.decisionBasis}</p>
-              {stageBlockers[0] ? (
-                <p className="mt-2 text-xs text-slate-500">Responsibility: {getBlockerResponsibilityCue(stageBlockers[0].code)}</p>
-              ) : null}
-            </div>
-          </SectionCard>
-
-          {audienceMode === "treasury" ? (
-            <SectionCard title="Primary Next Action" subtitle="The single action most likely to move treasury controls forward next.">
-              {primaryAction ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-500">{primaryAction.stageName}</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-950">{primaryAction.primaryAction.title}</p>
-                  <p className="mt-2 text-sm text-slate-600">{primaryAction.primaryAction.detail}</p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Decision basis: {primaryActionDetail?.releaseDecision.explanation.decisionBasis ?? "Based on current control state."}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                    <span className="rounded-full bg-white px-3 py-1">Responsibility: {primaryResponsibilityCue}</span>
-                    <span className="rounded-full bg-white px-3 py-1">{primaryAction.operationalStatus.label}</span>
-                    <span className="rounded-full bg-white px-3 py-1">Next step: {primaryAction.operationalStatus.nextStep}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No immediate treasury action is required.</p>
-              )}
-            </SectionCard>
-          ) : null}
         </div>
 
-        <SectionCard
-          title="Funding Position"
-          subtitle={
-            audienceMode === "operations"
-              ? "Funding remains visible, but operational progression and blockers stay primary."
-              : audienceMode === "treasury"
-                ? "Treasury control position for total cash, WIP, surplus capacity, frozen value, and releasable value."
-                : "Executive balance view across total cash, WIP, surplus capacity, frozen value, and releasable value."
-          }
-        >
-          <p className="mb-3 text-xs text-slate-500">Updated {formatRelativeTime(projectActivity.lastActivityAt)}</p>
-          <div
-            className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
-              shortfallActive
-                ? "border-amber-200 bg-amber-50 text-amber-900"
-                : "border-teal-200 bg-teal-50 text-teal-950"
-            }`}
-          >
-            {fundingSummarySentence}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">Balance</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.projectBalance)}</p>
-              <p className="mt-2 text-xs text-slate-500">Cash held in trust</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">WIP</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.wipTotal)}</p>
-              <p className="mt-2 text-xs text-slate-500">Committed work this period</p>
-            </div>
-            <div
-              className={`rounded-2xl border p-4 ${
-                shortfallActive ? "border-slate-200 bg-slate-50" : "border-teal-200 bg-teal-50"
-              }`}
-            >
-              <p className={`text-sm ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>{shortfallActive ? "Shortfall" : "Surplus"}</p>
-              <p className={`mt-2 text-2xl font-semibold ${shortfallActive ? "text-slate-950" : "text-teal-950"}`}>
-                {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}
-              </p>
-              <p className={`mt-2 text-xs ${shortfallActive ? "text-slate-500" : "text-teal-900"}`}>
-                {shortfallActive ? "Cash below current WIP" : "Cash not yet committed to WIP"}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
-              <p className="text-sm text-teal-900">Releasable</p>
-              <p className="mt-2 text-2xl font-semibold text-teal-950">{currency.format(fundingSummary.releasableFunds)}</p>
-              <p className="mt-2 text-xs text-teal-900">Approved value within WIP</p>
-            </div>
-            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-4">
-              <p className="text-sm text-slate-700">Frozen</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{currency.format(fundingSummary.frozenFunds)}</p>
-              <p className="mt-2 text-xs text-slate-700">Disputed value within WIP</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">In progress</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.inProgressFunds)}</p>
-              <p className="mt-2 text-xs text-slate-500">Committed work not yet approved</p>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50">
-            <button
-              type="button"
-              onClick={() => setShowFundingCalculation((current) => !current)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <span className="text-sm font-semibold text-slate-900">How this is calculated</span>
-              <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                {showFundingCalculation ? "Hide" : "Show"}
-              </span>
-            </button>
-            {showFundingCalculation ? (
-              <div className="border-t border-slate-200 px-4 py-4">
-                <div className="grid gap-2 text-sm text-slate-700">
-                  <div className="flex items-center justify-between gap-4">
-                    <span>Balance</span>
-                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.projectBalance)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span>Less WIP</span>
-                    <span className="font-medium text-slate-950">-{currency.format(fundingSummary.wipTotal)}</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-200 pt-3 text-base">
-                    <span className="font-semibold text-slate-900">{shortfallActive ? "Shortfall" : "Surplus"}</span>
-                    <span className={`font-semibold ${shortfallActive ? "text-amber-950" : "text-teal-950"}`}>
-                      {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-4 pt-1 text-sm">
-                    <span>WIP breakdown</span>
-                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.wipTotal)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 text-sm text-slate-700">
-                    <span>Releasable</span>
-                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.releasableFunds)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 text-sm text-slate-700">
-                    <span>Frozen</span>
-                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.frozenFunds)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 text-sm text-slate-700">
-                    <span>In progress</span>
-                    <span className="font-medium text-slate-950">{currency.format(fundingSummary.inProgressFunds)}</span>
-                  </div>
-                </div>
+        <SectionCard title="Funding" subtitle="Single funding view for the current project position.">
+          <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-5">
+            <p className="text-sm leading-6 text-slate-600">{fundingSummarySentence}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-2xl bg-white/95 p-4">
+                <p className="text-sm text-slate-500">Balance</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.projectBalance)}</p>
               </div>
-            ) : null}
+              <div className="rounded-2xl bg-white/95 p-4">
+                <p className="text-sm text-slate-500">WIP</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.wipTotal)}</p>
+              </div>
+              <div className="rounded-2xl bg-white/95 p-4">
+                <p className="text-sm text-slate-500">{shortfallActive ? "Shortfall" : "Surplus"}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/95 p-4">
+                <p className="text-sm text-slate-500">Releasable</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.releasableFunds)}</p>
+              </div>
+              <div className="rounded-2xl bg-white/95 p-4">
+                <p className="text-sm text-slate-500">Frozen</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.frozenFunds)}</p>
+              </div>
+            </div>
           </div>
         </SectionCard>
 
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
           <div className="grid gap-6">
-            {audienceMode !== "executive" ? (
-              <LedgerSummaryCard
-                fundingSummary={fundingSummary}
-                depositAmount={depositAmount}
-                fundingSource={fundingSource}
-                selectedWorkPackageName={stageDetail.stage.name}
-                onDepositAmountChange={setDepositAmount}
-                onFundingSourceChange={setFundingSource}
-                onAddFunds={handleDeposit}
-                canAddFunds={canAddFunds}
-                addFundsHelperText={addFundsHelperText}
-              />
-            ) : null}
-
             <SectionCard
               title={audienceMode === "executive" ? "Package Decisions" : "Work Packages"}
               subtitle={
@@ -685,9 +899,12 @@ export default function ShureFundDashboard() {
                     <button
                       key={summary.stageId}
                       type="button"
-                      onClick={() => setSelectedStageId(summary.stageId)}
+                      onClick={() => {
+                        setSelectedStageId(summary.stageId);
+                        setSelectedStageSection("overview");
+                      }}
                       className={`rounded-2xl border p-4 text-left transition ${
-                        selectedStageId === summary.stageId
+                        activeStageId === summary.stageId
                           ? "border-slate-900 bg-slate-900 text-white"
                           : "border-slate-200 bg-white hover:border-slate-300"
                       }`}
@@ -725,51 +942,10 @@ export default function ShureFundDashboard() {
             </SectionCard>
 
             {audienceMode === "treasury" ? <LedgerTransactionsList transactions={ledgerTransactions} /> : null}
-
-            {audienceMode !== "executive" ? (
-            <SectionCard
-              title="Action Queue"
-              subtitle={
-                audienceMode === "treasury"
-                  ? "One clear next control step per Work Package, sorted by treasury impact and urgency."
-                  : "One clear next step per Work Package, sorted by release impact and urgency."
-              }
-            >
-              <div className="grid gap-3">
-                {actionQueue.map((item) => (
-                  <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-slate-900">{item.stageName}</p>
-                        <p className="mt-1 text-sm text-slate-500">{item.operationalStatus.label}</p>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>
-                        {item.priority}
-                      </span>
-                    </div>
-                    <div className="mt-3 rounded-2xl bg-white p-3">
-                      <p className="text-sm font-medium text-slate-900">{item.primaryAction.title}</p>
-                      <p className="mt-1 text-sm text-slate-500">{item.primaryAction.detail}</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                        <span className="rounded-full bg-slate-50 px-3 py-1">
-                          Responsibility: {getResponsibilityCue(item.primaryAction.actionableBy, item.primaryAction.actionType)}
-                        </span>
-                        <span className="rounded-full bg-slate-50 px-3 py-1">Next step: {item.operationalStatus.nextStep}</span>
-                        {item.groupedActions.length > 1 ? (
-                          <span className="rounded-full bg-slate-50 px-3 py-1">+{item.groupedActions.length - 1} supporting action{item.groupedActions.length - 1 === 1 ? "" : "s"}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </article>
-                ))}
-                {actionQueue.length === 0 ? <p className="text-sm text-slate-500">No pending actions.</p> : null}
-              </div>
-            </SectionCard>
-            ) : null}
           </div>
 
           <div className="grid gap-6">
-            <SectionCard
+            <ExpandableSection
               title={audienceMode === "executive" ? "Executive Controls" : "Control Summary"}
               subtitle={
                 audienceMode === "executive"
@@ -829,17 +1005,17 @@ export default function ShureFundDashboard() {
                   <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(journey.frozenValue)}</p>
                 </div>
               </div>
-            </SectionCard>
+            </ExpandableSection>
 
-            <SectionCard
+            <ExpandableSection
               title={audienceMode === "executive" ? "Release Confidence" : "Drawdown Decisions"}
               subtitle={
                 audienceMode === "executive"
                   ? "Concise decision summaries for current release confidence."
                   : "Drawdown is allowed only when funding, supporting information, and approvals are complete unless treasury override is active. Frozen value remains outside payable drawdown."
               }
-            >
-              <div className="grid gap-3">
+              >
+                <div className="grid gap-3">
                 {(audienceMode === "executive" ? releaseDecisions.slice(0, 3) : releaseDecisions).map((decision) => (
                   <article key={decision.stageId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -899,129 +1075,209 @@ export default function ShureFundDashboard() {
                   </article>
                 ))}
               </div>
-            </SectionCard>
+            </ExpandableSection>
           </div>
         </div>
 
-        {audienceMode !== "executive" ? (
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <StageDetailPanel
-            detail={stageDetail}
-            overrideReason={overrideReason}
-            evidenceTitle={evidenceTitle}
-            evidenceType={evidenceType}
-            fundingSource={fundingSource}
-            disputeTitle={disputeTitle}
-            disputeReason={disputeReason}
-            disputeAmount={disputeAmount}
-            variationTitle={variationTitle}
-            variationReason={variationReason}
-            variationAmount={variationAmount}
-            onOverrideReasonChange={setOverrideReason}
-            onEvidenceTitleChange={setEvidenceTitle}
-            onEvidenceTypeChange={setEvidenceType}
-            onDisputeTitleChange={setDisputeTitle}
-            onDisputeReasonChange={setDisputeReason}
-            onDisputeAmountChange={setDisputeAmount}
-            onVariationTitleChange={setVariationTitle}
-            onVariationReasonChange={setVariationReason}
-            onVariationAmountChange={setVariationAmount}
-            onAddEvidence={handleAddEvidence}
-            onUpdateEvidenceStatus={handleEvidenceUpdate}
-            onApprove={(role) => commit((current) => giveApproval(current, stageDetail.stage.id, role))}
-            onReject={(role) => commit((current) => rejectApproval(current, stageDetail.stage.id, role))}
-            onFundStage={() => commit((current) => allocateStageFunds(current, stageDetail.stage.id))}
-            onApplyOverride={() => {
-              commit((current) => applyOverride(current, stageDetail.stage.id, overrideReason));
-              setOverrideReason("");
-            }}
-            onRelease={() => commit((current) => releaseStage(current, stageDetail.stage.id))}
-            onOpenDispute={handleOpenDispute}
-            onResolveDispute={(disputeId) => commit((current) => resolveDispute(current, stageDetail.stage.id, disputeId))}
-            onCreateVariation={handleCreateVariation}
-            onApproveVariation={(variationId) =>
-              commit((current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"))
-            }
-            onRejectVariation={(variationId) =>
-              commit((current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"))
-            }
-            onActivateVariation={(variationId) => commit((current) => activateVariation(current, stageDetail.stage.id, variationId))}
-          />
-
-          <SectionCard title="Work Package Blockers" subtitle="Shared blocker and control state for the selected Work Package.">
-            <div className="grid gap-3">
-              <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm text-slate-500">Shortest path</p>
-                <p className="mt-1 font-medium text-slate-900">{stageDetail.operationalStatus.nextStep}</p>
-              </article>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-500">Complete</p>
-                  <div className="mt-2 grid gap-2 text-sm text-slate-700">
-                    <p>{stageDetail.fundingStatusLabel === "Covered by balance" ? "Balance covers current WIP" : "Balance is below current WIP"}</p>
-                    <p>{stageDetail.evidenceState === "accepted" ? "Evidence ready" : "Evidence pending"}</p>
-                    <p>{stageDetail.approvalState === "approved" ? "Approval ready" : "Approval pending"}</p>
-                  </div>
-                </article>
-                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-500">Blocking now</p>
-                  <p className="mt-2 text-sm text-slate-700">{blockerSummaryText}</p>
-                  {stageBlockers[0] ? (
-                    <p className="mt-2 text-xs text-slate-500">Responsibility: {getBlockerResponsibilityCue(stageBlockers[0].code)}</p>
-                  ) : null}
-                </article>
-              </div>
-              {stageBlockers.map((blocker) => (
-                <article key={blocker.code} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{blocker.label}</p>
-                      <p className="mt-1 text-sm text-slate-500 capitalize">{blocker.code}</p>
+        {audienceMode !== "executive" && (
+        <div className="grid gap-6">
+          <ExpandableSection title="Funding Breakdown" subtitle="Expanded funding math and top-up controls.">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setShowFundingCalculation((current) => !current)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
+              >
+                <span className="text-sm font-semibold text-slate-900">How this is calculated</span>
+                <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  {showFundingCalculation ? "Hide" : "Show"}
+                </span>
+              </button>
+              {showFundingCalculation ? (
+                <div className="border-t border-slate-200 px-4 py-4">
+                  <div className="grid gap-2 text-sm text-slate-700">
+                    <div className="flex items-center justify-between gap-4">
+                      <span>Balance</span>
+                      <span className="font-medium text-slate-950">{currency.format(fundingSummary.projectBalance)}</span>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[blocker.priority]}`}>
-                      {blocker.priority}
-                    </span>
-                  </div>
-                </article>
-              ))}
-              {stageBlockers.length === 0 ? (
-                <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No blockers. This Work Package can proceed.</p>
-              ) : null}
-              {selectedDecision.overriddenBlockers.length > 0 ? (
-                <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
-                  <p className="text-sm font-semibold text-teal-950">Overridden blockers</p>
-                  <div className="mt-2 grid gap-2">
-                    {selectedDecision.overriddenBlockers.map((blocker) => (
-                      <p key={`override-${blocker.code}-${blocker.label}`} className="text-sm text-teal-900">
-                        {blocker.label}
-                      </p>
-                    ))}
+                    <div className="flex items-center justify-between gap-4">
+                      <span>Less WIP</span>
+                      <span className="font-medium text-slate-950">-{currency.format(fundingSummary.wipTotal)}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-200 pt-3 text-base">
+                      <span className="font-semibold text-slate-900">{shortfallActive ? "Shortfall" : "Surplus"}</span>
+                      <span className={`font-semibold ${shortfallActive ? "text-amber-950" : "text-teal-950"}`}>
+                        {currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-4 pt-1 text-sm">
+                      <span>In progress</span>
+                      <span className="font-medium text-slate-950">{currency.format(fundingSummary.inProgressFunds)}</span>
+                    </div>
                   </div>
                 </div>
               ) : null}
             </div>
-
-            <div className="mt-5">
-              <h3 className="text-sm font-semibold text-slate-900">Audit Trail</h3>
-              <div className="mt-3 grid gap-3">
-                {projectActivity.recentEvents.map((entry) => (
-                  <article key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="font-medium text-slate-900">{entry.summary}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {(entry.actor ?? "system").toString()} · {entry.stageName ?? project.name}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-400">
-                      {entry.eventType} · {new Date(entry.timestamp).toLocaleString("en-GB")}
-                    </p>
-                  </article>
-                ))}
-                {projectActivity.recentEvents.length === 0 ? <p className="text-sm text-slate-500">No actions recorded yet.</p> : null}
-              </div>
+            <div className="mt-4">
+              <LedgerSummaryCard
+                fundingSummary={fundingSummary}
+                depositAmount={depositAmount}
+                fundingSource={fundingSource}
+                selectedWorkPackageName={stageDetail.stage.name}
+                onDepositAmountChange={setDepositAmount}
+                onFundingSourceChange={setFundingSource}
+                onAddFunds={handleDeposit}
+                canAddFunds={canAddFunds}
+                addFundsHelperText={addFundsHelperText}
+              />
             </div>
-          </SectionCard>
+          </ExpandableSection>
+
+          <ExpandableSection
+            title="Selected Work Package"
+            subtitle="Detailed controls, evidence, approvals, disputes, and release actions."
+            open={showStageDetail}
+            onToggle={setShowStageDetail}
+          >
+            <StageDetailPanel
+              detail={stageDetail}
+              focusedSection={selectedStageSection}
+              actionFeedback={actionFeedback?.stageId === stageDetail.stage.id ? {
+                section: actionFeedback.section,
+                tone: actionFeedback.tone,
+                title: actionFeedback.title,
+                detail: actionFeedback.detail,
+                progressionStatus: actionFeedback.progressionStatus,
+                stateNowLabel: actionFeedback.stateNowLabel,
+                stateNowDetail: actionFeedback.stateNowDetail,
+                whatChanged: actionFeedback.whatChanged,
+                unlockedItems: actionFeedback.unlockedItems,
+                remainingBlockers: actionFeedback.remainingBlockers,
+                nextOwner: actionFeedback.nextOwner,
+                nextActionLabel: actionFeedback.nextActionLabel,
+              } : null}
+              overrideReason={overrideReason}
+              evidenceTitle={evidenceTitle}
+              evidenceType={evidenceType}
+              fundingSource={fundingSource}
+              disputeTitle={disputeTitle}
+              disputeReason={disputeReason}
+              disputeAmount={disputeAmount}
+              variationTitle={variationTitle}
+              variationReason={variationReason}
+              variationAmount={variationAmount}
+              onOverrideReasonChange={setOverrideReason}
+              onEvidenceTitleChange={setEvidenceTitle}
+              onEvidenceTypeChange={setEvidenceType}
+              onDisputeTitleChange={setDisputeTitle}
+              onDisputeReasonChange={setDisputeReason}
+              onDisputeAmountChange={setDisputeAmount}
+              onVariationTitleChange={setVariationTitle}
+              onVariationReasonChange={setVariationReason}
+              onVariationAmountChange={setVariationAmount}
+              onAddEvidence={handleAddEvidence}
+              onUpdateEvidenceStatus={handleEvidenceUpdate}
+              onApprove={(role) => runStageAction(stageDetail.stage.id, "approvals", "Approval recorded.", (current) => giveApproval(current, stageDetail.stage.id, role), "Approval could not be recorded.")}
+              onReject={(role) => runStageAction(stageDetail.stage.id, "approvals", "Rejection recorded.", (current) => rejectApproval(current, stageDetail.stage.id, role), "Rejection could not be recorded.")}
+              onFundStage={handleFundStage}
+              onApplyOverride={handleApplyOverride}
+              onRelease={handleReleaseStage}
+              onOpenDispute={handleOpenDispute}
+              onResolveDispute={(disputeId) => runStageAction(stageDetail.stage.id, "dispute", "Dispute resolved.", (current) => resolveDispute(current, stageDetail.stage.id, disputeId), "Dispute could not be resolved.")}
+              onCreateVariation={handleCreateVariation}
+              onApproveVariation={(variationId) =>
+                runStageAction(stageDetail.stage.id, "variation", "Variation approved.", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"), "Variation could not be approved.")
+              }
+              onRejectVariation={(variationId) =>
+                runStageAction(stageDetail.stage.id, "variation", "Variation rejected.", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"), "Variation could not be rejected.")
+              }
+              onActivateVariation={(variationId) => runStageAction(stageDetail.stage.id, "variation", "Variation activated.", (current) => activateVariation(current, stageDetail.stage.id, variationId), "Variation could not be activated.")}
+            />
+          </ExpandableSection>
+
+          <ExpandableSection title="Audit History" subtitle={`Last activity ${formatRelativeTime(projectActivity.lastActivityAt)}.`}>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {projectActivity.recentEvents.map((entry) => (
+                <article key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="font-medium text-slate-900">{entry.summary}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {(entry.actor ?? "system").toString()} · {entry.stageName ?? project.name}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {entry.eventType} · {new Date(entry.timestamp).toLocaleString("en-GB")}
+                  </p>
+                </article>
+              ))}
+              {projectActivity.recentEvents.length === 0 ? <p className="text-sm text-slate-500">No actions recorded yet.</p> : null}
+            </div>
+          </ExpandableSection>
+
+          <ExpandableSection title="Full Action Queue" subtitle="All remaining actions, ordered by urgency and release impact.">
+            <div className="grid gap-3">
+              {actionQueue.map((item) => (
+                <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-slate-900">{item.stageName}</p>
+                      <p className="mt-1 text-sm text-slate-500">{item.operationalStatus.label}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[item.priority]}`}>
+                      {item.priority}
+                    </span>
+                  </div>
+                  <div className="mt-3 rounded-2xl bg-white p-3">
+                    <p className="text-sm font-medium text-slate-900">{item.primaryAction.title}</p>
+                    <p className="mt-1 text-sm text-slate-500">{item.primaryAction.detail}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-50 px-3 py-1">
+                        Responsibility: {getResponsibilityCue(item.primaryAction.actionableBy, item.primaryAction.actionType)}
+                      </span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1">Next step: {item.operationalStatus.nextStep}</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {actionQueue.length === 0 ? <p className="text-sm text-slate-500">No pending actions.</p> : null}
+            </div>
+          </ExpandableSection>
         </div>
-        ) : null}
+        )}
+        </div>
       </div>
+      </div>
+      <style jsx global>{`
+        @media print {
+          @page {
+            margin: 16mm;
+          }
+
+          body {
+            background: #ffffff !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          .print-only {
+            display: block !important;
+          }
+
+          .print-section {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          details {
+            display: none !important;
+          }
+
+          main {
+            background: #ffffff !important;
+            padding: 0 !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }

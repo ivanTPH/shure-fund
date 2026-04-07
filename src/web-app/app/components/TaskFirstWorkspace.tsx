@@ -290,7 +290,7 @@ export default function TaskFirstWorkspace({
               <>
                 <TaskListPanel
                   title="Needs my action now"
-                  description="Start here. These items need action now."
+                  description="Start here. Each item shows why the stage is surfaced now and what governance condition is driving it."
                   items={homeTaskSections.needsMyActionNow}
                   emptyMessage="Nothing needs attention right now."
                   onSelect={(item) => onOpenStageWorkspace(item.projectId, item.stageId, "projects")}
@@ -303,7 +303,7 @@ export default function TaskFirstWorkspace({
                 <div className="grid gap-5">
                   <TaskListPanel
                     title="Waiting on others"
-                    description="These items are moving, but someone else needs to act next."
+                    description="These items are surfaced for visibility, but another role or prerequisite condition is driving the next step."
                     items={homeTaskSections.waitingOnOthers}
                     emptyMessage="Nothing is waiting on someone else right now."
                     onSelect={(item) => onOpenStageWorkspace(item.projectId, item.stageId, "projects")}
