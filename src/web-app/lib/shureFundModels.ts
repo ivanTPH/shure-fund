@@ -203,4 +203,14 @@ export interface SystemStateRecord {
   ledgerEntries: LedgerEntryRecord[];
   auditLog: AuditLogRecord[];
   eventHistory: SystemEventRecord[];
+  lastActionOutcomes: Record<
+    string,
+    {
+      actionId: string;
+      timestamp: number;
+      result: "advanced" | "blocked" | "waiting" | "exception" | "released";
+      summary: string;
+      affectedAreas: string[];
+    }
+  >;
 }

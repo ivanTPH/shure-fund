@@ -54,13 +54,13 @@ export default function LedgerSummaryCard({
       tone: shortfallActive ? "warning" : "positive",
     },
     {
-      label: "Releasable",
+      label: "Ready to pay",
       value: fundingSummary.releasableFunds,
       helper: "Approved value within WIP",
       tone: "positive",
     },
     {
-      label: "Frozen",
+      label: "On hold",
       value: fundingSummary.frozenFunds,
       helper: "Disputed value within WIP",
       tone: "frozen",
@@ -76,8 +76,8 @@ export default function LedgerSummaryCard({
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-slate-900">Ledger Summary</h2>
-        <p className="mt-1 text-sm text-slate-500">A lighter view of the same funding position for quick reference.</p>
+        <h2 className="text-lg font-semibold text-slate-900">Amount summary</h2>
+        <p className="mt-1 text-sm text-slate-500">A quick view of the same payment position.</p>
       </div>
 
       <div
@@ -144,7 +144,7 @@ export default function LedgerSummaryCard({
       </div>
 
       <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-        <p className="text-sm font-medium text-slate-700">Add Funds</p>
+        <p className="text-sm font-medium text-slate-700">Add funds</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_12rem_10rem]">
           <input
             inputMode="numeric"
@@ -160,8 +160,8 @@ export default function LedgerSummaryCard({
             aria-label="Funding source"
           >
             <option value="">Select source</option>
-            <option value="funder">funder</option>
-            <option value="contractor">contractor</option>
+          <option value="funder">Funder</option>
+          <option value="contractor">Contractor</option>
           </select>
           <button
             type="button"
@@ -173,7 +173,7 @@ export default function LedgerSummaryCard({
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          {addFundsHelperText} Contractor contributions are restricted to the selected Work Package: {selectedWorkPackageName}.
+          {addFundsHelperText} Contractor contributions are restricted to the selected package: {selectedWorkPackageName}.
         </p>
       </div>
     </section>

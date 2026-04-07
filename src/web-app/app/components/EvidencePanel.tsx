@@ -26,9 +26,9 @@ function getEvidenceStatusTone(status: string) {
 }
 
 function getDescriptorLabel(descriptor: DerivedActionDescriptor) {
-  if (descriptor.confidence === "blocked") return "Blocked";
-  if (descriptor.isPrimary && descriptor.confidence === "high") return "Primary action";
-  return "Secondary action";
+  if (descriptor.confidence === "blocked") return "Not available";
+  if (descriptor.isPrimary && descriptor.confidence === "high") return "Main action";
+  return "Other action";
 }
 
 function getReadinessMessage(
@@ -77,7 +77,7 @@ export default function EvidencePanel({
   const addItemHelp = getReadinessMessage(
     detail.actionReadiness.addEvidence,
     detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length === 0
-      ? "Enter a supporting item title before adding it to this work package."
+      ? "Enter a supporting information title before adding it to this package."
       : undefined,
   );
   const reviewHelp = getReadinessMessage(detail.actionReadiness.reviewEvidence);
@@ -86,11 +86,11 @@ export default function EvidencePanel({
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium text-slate-900">Supporting documents & information</h3>
+          <h3 className="text-sm font-medium text-slate-900">Supporting information</h3>
           <p className="mt-1 text-xs text-slate-500">{detail.evidenceSummary.reviewStatusLabel}</p>
           <p className="mt-2 text-sm text-slate-600">{detail.evidenceSummary.headline}</p>
           {!detail.actionReadiness.addEvidence.isAvailable && !detail.actionReadiness.reviewEvidence.isAvailable ? (
-            <p className="mt-2 text-xs text-slate-500">This role can view evidence only.</p>
+            <p className="mt-2 text-xs text-slate-500">This role can view supporting information only.</p>
           ) : null}
         </div>
       </div>
@@ -120,11 +120,11 @@ export default function EvidencePanel({
       </div>
 
       <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4">
-        <p className="text-sm font-medium text-slate-700">Add supporting item</p>
+        <p className="text-sm font-medium text-slate-700">Add supporting information</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_10rem_10rem]">
           <input
             className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-            placeholder="Supporting item title"
+            placeholder="Supporting information title"
             value={evidenceTitle}
             onChange={(event) => onEvidenceTitleChange(event.target.value)}
           />
@@ -133,8 +133,8 @@ export default function EvidencePanel({
             value={evidenceType}
             onChange={(event) => onEvidenceTypeChange(event.target.value as EvidenceType)}
           >
-            <option value="file">Supporting Document</option>
-            <option value="form">Supporting Information</option>
+            <option value="file">Document</option>
+            <option value="form">Information</option>
           </select>
           <button
             type="button"
@@ -175,7 +175,7 @@ export default function EvidencePanel({
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
-                  {item.type === "file" ? "Supporting Document" : "Supporting Information"}
+                  {item.type === "file" ? "Document" : "Information"}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex">

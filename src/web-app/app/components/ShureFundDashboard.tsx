@@ -9,6 +9,7 @@ import {
   allocateStageFunds,
   applyOverride,
   createVariation,
+  createLastActionOutcome,
   depositFunds,
   getActionQueue,
   getBlockerResponsibilityCue,
@@ -24,9 +25,9 @@ import {
   getProjectWorkspaceSummary,
   getResponsibilityCue,
   getReleaseDecisions,
+  getLastActionOutcome,
   getRoleInboxItems,
   getRoleJourneySummary,
-  getStageActionOutcomeSummary,
   getStageBlockers,
   getStageDetail,
   getUserFacingRoleLabel,
@@ -35,6 +36,7 @@ import {
   openDispute,
   rejectApproval,
   releaseStage,
+  recordLastActionOutcome,
   resolveDispute,
   reviewVariation,
   setCurrentUser,
@@ -53,6 +55,8 @@ import JourneySummaryCard from "./JourneySummaryCard";
 import LedgerSummaryCard from "./LedgerSummaryCard";
 import LedgerTransactionsList from "./LedgerTransactionsList";
 import StageDetailPanel from "./StageDetailPanel";
+
+type AppSection = "overview" | "payments" | "packages" | "activity" | "settings";
 
 const currency = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -95,6 +99,44 @@ function SectionCard({
       </div>
       {children}
     </section>
+  );
+}
+
+function ShellNavButton({
+  label,
+  caption,
+  active,
+  badge,
+  onClick,
+}: {
+  label: string;
+  caption: string;
+  active: boolean;
+  badge?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+        active
+          ? "border-slate-900 bg-slate-900 text-white shadow-[0_16px_32px_-24px_rgba(15,23,42,0.75)]"
+          : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">{label}</p>
+          <p className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>{caption}</p>
+        </div>
+        {badge ? (
+          <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-700"}`}>
+            {badge}
+          </span>
+        ) : null}
+      </div>
+    </button>
   );
 }
 
@@ -151,6 +193,7 @@ function formatRelativeTime(timestamp?: string | null) {
 export default function ShureFundDashboard() {
   const [state, setState] = useState<SystemStateRecord>(() => initializeSystemState(initialSystemState));
   const [audienceMode, setAudienceMode] = useState<DashboardAudienceMode>("operations");
+  const [activeSection, setActiveSection] = useState<AppSection>("overview");
   const [selectedProjectId, setSelectedProjectId] = useState(initialSystemState.projects[0]?.id ?? "");
   const [selectedStageId, setSelectedStageId] = useState("stage-foundation");
   const [selectedStageSection, setSelectedStageSection] = useState<"overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release">("overview");
@@ -169,27 +212,6 @@ export default function ShureFundDashboard() {
   const [variationReason, setVariationReason] = useState("");
   const [variationAmount, setVariationAmount] = useState("10000");
   const [selectedWorkspaceCue, setSelectedWorkspaceCue] = useState<{ stageId: string; cue: WorkspaceDecisionCue } | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<{
-    stageId: string;
-    section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
-    tone: "success" | "warning";
-    title: string;
-    detail: string;
-    resultType: "advanced" | "released" | "waiting" | "blocked" | "exception" | "no_change";
-    resultTypeLabel: string;
-    resultHeadline: string;
-    resultSubline: string | null;
-    resultTone: "success" | "info" | "warning" | "neutral";
-    emphasis: "strong" | "normal" | "subtle";
-    progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
-    stateNowLabel: string;
-    stateNowDetail: string;
-    whatChanged: string[];
-    unlockedItems: string[];
-    remainingBlockers: string[];
-    nextOwner: string | null;
-    nextActionLabel: string | null;
-  } | null>(null);
 
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId)!;
@@ -206,6 +228,7 @@ export default function ShureFundDashboard() {
   const releaseDecisions = useMemo(() => getReleaseDecisions(state, project.id), [state, project.id]);
   const controlSummary = useMemo(() => getOperationalSummary(state, project.id), [state, project.id]);
   const stageDetail = useMemo(() => getStageDetail(state, activeStageId), [state, activeStageId]);
+  const lastActionOutcome = useMemo(() => getLastActionOutcome(state, activeStageId), [state, activeStageId]);
   const stageBlockers = useMemo(() => getStageBlockers(state, activeStageId), [state, activeStageId]);
   const ledgerTransactions = useMemo(() => getLedgerTransactions(state, project.id), [state, project.id]);
   const journey = useMemo(() => getRoleJourneySummary(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
@@ -256,7 +279,7 @@ export default function ShureFundDashboard() {
           ? "Amount must be greater than zero."
           : fundingSource !== "funder" && fundingSource !== "contractor"
             ? "Select a funding source."
-            : "Treasury only.";
+            : "Funder only.";
   const urgencyTone = (urgency: WorkspaceDecisionCue["decisionUrgency"]) =>
     urgency === "immediate"
       ? "bg-red-50 text-red-700"
@@ -275,17 +298,17 @@ export default function ShureFundDashboard() {
           : "Monitor";
   const focusHintLabel = (hint: WorkspaceDecisionCue["detailFocusHint"]) =>
     hint === "approval"
-      ? "Approval"
+      ? "Sign-off"
       : hint === "evidence"
-        ? "Evidence"
+        ? "Supporting information"
         : hint === "funding"
-          ? "Funding"
+          ? "Amount status"
           : hint === "release"
-            ? "Release"
+            ? "Payment"
             : hint === "exception"
-              ? "Exception"
+              ? "Under review"
               : hint === "handoff"
-                ? "Handoff"
+                ? "Waiting on"
                 : hint === "outcome"
                   ? "Outcome"
                   : "Overview";
@@ -300,7 +323,6 @@ export default function ShureFundDashboard() {
       setSelectedStageId(nextStageId);
     }
     setSelectedStageSection("overview");
-    setActionFeedback(null);
     setSelectedWorkspaceCue(null);
   }, [projectStages, selectedStageId]);
 
@@ -321,6 +343,7 @@ export default function ShureFundDashboard() {
     }
 
     setSelectedStageSection(item.deepLinkTarget?.section ?? "overview");
+    setActiveSection("packages");
     setShowStageDetail(true);
   }
 
@@ -329,45 +352,26 @@ export default function ShureFundDashboard() {
   }
 
   function runStageAction(
+    actionId: string,
     stageId: string,
     section: StageDetailSectionKey,
-    successTitle: string,
     updater: (current: SystemStateRecord) => SystemStateRecord,
-    blockedTitle: string,
   ) {
-    let nextFeedback: typeof actionFeedback = null;
-
     setState((current) => {
       const beforeDetail = getStageDetail(current, stageId);
       const next = updater(current);
+      const resolvedNext = next === current ? structuredClone(current) : next;
+      const nextDetail = next === current ? beforeDetail : getStageDetail(next, stageId);
+      const outcome = createLastActionOutcome({
+        actionId,
+        section,
+        before: beforeDetail,
+        after: nextDetail,
+      });
 
-      if (next === current) {
-        const fallbackOutcome = getStageActionOutcomeSummary(beforeDetail, beforeDetail, section);
-        nextFeedback = {
-          ...fallbackOutcome,
-          stageId,
-          tone: "warning",
-          title: blockedTitle,
-          detail: beforeDetail.operationalStatus.nextStep,
-          whatChanged: [beforeDetail.sectionGuidance[section].summary],
-          unlockedItems: [],
-        };
-        return current;
-      }
-
-      const nextDetail = getStageDetail(next, stageId);
-      nextFeedback = {
-        ...getStageActionOutcomeSummary(beforeDetail, nextDetail, section),
-        stageId,
-      };
-      if (!nextFeedback.title) {
-        nextFeedback.title = successTitle;
-      }
-
-      return next;
+      recordLastActionOutcome(resolvedNext, stageId, outcome);
+      return resolvedNext;
     });
-
-    setActionFeedback(nextFeedback);
   }
 
   function handleDeposit() {
@@ -393,32 +397,29 @@ export default function ShureFundDashboard() {
 
   function handleEvidenceUpdate(requirementId: string, status: EvidenceStatus) {
     runStageAction(
+      `evidence:${requirementId}:${status}`,
       activeStageId,
       "evidence",
-      "Evidence updated.",
       (current) => updateEvidenceStatus(current, requirementId, status),
-      "Evidence status did not change.",
     );
   }
 
   function handleAddEvidence() {
     runStageAction(
+      "evidence:add",
       activeStageId,
       "evidence",
-      "Evidence added.",
       (current) => addEvidence(current, activeStageId, evidenceType, evidenceTitle),
-      "Evidence item could not be added.",
     );
     setEvidenceTitle("");
   }
 
   function handleOpenDispute() {
     runStageAction(
+      "dispute:open",
       activeStageId,
       "dispute",
-      "Dispute raised.",
       (current) => openDispute(current, activeStageId, disputeTitle, disputeReason, Number(disputeAmount)),
-      "Dispute could not be raised.",
     );
     setDisputeTitle("");
     setDisputeReason("");
@@ -426,11 +427,10 @@ export default function ShureFundDashboard() {
 
   function handleCreateVariation() {
     runStageAction(
+      "variation:create",
       activeStageId,
       "variation",
-      "Variation proposed.",
       (current) => createVariation(current, activeStageId, variationTitle, variationReason, Number(variationAmount)),
-      "Variation could not be proposed.",
     );
     setVariationTitle("");
     setVariationReason("");
@@ -438,31 +438,28 @@ export default function ShureFundDashboard() {
 
   function handleFundStage() {
     runStageAction(
+      "funding:allocate",
       stageDetail.stage.id,
       "funding",
-      "Funding transferred.",
       (current) => allocateStageFunds(current, stageDetail.stage.id),
-      "Funding could not be transferred.",
     );
   }
 
   function handleReleaseStage() {
     runStageAction(
+      "release:execute",
       stageDetail.stage.id,
       "release",
-      "Release completed.",
       (current) => releaseStage(current, stageDetail.stage.id),
-      "Release could not proceed.",
     );
   }
 
   function handleApplyOverride() {
     runStageAction(
+      "release:override",
       stageDetail.stage.id,
       "release",
-      "Override applied.",
       (current) => applyOverride(current, stageDetail.stage.id, overrideReason),
-      "Override could not be applied.",
     );
     setOverrideReason("");
   }
@@ -493,22 +490,73 @@ export default function ShureFundDashboard() {
 
   const modeTitle =
     audienceMode === "operations"
-      ? "Operations"
+      ? "Delivery"
       : audienceMode === "treasury"
-        ? "Treasury"
+        ? "Funder"
         : "Executive";
   const modeSummary =
     audienceMode === "operations"
-      ? "Focus on actions, blockers, approvals, evidence, and the shortest path to release."
+      ? "Focus on payment hold-ups, sign-offs, supporting information, and the next step to get a package paid."
       : audienceMode === "treasury"
-        ? "Focus on releasable, frozen, and blocked value with treasury readiness and decision basis."
-        : "Focus on balance, WIP, surplus capacity, frozen value, releasable value, and concise release confidence.";
+        ? "Focus on amounts ready to pay, amounts on hold, funder sign-off, and payment conditions."
+        : "Focus on payment status, exposure, on-hold value, and concise package updates.";
   const postureToneClass =
-    activeProjectSummary.postureLabel === "Healthy / releasable"
+    activeProjectSummary.postureLabel === "Payment ready"
       ? "bg-teal-300/20 text-teal-100"
-      : activeProjectSummary.postureLabel === "Blocked by approvals"
+      : activeProjectSummary.postureLabel === "Waiting on sign-off"
         ? "bg-amber-300/20 text-amber-100"
         : "bg-white/12 text-slate-100";
+  const navigationItems: Array<{ key: AppSection; label: string; caption: string; badge?: string }> = [
+    {
+      key: "overview",
+      label: "Overview",
+      caption: "Payment summary and attention items",
+      badge: currentProjectInbox.length > 0 ? String(Math.min(currentProjectInbox.length, 9)) : undefined,
+    },
+    {
+      key: "payments",
+      label: "Payments",
+      caption: "Amounts, payment position, and conditions",
+      badge: summaryStrip.releaseReadyPackages > 0 ? String(summaryStrip.releaseReadyPackages) : undefined,
+    },
+    {
+      key: "packages",
+      label: "Packages",
+      caption: "Package list and payment checks",
+      badge: fundingSummary.stageSummaries.length > 0 ? String(fundingSummary.stageSummaries.length) : undefined,
+    },
+    {
+      key: "activity",
+      label: "Activity",
+      caption: "Recent actions, audit, and task flow",
+      badge: projectActivity.recentEvents.length > 0 ? String(Math.min(projectActivity.recentEvents.length, 9)) : undefined,
+    },
+    {
+      key: "settings",
+      label: "Settings",
+      caption: "Account, organisation, and access",
+    },
+  ];
+  const sectionHeading =
+    activeSection === "overview"
+      ? "Overview"
+      : activeSection === "payments"
+        ? "Payments"
+        : activeSection === "packages"
+          ? "Packages"
+          : activeSection === "activity"
+            ? "Activity"
+            : "Settings";
+  const sectionSubheading =
+    activeSection === "overview"
+      ? "Executive payment view for the selected project."
+      : activeSection === "payments"
+        ? "Amount position, payment readiness, and payment conditions."
+        : activeSection === "packages"
+          ? "Package-level payment status, checks, and actions."
+          : activeSection === "activity"
+            ? "Recent history, task flow, and audit visibility."
+            : "Account, organisation, and access controls.";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.08),_transparent_28%),linear-gradient(180deg,#fbfcfc_0%,#f8fafc_44%,#f1f5f4_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
@@ -519,18 +567,23 @@ export default function ShureFundDashboard() {
               <p className="text-xs uppercase tracking-[0.28em] text-teal-300">Shure.Fund</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.02em]">{project.name}</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                Rules-based construction funding control with synthetic ledger visibility, supporting information,
-                approval gating, dispute freezing, variation control, controlled drawdown, and immutable audit logging.
+                Commercial payment control for construction packages, with clear sign-off status, supporting information checks,
+                on-hold value handling, payment readiness, and auditable payment decisions.
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300">
                 <span className={`rounded-full px-3 py-1 font-medium ${postureToneClass}`}>{activeProjectSummary.postureLabel}</span>
                 <span>Last activity {formatRelativeTime(projectActivity.lastActivityAt)}</span>
-                <span>{modeTitle} mode</span>
+                <span>{sectionHeading}</span>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white/8 p-3 text-sm">
+                <span className="mb-2 block text-slate-300">Current project</span>
+                <p className="rounded-xl bg-white/10 px-3 py-3 font-medium">{project.name}</p>
+                <p className="mt-2 text-xs text-slate-400">{activeProjectSummary.postureReason}</p>
+              </div>
               <label className="rounded-2xl bg-white/8 p-3 text-sm">
-                <span className="mb-2 block text-slate-300">Acting Role</span>
+                <span className="mb-2 block text-slate-300">Current role</span>
                 <select
                   className="w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white"
                   value={state.currentUserId}
@@ -543,10 +596,6 @@ export default function ShureFundDashboard() {
                   ))}
                 </select>
               </label>
-              <div className="rounded-2xl bg-white/8 p-3 text-sm">
-                <span className="mb-2 block text-slate-300">Active Context</span>
-                <p className="rounded-xl bg-white/10 px-3 py-3 font-medium">{getUserFacingRoleLabel(currentUser.role)} · {project.name}</p>
-              </div>
             </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -559,7 +608,7 @@ export default function ShureFundDashboard() {
                   audienceMode === mode ? "bg-white text-slate-950" : "bg-white/8 text-slate-200"
                 }`}
               >
-                {mode === "operations" ? "Operations" : mode === "treasury" ? "Treasury" : "Executive"}
+                {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
               </button>
             ))}
             <button
@@ -567,7 +616,7 @@ export default function ShureFundDashboard() {
               onClick={handleShareDecision}
               className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
             >
-              Share Decision
+              Print payment summary
             </button>
             <p className="text-sm text-slate-300">{modeTitle} view. {modeSummary}</p>
           </div>
@@ -576,13 +625,13 @@ export default function ShureFundDashboard() {
         <section className="print-only hidden">
           <div className="mx-auto max-w-5xl text-slate-950">
             <div className="border-b border-slate-200 pb-6">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Shure.Fund Decision Pack</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Shure.Fund Payment Summary</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.02em]">{project.name}</h1>
               <p className="mt-2 text-sm text-slate-500">Prepared {new Date().toLocaleString("en-GB")}</p>
             </div>
 
             <section className="print-section mt-8">
-              <h2 className="text-lg font-semibold text-slate-950">Decision Summary</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Payment status</h2>
               <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-6">
                 <p className="text-sm text-slate-500">{stageDetail.stage.name}</p>
                 <div className="mt-2 flex items-end justify-between gap-6">
@@ -591,7 +640,7 @@ export default function ShureFundDashboard() {
                     <p className="mt-3 text-sm leading-6 text-slate-600">{selectedDecision.explanation.reason}</p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
-                    <p className="text-xs text-slate-500">Releasable now</p>
+                    <p className="text-xs text-slate-500">Ready to pay now</p>
                     <p className="mt-1 text-3xl font-semibold tracking-[-0.02em]">{currency.format(selectedDecision.releasableAmount)}</p>
                   </div>
                 </div>
@@ -601,16 +650,16 @@ export default function ShureFundDashboard() {
                     <p className="mt-1 text-sm font-medium text-slate-950">{blockerSummaryText}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Next action</p>
+                    <p className="text-xs text-slate-500">Next step</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{primaryAction?.primaryAction.title ?? "No immediate action required."}</p>
-                    <p className="mt-1 text-xs text-slate-500">Responsible role: {primaryResponsibilityCue ?? "None"}</p>
+                    <p className="mt-1 text-xs text-slate-500">Who needs to act: {primaryResponsibilityCue ?? "None"}</p>
                   </div>
                 </div>
               </div>
             </section>
 
             <section className="print-section mt-8">
-              <h2 className="text-lg font-semibold text-slate-950">Funding Snapshot</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Amount status</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-5">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-sm text-slate-500">Balance</p>
@@ -625,11 +674,11 @@ export default function ShureFundDashboard() {
                   <p className="mt-2 text-2xl font-semibold">{currency.format(shortfallActive ? fundingSummary.shortfall : fundingSummary.surplusCash)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm text-slate-500">Releasable</p>
+                  <p className="text-sm text-slate-500">Ready to pay</p>
                   <p className="mt-2 text-2xl font-semibold">{currency.format(fundingSummary.releasableFunds)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm text-slate-500">Frozen</p>
+                  <p className="text-sm text-slate-500">On hold</p>
                   <p className="mt-2 text-2xl font-semibold">{currency.format(fundingSummary.frozenFunds)}</p>
                 </div>
               </div>
@@ -637,33 +686,33 @@ export default function ShureFundDashboard() {
             </section>
 
             <section className="print-section mt-8">
-              <h2 className="text-lg font-semibold text-slate-950">Key Blockers And Confidence</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Payment blockers and confidence</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-xs text-slate-500">Principal blocker theme</p>
                   <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.blockerThemeLine.replace("Principal blocker theme: ", "")}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs text-slate-500">Treasury and release confidence</p>
+                  <p className="text-xs text-slate-500">Funder and payment confidence</p>
                   <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryConfidenceLine}</p>
                 </div>
               </div>
             </section>
 
             <section className="print-section mt-8">
-              <h2 className="text-lg font-semibold text-slate-950">Selected Work Package</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Selected package</h2>
               <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-6">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <p className="text-xs text-slate-500">Operational status</p>
+                    <p className="text-xs text-slate-500">Package status</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.operationalStatus.label}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Release status</p>
+                    <p className="text-xs text-slate-500">Payment status</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.releaseDecision.explanation.label}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Treasury readiness</p>
+                    <p className="text-xs text-slate-500">Funder readiness</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.treasuryReadiness.label}</p>
                   </div>
                 </div>
@@ -673,11 +722,11 @@ export default function ShureFundDashboard() {
                     <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.releasableAmount + stageDetail.releaseDecision.frozenAmount + stageDetail.releaseDecision.blockedAmount)}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4">
-                    <p className="text-sm text-slate-500">Releasable</p>
+                    <p className="text-sm text-slate-500">Ready to pay</p>
                     <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.releasableAmount)}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4">
-                    <p className="text-sm text-slate-500">Frozen</p>
+                    <p className="text-sm text-slate-500">On hold</p>
                     <p className="mt-2 text-xl font-semibold">{currency.format(stageDetail.releaseDecision.frozenAmount)}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4">
@@ -701,8 +750,23 @@ export default function ShureFundDashboard() {
         </section>
 
         <div className="no-print grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-4">
-          <SectionCard title="Projects" subtitle="Switch the active project workspace without changing the shared controls logic.">
+        <aside className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
+          <SectionCard title="Navigation" subtitle="Move between the main product areas.">
+            <div className="grid gap-3">
+              {navigationItems.map((item) => (
+                <ShellNavButton
+                  key={item.key}
+                  label={item.label}
+                  caption={item.caption}
+                  badge={item.badge}
+                  active={activeSection === item.key}
+                  onClick={() => setActiveSection(item.key)}
+                />
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Projects" subtitle="Switch between live project payment views.">
             <div className="grid gap-3">
               {portfolioProjects.map((entry) => {
                 const selected = entry.projectId === project.id;
@@ -723,14 +787,14 @@ export default function ShureFundDashboard() {
                       <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
                         selected ? "bg-white/15 text-white" : "bg-white text-slate-600"
                       }`}>
-                        {entry.releaseReadyCount} ready
+                        {entry.releaseReadyCount} ready to pay
                       </span>
                     </div>
                     <p className={`mt-2 text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>{entry.postureReason}</p>
                     <div className={`mt-3 flex flex-wrap gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
-                      <span>Blocked {entry.blockedCount}</span>
-                      <span>Frozen {currency.format(entry.frozenValue)}</span>
-                      <span>Releasable {currency.format(entry.releasableNow)}</span>
+                      <span>Payment blocked {entry.blockedCount}</span>
+                      <span>On hold {currency.format(entry.frozenValue)}</span>
+                      <span>Ready to pay {currency.format(entry.releasableNow)}</span>
                     </div>
                     <p className={`mt-2 text-xs ${selected ? "text-slate-400" : "text-slate-400"}`}>
                       Updated {formatRelativeTime(entry.lastActivityAt)}
@@ -741,38 +805,87 @@ export default function ShureFundDashboard() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Workspace" subtitle="Active project orientation for the current decision context.">
+          <SectionCard title="Project snapshot" subtitle="Headline payment position for the selected project.">
             <div className="grid gap-3">
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Project</p>
                 <p className="mt-1 text-sm font-medium text-slate-950">{project.name}</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">Operational posture</p>
+                <p className="text-xs text-slate-500">Payment position</p>
                 <p className="mt-1 text-sm font-medium text-slate-950">{activeProjectSummary.postureLabel}</p>
                 <p className="mt-1 text-xs text-slate-500">{activeProjectSummary.postureReason}</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500">Release-ready</p>
+                  <p className="text-xs text-slate-500">Ready to pay</p>
                   <p className="mt-1 text-2xl font-semibold text-slate-950">{summaryStrip.releaseReadyPackages}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500">Blocked packages</p>
+                  <p className="text-xs text-slate-500">Packages on hold</p>
                   <p className="mt-1 text-2xl font-semibold text-slate-950">{summaryStrip.blockedPackages}</p>
                 </div>
               </div>
             </div>
           </SectionCard>
+
+          <SectionCard title="Account and settings" subtitle="Profile, organisation, and access controls.">
+            <div className="grid gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Signed in as</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{currentUser.name}</p>
+                <p className="mt-1 text-xs text-slate-500">{getUserFacingRoleLabel(currentUser.role)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSection("settings")}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-900 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Open settings and organisation controls
+              </button>
+            </div>
+          </SectionCard>
         </aside>
 
         <div className="flex flex-col gap-8">
+        <section className="rounded-[30px] border border-slate-200/70 bg-white/96 p-6 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.35)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Workspace</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">{sectionHeading}</h2>
+              <p className="mt-1 text-sm text-slate-600">{sectionSubheading}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setAudienceMode(mode)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium ${
+                    audienceMode === mode ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={handleShareDecision}
+                className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
+              >
+                Print payment summary
+              </button>
+            </div>
+          </div>
+        </section>
+        {activeSection === "overview" ? (
+        <>
         <SectionCard
           title={currentUser.role === "executive" ? "Exceptions Overview" : "What Needs Your Attention"}
           subtitle={
             currentUser.role === "executive"
-              ? "Read-only exceptions for the current decision context."
-              : "Role-aware inbox for the current project, with cross-project attention shown quietly."
+              ? "Important package issues to understand now."
+              : "Package items that currently need attention in this project."
           }
         >
           <div className="grid gap-3">
@@ -803,15 +916,15 @@ export default function ShureFundDashboard() {
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl bg-white p-3">
-                    <p className="text-xs text-slate-500">Orientation</p>
+                    <p className="text-xs text-slate-500">Open in</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{item.decisionCue.entryOrientationLabel ?? "Overview"}</p>
                   </div>
                   <div className="rounded-2xl bg-white p-3">
-                    <p className="text-xs text-slate-500">Owner</p>
+                    <p className="text-xs text-slate-500">Who acts</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{item.handoff?.toRoleLabel ?? item.ownerLabel}</p>
                   </div>
                   <div className="rounded-2xl bg-white p-3">
-                    <p className="text-xs text-slate-500">Open to</p>
+                    <p className="text-xs text-slate-500">Focus</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{focusHintLabel(item.decisionCue.detailFocusHint)}</p>
                   </div>
                 </div>
@@ -820,20 +933,20 @@ export default function ShureFundDashboard() {
             {currentProjectInbox.length === 0 ? (
               <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">
                 {currentUser.role === "executive"
-                  ? "No material exception needs executive attention in the selected project."
+                  ? "No material issue needs executive attention in the selected project."
                   : `No immediate ${getUserFacingRoleLabel(currentUser.role).toLowerCase()} task is waiting in this project.`}
               </p>
             ) : null}
           </div>
           {crossProjectAttentionCount > 0 ? (
             <p className="mt-4 text-xs text-slate-500">
-              {crossProjectAttentionCount} additional attention item{crossProjectAttentionCount === 1 ? "" : "s"} sit in other projects.
+              {crossProjectAttentionCount} additional item{crossProjectAttentionCount === 1 ? "" : "s"} need attention in other projects.
             </p>
           ) : null}
         </SectionCard>
 
         <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
-          <SectionCard title="Decision" subtitle="What can you do right now, why, and what happens next.">
+          <SectionCard title="Payment status" subtitle="Current payment position, what is holding it up, and what happens next.">
             <div
               className={`rounded-[28px] border p-6 ${
                 selectedDecision.explanation.tone === "positive"
@@ -850,24 +963,24 @@ export default function ShureFundDashboard() {
                   <p className="mt-3 text-sm leading-6 text-slate-600">{selectedDecision.explanation.reason}</p>
                 </div>
                 <div className="rounded-3xl bg-white/88 px-5 py-4 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.45)]">
-                  <p className="text-xs text-slate-500">Releasable now</p>
+                  <p className="text-xs text-slate-500">Ready to pay now</p>
                   <p className="mt-1 text-3xl font-semibold tracking-[-0.02em] text-slate-950">{currency.format(selectedDecision.releasableAmount)}</p>
                 </div>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-white/80 p-4">
-                  <p className="text-xs text-slate-500">Why</p>
+                  <p className="text-xs text-slate-500">Holding payment up</p>
                   <p className="mt-1 text-sm font-medium text-slate-950">{blockerSummaryText}</p>
                 </div>
                 <div className="rounded-2xl bg-white/80 p-4">
-                  <p className="text-xs text-slate-500">What next</p>
+                  <p className="text-xs text-slate-500">What happens next</p>
                   <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.operationalStatus.nextStep}</p>
                 </div>
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard title="Primary Action" subtitle="The single most important next step.">
+          <SectionCard title="Next step" subtitle="The single most important action to move payment forward.">
             {primaryAction ? (
               <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-6">
                 <p className="text-sm text-slate-500">{primaryAction.stageName}</p>
@@ -875,11 +988,11 @@ export default function ShureFundDashboard() {
                 <p className="mt-3 text-sm leading-6 text-slate-600">{primaryAction.primaryAction.detail}</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl bg-white p-4">
-                    <p className="text-xs text-slate-500">Responsible role</p>
+                    <p className="text-xs text-slate-500">Who needs to act</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{primaryResponsibilityCue}</p>
                   </div>
                   <div className="rounded-2xl bg-white p-4">
-                    <p className="text-xs text-slate-500">Next step</p>
+                    <p className="text-xs text-slate-500">What happens next</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{primaryAction.operationalStatus.nextStep}</p>
                   </div>
                 </div>
@@ -887,18 +1000,18 @@ export default function ShureFundDashboard() {
             ) : projectLeadAction ? (
               <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-6">
                 <p className="text-sm text-slate-500">{projectLeadAction.stageName}</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">No direct action in {getUserFacingRoleLabel(currentUser.role)}</p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">No direct action for {getUserFacingRoleLabel(currentUser.role)}</p>
                 <p className="mt-3 text-sm leading-6 text-slate-600">{projectLeadAction.primaryAction.title}</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl bg-white p-4">
-                    <p className="text-xs text-slate-500">Action owner</p>
+                    <p className="text-xs text-slate-500">Who needs to act</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">
                       {getResponsibilityCue(projectLeadAction.primaryAction.actionableBy, projectLeadAction.primaryAction.actionType)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-white p-4">
                     <p className="text-xs text-slate-500">Why you are read-only</p>
-                    <p className="mt-1 text-sm font-medium text-slate-950">This role can monitor the decision but cannot execute the governed next step.</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">This role can monitor the payment position but cannot complete the next governed step.</p>
                   </div>
                 </div>
               </div>
@@ -908,7 +1021,7 @@ export default function ShureFundDashboard() {
           </SectionCard>
         </div>
 
-        <SectionCard title="Funding" subtitle="Single funding view for the current project position.">
+        <SectionCard title="Amount status" subtitle="One view of cash, WIP, and how much is ready to pay.">
           <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-5">
             <p className="text-sm leading-6 text-slate-600">{fundingSummarySentence}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -927,25 +1040,29 @@ export default function ShureFundDashboard() {
                 </p>
               </div>
               <div className="rounded-2xl bg-white/95 p-4">
-                <p className="text-sm text-slate-500">Releasable</p>
+                <p className="text-sm text-slate-500">Ready to pay</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.releasableFunds)}</p>
               </div>
               <div className="rounded-2xl bg-white/95 p-4">
-                <p className="text-sm text-slate-500">Frozen</p>
+                <p className="text-sm text-slate-500">On hold</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.frozenFunds)}</p>
               </div>
             </div>
           </div>
         </SectionCard>
+        </>
+        ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+        {(activeSection === "payments" || activeSection === "packages") ? (
+        <div className={`grid gap-6 ${activeSection === "packages" ? "xl:grid-cols-1" : "xl:grid-cols-[1.3fr_0.9fr]"}`}>
           <div className="grid gap-6">
+            {activeSection === "packages" ? (
             <SectionCard
-              title={audienceMode === "executive" ? "Package Decisions" : "Work Packages"}
+              title="Packages"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise package-level release and block status."
-                  : "Select a Work Package to inspect funding, supporting information, approvals, disputes, variations, and drawdown status."
+                  ? "Concise package payment status and key hold-ups."
+                  : "Select a package to see payment status, supporting information, sign-offs, review items, and payment conditions."
               }
             >
               <div className="grid gap-3">
@@ -981,14 +1098,14 @@ export default function ShureFundDashboard() {
                               {detail.notificationCue.label}
                             </span>
                           ) : null}
-                          <span className="text-sm">{detail.operationalStatus.label}</span>
+                          <span className="text-sm">{detail.releaseSummary.decisionLabel ?? detail.operationalStatus.label}</span>
                         </div>
                       </div>
                       <p className="mt-2 text-sm opacity-80">
-                        {detail.operationalStatus.reason}
+                        {detail.blockers[0]?.label ?? detail.operationalStatus.reason}
                       </p>
                       <p className="mt-1 text-xs opacity-70">
-                        {detail.treasuryReadiness.label} · Releasable {currency.format(detail.releaseDecision.releasableAmount)} · Frozen {currency.format(detail.disputeSummary.frozenValue)}
+                        {detail.treasuryReadiness.label} · Ready to pay {currency.format(detail.releaseDecision.releasableAmount)} · On hold {currency.format(detail.disputeSummary.frozenValue)}
                       </p>
                       <p className="mt-1 text-xs opacity-60">Updated {formatRelativeTime(detail.lastUpdatedAt)}</p>
                     </button>
@@ -996,26 +1113,28 @@ export default function ShureFundDashboard() {
                 })}
               </div>
             </SectionCard>
+            ) : null}
 
-            {audienceMode === "treasury" ? <LedgerTransactionsList transactions={ledgerTransactions} /> : null}
+            {activeSection === "payments" && audienceMode === "treasury" ? <LedgerTransactionsList transactions={ledgerTransactions} /> : null}
           </div>
 
+          {activeSection === "payments" ? (
           <div className="grid gap-6">
             <ExpandableSection
-              title={audienceMode === "executive" ? "Executive Controls" : "Control Summary"}
+              title="Status summary"
               subtitle={
                 audienceMode === "executive"
-                  ? "Blocked and release-ready package counts in one concise control view."
-                  : "Workflow states recomputed from funding, supporting information, approvals, disputes, variations, and release records."
+                  ? "Package counts by payment status."
+                  : "Current package counts across payment, sign-off, review, and on-hold states."
               }
             >
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-slate-100 p-4">
-                  <p className="text-sm text-slate-700">Blocked</p>
+                  <p className="text-sm text-slate-700">Payment blocked</p>
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.blocked}</p>
                 </div>
                 <div className="rounded-2xl bg-cyan-50 p-4">
-                  <p className="text-sm text-cyan-900">In Review</p>
+                  <p className="text-sm text-cyan-900">Under review</p>
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.in_review}</p>
                 </div>
                 <div className="rounded-2xl bg-teal-50 p-4">
@@ -1023,19 +1142,19 @@ export default function ShureFundDashboard() {
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.ready}</p>
                 </div>
                 <div className="rounded-2xl bg-teal-50 p-4">
-                  <p className="text-sm text-teal-900">Partially Approved</p>
+                  <p className="text-sm text-teal-900">Partly signed off</p>
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.partially_approved}</p>
                 </div>
                 <div className="rounded-2xl bg-cyan-50 p-4">
-                  <p className="text-sm text-cyan-900">Approved</p>
+                  <p className="text-sm text-cyan-900">Signed off</p>
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.approved}</p>
                 </div>
                 <div className="rounded-2xl bg-cyan-50 p-4">
-                  <p className="text-sm text-cyan-900">Partially Released</p>
+                  <p className="text-sm text-cyan-900">Part paid</p>
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.partially_released}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-100 p-4">
-                  <p className="text-sm text-slate-700">Released</p>
+                  <p className="text-sm text-slate-700">Paid</p>
                   <p className="mt-2 text-2xl font-semibold">{controlSummary.released}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
@@ -1049,26 +1168,26 @@ export default function ShureFundDashboard() {
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl bg-teal-50 p-4">
-                  <p className="text-sm text-teal-900">Drawdown Eligible</p>
+                  <p className="text-sm text-teal-900">Ready to pay</p>
                   <p className="mt-2 text-2xl font-semibold text-teal-950">{controlSummary.releasable}</p>
                 </div>
                 <div className="rounded-2xl bg-cyan-50 p-4">
-                  <p className="text-sm text-cyan-900">Payable Value</p>
+                  <p className="text-sm text-cyan-900">Payment-ready value</p>
                   <p className="mt-2 text-2xl font-semibold text-cyan-950">{currency.format(journey.payableValue)}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-sm text-slate-700">Frozen Value</p>
+                  <p className="text-sm text-slate-700">On-hold value</p>
                   <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(journey.frozenValue)}</p>
                 </div>
               </div>
             </ExpandableSection>
 
             <ExpandableSection
-              title={audienceMode === "executive" ? "Release Confidence" : "Drawdown Decisions"}
+              title="Payment conditions"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise decision summaries for current release confidence."
-                  : "Drawdown is allowed only when funding, supporting information, and approvals are complete unless treasury override is active. Frozen value remains outside payable drawdown."
+                  ? "Concise package payment-readiness summaries."
+                  : "Payment is allowed only when funding, supporting information, and sign-off are complete unless a funder override is active. On-hold value remains outside payable amount."
               }
               >
                 <div className="grid gap-3">
@@ -1112,9 +1231,9 @@ export default function ShureFundDashboard() {
                         {decision.explanation.reason}
                       </p>
                       <p className="mt-2 text-xs text-slate-500">
-                        Releasable {currency.format(decision.releasableAmount)} · Frozen {currency.format(decision.frozenAmount)} · In progress {currency.format(decision.blockedAmount)}
+                        Ready to pay {currency.format(decision.releasableAmount)} · On hold {currency.format(decision.frozenAmount)} · In progress {currency.format(decision.blockedAmount)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">Decision basis: {decision.explanation.decisionBasis}</p>
+                      <p className="mt-1 text-xs text-slate-500">Payment basis: {decision.explanation.decisionBasis}</p>
                     </div>
                     <div className="mt-2 grid gap-2">
                       {decision.reasons.map((reason, index) => (
@@ -1125,7 +1244,7 @@ export default function ShureFundDashboard() {
                     </div>
                     {decision.overridden ? (
                       <p className="mt-2 text-xs font-medium text-teal-900">
-                        Override active. Drawdown proceeds as an override, not as a normal clear release.
+                        Override active. Payment proceeds by override, not through the normal payment path.
                       </p>
                     ) : null}
                   </article>
@@ -1133,18 +1252,21 @@ export default function ShureFundDashboard() {
               </div>
             </ExpandableSection>
           </div>
+          ) : null}
         </div>
+        ) : null}
 
-        {audienceMode !== "executive" && (
+        {activeSection === "packages" ? (
         <div className="grid gap-6">
-          <ExpandableSection title="Funding Breakdown" subtitle="Expanded funding math and top-up controls.">
+          {audienceMode !== "executive" ? (
+          <ExpandableSection title="Amount breakdown" subtitle="Expanded payment math and funding top-ups.">
             <div className="rounded-2xl border border-slate-200 bg-slate-50">
               <button
                 type="button"
                 onClick={() => setShowFundingCalculation((current) => !current)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
-                <span className="text-sm font-semibold text-slate-900">How this is calculated</span>
+                    <span className="text-sm font-semibold text-slate-900">How this amount view is calculated</span>
                 <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   {showFundingCalculation ? "Hide" : "Show"}
                 </span>
@@ -1188,67 +1310,18 @@ export default function ShureFundDashboard() {
               />
             </div>
           </ExpandableSection>
+          ) : null}
 
           <ExpandableSection
-            title="Selected Work Package"
-            subtitle={
-              actionFeedback?.stageId === stageDetail.stage.id
-                ? `${actionFeedback.resultHeadline}${actionFeedback.resultSubline ? ` · ${actionFeedback.resultSubline}` : ""}`
-                : "Detailed controls, evidence, approvals, disputes, and release actions."
-            }
+            title="Selected package"
+            subtitle="Detailed payment checks, supporting information, sign-offs, review items, and payment actions."
             open={showStageDetail}
             onToggle={setShowStageDetail}
           >
-            {actionFeedback?.stageId === stageDetail.stage.id ? (
-              <div
-                className={`mb-4 rounded-2xl border px-4 py-3 ${
-                  actionFeedback.resultTone === "success"
-                    ? "border-teal-200 bg-teal-50"
-                    : actionFeedback.resultTone === "warning"
-                      ? "border-amber-200 bg-amber-50"
-                      : "border-slate-200 bg-slate-50"
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest governed action</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950">{actionFeedback.resultHeadline}</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {actionFeedback.resultSubline ?? actionFeedback.whatChanged[0] ?? actionFeedback.detail}
-                    </p>
-                    {actionFeedback.nextOwner ? (
-                      <p className="mt-1 text-xs text-slate-500">{actionFeedback.nextOwner} acts next.</p>
-                    ) : null}
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                    {actionFeedback.resultTypeLabel}
-                  </span>
-                </div>
-              </div>
-            ) : null}
             <StageDetailPanel
               detail={stageDetail}
               focusedSection={selectedStageSection}
-              actionFeedback={actionFeedback?.stageId === stageDetail.stage.id ? {
-                section: actionFeedback.section,
-                tone: actionFeedback.tone,
-                title: actionFeedback.title,
-                detail: actionFeedback.detail,
-                resultType: actionFeedback.resultType,
-                resultTypeLabel: actionFeedback.resultTypeLabel,
-                resultHeadline: actionFeedback.resultHeadline,
-                resultSubline: actionFeedback.resultSubline,
-                resultTone: actionFeedback.resultTone,
-                emphasis: actionFeedback.emphasis,
-                progressionStatus: actionFeedback.progressionStatus,
-                stateNowLabel: actionFeedback.stateNowLabel,
-                stateNowDetail: actionFeedback.stateNowDetail,
-                whatChanged: actionFeedback.whatChanged,
-                unlockedItems: actionFeedback.unlockedItems,
-                remainingBlockers: actionFeedback.remainingBlockers,
-                nextOwner: actionFeedback.nextOwner,
-                nextActionLabel: actionFeedback.nextActionLabel,
-              } : null}
+              lastActionOutcome={lastActionOutcome}
               entryCue={selectedWorkspaceCue?.stageId === stageDetail.stage.id ? selectedWorkspaceCue.cue : stageDetail.entryOrientation}
               overrideReason={overrideReason}
               evidenceTitle={evidenceTitle}
@@ -1271,24 +1344,28 @@ export default function ShureFundDashboard() {
               onVariationAmountChange={setVariationAmount}
               onAddEvidence={handleAddEvidence}
               onUpdateEvidenceStatus={handleEvidenceUpdate}
-              onApprove={(role) => runStageAction(stageDetail.stage.id, "approvals", "Approval recorded.", (current) => giveApproval(current, stageDetail.stage.id, role), "Approval could not be recorded.")}
-              onReject={(role) => runStageAction(stageDetail.stage.id, "approvals", "Rejection recorded.", (current) => rejectApproval(current, stageDetail.stage.id, role), "Rejection could not be recorded.")}
+              onApprove={(role) => runStageAction(`approval:${role}:approve`, stageDetail.stage.id, "approvals", (current) => giveApproval(current, stageDetail.stage.id, role))}
+              onReject={(role) => runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role))}
               onFundStage={handleFundStage}
               onApplyOverride={handleApplyOverride}
               onRelease={handleReleaseStage}
               onOpenDispute={handleOpenDispute}
-              onResolveDispute={(disputeId) => runStageAction(stageDetail.stage.id, "dispute", "Dispute resolved.", (current) => resolveDispute(current, stageDetail.stage.id, disputeId), "Dispute could not be resolved.")}
+              onResolveDispute={(disputeId) => runStageAction(`dispute:${disputeId}:resolve`, stageDetail.stage.id, "dispute", (current) => resolveDispute(current, stageDetail.stage.id, disputeId))}
               onCreateVariation={handleCreateVariation}
               onApproveVariation={(variationId) =>
-                runStageAction(stageDetail.stage.id, "variation", "Variation approved.", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"), "Variation could not be approved.")
+                runStageAction(`variation:${variationId}:approve`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"))
               }
               onRejectVariation={(variationId) =>
-                runStageAction(stageDetail.stage.id, "variation", "Variation rejected.", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"), "Variation could not be rejected.")
+                runStageAction(`variation:${variationId}:reject`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"))
               }
-              onActivateVariation={(variationId) => runStageAction(stageDetail.stage.id, "variation", "Variation activated.", (current) => activateVariation(current, stageDetail.stage.id, variationId), "Variation could not be activated.")}
+              onActivateVariation={(variationId) => runStageAction(`variation:${variationId}:activate`, stageDetail.stage.id, "variation", (current) => activateVariation(current, stageDetail.stage.id, variationId))}
             />
           </ExpandableSection>
+        </div>
+        ) : null}
 
+        {activeSection === "activity" ? (
+        <div className="grid gap-6">
           <ExpandableSection title="Audit History" subtitle={`Last activity ${formatRelativeTime(projectActivity.lastActivityAt)}.`}>
             <div className="grid gap-3 lg:grid-cols-2">
               {projectActivity.recentEvents.map((entry) => (
@@ -1306,7 +1383,7 @@ export default function ShureFundDashboard() {
             </div>
           </ExpandableSection>
 
-          <ExpandableSection title="Full Action Queue" subtitle="All remaining actions, ordered by urgency and release impact.">
+          <ExpandableSection title="Full task list" subtitle="All remaining actions, ordered by urgency and payment impact.">
             <div className="grid gap-3">
               {actionQueue.map((item) => (
                 <article key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1335,7 +1412,45 @@ export default function ShureFundDashboard() {
             </div>
           </ExpandableSection>
         </div>
-        )}
+        ) : null}
+
+        {activeSection === "settings" ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <SectionCard title="Profile and account" subtitle="A clear home for user profile and account controls.">
+            <div className="grid gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Name</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{currentUser.name}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Current role</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{getUserFacingRoleLabel(currentUser.role)}</p>
+                <p className="mt-1 text-xs text-slate-500">Role context remains visible across the workspace, but stays secondary to the selected project.</p>
+              </div>
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                Profile settings, notification preferences, and personal security controls can live here.
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Organisation and access" subtitle="A clear product home for settings, invitations, and configuration.">
+            <div className="grid gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Organisation</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">Shure.Fund workspace</p>
+                <p className="mt-1 text-xs text-slate-500">Configuration, commercial defaults, and connected payment controls can live here.</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Invitations and team access</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">Manage who can access projects and which role they hold.</p>
+              </div>
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                This shell now gives settings, organisation controls, invitations, and configuration a durable product home.
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+        ) : null}
         </div>
       </div>
       </div>

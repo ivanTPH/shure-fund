@@ -158,7 +158,7 @@ export default function TaskListPanel({
                   ) : null}
                   {item.issueCount && item.issueCount > 1 ? (
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
-                      {item.issueCount} issues
+                      {item.issueCount} items
                     </span>
                   ) : null}
                   {item.roleCueLabel ? (
@@ -177,9 +177,9 @@ export default function TaskListPanel({
                 {getSecondaryReason(item) ? <p className="mt-1 text-sm text-slate-500">{getSecondaryReason(item)}</p> : null}
                 {item.exceptionPath?.hasActiveExceptionPath ? (
                   <div className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    <div><strong>Exception owner:</strong> {item.exceptionPath.ownerLabel ?? "Next owner"}</div>
+                    <div><strong>Review owner:</strong> {item.exceptionPath.ownerLabel ?? "Next owner"}</div>
                     {item.exceptionPath.requiredDecisionLabel ? (
-                      <div className="mt-1"><strong>Decision:</strong> {item.exceptionPath.requiredDecisionLabel}</div>
+                      <div className="mt-1"><strong>Review needed:</strong> {item.exceptionPath.requiredDecisionLabel}</div>
                     ) : null}
                   </div>
                 ) : null}
@@ -187,7 +187,7 @@ export default function TaskListPanel({
                   <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     <div><strong>Waiting on:</strong> {item.handoff.toRoleLabel ?? "Next owner"}</div>
                     {item.handoff.expectedActionLabel ? (
-                      <div className="mt-1"><strong>Expected action:</strong> {item.handoff.expectedActionLabel}</div>
+                      <div className="mt-1"><strong>Next step:</strong> {item.handoff.expectedActionLabel}</div>
                     ) : null}
                     {item.handoff.unlockOutcomeLabel ? (
                       <div className="mt-1 text-slate-500">{item.handoff.unlockOutcomeLabel}</div>
@@ -201,11 +201,11 @@ export default function TaskListPanel({
 
               <div className="flex flex-col gap-2 text-sm">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Owner</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Who acts</div>
                   <div className="mt-1 font-medium text-slate-800">{getOwnerLabel(item)}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Focus</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Open in</div>
                   <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                     {item.decisionCue?.entryOrientationLabel ?? getStatusLabel(item)}
                   </span>

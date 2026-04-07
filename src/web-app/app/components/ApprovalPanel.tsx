@@ -1,5 +1,5 @@
 import type { ApprovalRole } from "@/lib/shureFundModels";
-import type { DerivedActionDescriptor, StageDetailModel } from "@/lib/systemState";
+import { getUserFacingRoleLabel, type DerivedActionDescriptor, type StageDetailModel } from "@/lib/systemState";
 
 function getActionButtonClass(descriptor: DerivedActionDescriptor, disabled: boolean) {
   if (descriptor.confidence === "high" && descriptor.isPrimary) {
@@ -26,9 +26,9 @@ function getApprovalStatusTone(status: string) {
 }
 
 function getDescriptorStatus(descriptor: DerivedActionDescriptor) {
-  if (descriptor.confidence === "blocked") return "Blocked";
-  if (descriptor.isPrimary && descriptor.confidence === "high") return "Primary action";
-  return "Secondary action";
+  if (descriptor.confidence === "blocked") return "Not available";
+  if (descriptor.isPrimary && descriptor.confidence === "high") return "Main action";
+  return "Other action";
 }
 
 export default function ApprovalPanel({
@@ -43,19 +43,19 @@ export default function ApprovalPanel({
   return (
     <section>
       <div>
-        <h3 className="text-sm font-medium text-slate-900">Approval workflow</h3>
+        <h3 className="text-sm font-medium text-slate-900">Sign-off status</h3>
         <p className="mt-1 text-xs text-slate-500">{detail.approvalSummary.approvalProgressLabel}</p>
         <p className="mt-2 text-sm text-slate-600">{detail.approvalSummary.headline}</p>
       </div>
       <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active approval</p>
-            <p className="mt-1 text-sm text-slate-900">{detail.approvalSummary.activeApprovalLabel ?? "No active approval step"}</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active sign-off</p>
+            <p className="mt-1 text-sm text-slate-900">{detail.approvalSummary.activeApprovalLabel ?? "No active sign-off step"}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next approver</p>
-            <p className="mt-1 text-sm text-slate-900">{detail.approvalSummary.nextApproverLabel ?? "No next approver queued"}</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next sign-off</p>
+            <p className="mt-1 text-sm text-slate-900">{detail.approvalSummary.nextApproverLabel ?? "No next sign-off queued"}</p>
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Completed</p>
@@ -81,7 +81,7 @@ export default function ApprovalPanel({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium capitalize text-slate-900">{approval.role}</p>
+                  <p className="font-medium text-slate-900">{getUserFacingRoleLabel(approval.role)}</p>
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${getApprovalStatusTone(approval.status)}`}>
                     {approval.status}
                   </span>
@@ -100,7 +100,7 @@ export default function ApprovalPanel({
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="grid gap-2">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.approveAction)}
+                    {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.approveAction)}
                     </p>
                     <button
                       type="button"
@@ -116,7 +116,7 @@ export default function ApprovalPanel({
                   </div>
                   <div className="grid gap-2">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.rejectAction)}
+                    {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.rejectAction)}
                     </p>
                     <button
                       type="button"

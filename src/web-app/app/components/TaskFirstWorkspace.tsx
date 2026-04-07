@@ -282,7 +282,7 @@ export default function TaskFirstWorkspace({
                   <ShieldCheck size={16} className="text-blue-600" />
                   {actionMessage}
                 </div>
-                <div className="mt-1 text-xs text-blue-700">Record updated. All changes are logged in the audit trail.</div>
+                <div className="mt-1 text-xs text-blue-700">The governed state and audit trail now reflect the latest decision.</div>
               </div>
             ) : null}
 

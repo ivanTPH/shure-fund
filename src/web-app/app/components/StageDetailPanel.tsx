@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ApprovalRole, EvidenceStatus, EvidenceType, FundingSourceType } from "@/lib/shureFundModels";
 import {
   getStageDecisionPack,
   type DerivedActionDescriptor,
+  type LastActionOutcome,
   type StageDetailModel,
   type StageTopSignalKey,
   type WorkspaceDecisionCue,
@@ -86,120 +87,72 @@ function SectionActionHeader({
   );
 }
 
-function SectionOutcomeNotice({
-  feedback,
+function InlineActionConfirmation({
+  outcome,
+  stateNowLabel,
+  stateNowReason,
 }: {
-  feedback: {
-    tone: "success" | "warning";
-    title: string;
-    detail: string;
-    resultType: "advanced" | "released" | "waiting" | "blocked" | "exception" | "no_change";
-    resultTypeLabel: string;
-    resultHeadline: string;
-    resultSubline: string | null;
-    resultTone: "success" | "info" | "warning" | "neutral";
-    emphasis: "strong" | "normal" | "subtle";
-    progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
-    stateNowLabel: string;
-    stateNowDetail: string;
-    whatChanged: string[];
-    unlockedItems: string[];
-    remainingBlockers: string[];
-    nextOwner: string | null;
-    nextActionLabel: string | null;
-  };
+  outcome: LastActionOutcome;
+  stateNowLabel: string;
+  stateNowReason: string;
 }) {
   const containerClass =
-    feedback.emphasis === "strong"
-      ? feedback.resultTone === "success"
-        ? "border-teal-300 bg-teal-50/90"
-        : "border-amber-300 bg-amber-50/90"
-      : feedback.emphasis === "normal"
-        ? "border-slate-300 bg-slate-50"
-        : "border-slate-200 bg-slate-50/80";
-  const resultToneClass =
-    feedback.resultTone === "success"
+    outcome.result === "released" || outcome.result === "advanced"
+      ? "border-teal-200 bg-teal-50/85"
+      : outcome.result === "exception" || outcome.result === "blocked"
+        ? "border-amber-200 bg-amber-50/85"
+        : "border-slate-200 bg-slate-50/90";
+  const badgeClass =
+    outcome.result === "released" || outcome.result === "advanced"
       ? "bg-teal-950 text-white"
-      : feedback.resultTone === "info"
-        ? "bg-slate-900 text-white"
-        : feedback.resultTone === "warning"
-          ? "bg-amber-100 text-amber-950"
-          : "bg-slate-100 text-slate-800";
-  const stateToneClass =
-    feedback.progressionStatus === "advanced"
-      ? "bg-teal-950 text-white"
-      : feedback.progressionStatus === "ready_for_next_decision"
-        ? "bg-slate-900 text-white"
-        : feedback.progressionStatus === "waiting_on_other_role"
-          ? "bg-slate-100 text-slate-800"
-          : "bg-amber-100 text-amber-950";
+      : outcome.result === "exception" || outcome.result === "blocked"
+        ? "bg-amber-100 text-amber-950"
+        : "bg-slate-200 text-slate-800";
+  const badgeLabel =
+    outcome.result === "released"
+      ? "Payment sent"
+      : outcome.result === "advanced"
+        ? "Package updated"
+        : outcome.result === "exception"
+          ? "Under review"
+          : outcome.result === "waiting"
+            ? "Waiting on next role"
+            : "Action blocked";
+  const areaLabels = outcome.affectedAreas
+    .map((area) =>
+      area === "stage_state"
+        ? "Stage state"
+        : area === "funding"
+          ? "Amount status"
+          : area === "approvals"
+            ? "Sign-offs"
+            : "Supporting information",
+    )
+    .slice(0, 3);
 
   return (
-    <div
-      className={`mb-4 rounded-2xl border-l-4 p-4 shadow-[0_10px_26px_-22px_rgba(15,23,42,0.45)] ${containerClass}`}
-    >
+    <div className={`mt-4 rounded-2xl border px-4 py-3 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.35)] ${containerClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recent action result</p>
-          <p className={`mt-1 text-sm font-semibold ${feedback.tone === "success" ? "text-teal-950" : "text-amber-950"}`}>
-            {feedback.resultHeadline}
-          </p>
-          {feedback.resultSubline ? (
-            <p className={`mt-1 text-sm ${feedback.tone === "success" ? "text-teal-900" : "text-amber-900"}`}>
-              {feedback.resultSubline}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${resultToneClass}`}>
-            {feedback.resultTypeLabel}
-          </span>
-          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${stateToneClass}`}>
-            {feedback.stateNowLabel}
-          </span>
-        </div>
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What changed</p>
-          <div className="mt-1 grid gap-1">
-            {feedback.whatChanged.slice(0, 2).map((item, index) => (
-              <p key={`changed-${index}`} className="text-sm text-slate-900">{item}</p>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">State now</p>
-          <p className="mt-1 text-sm text-slate-900">{feedback.stateNowLabel}</p>
-          <p className="mt-1 text-xs text-slate-500">{feedback.stateNowDetail}</p>
-        </div>
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next step</p>
-          <p className="mt-1 text-sm text-slate-900">{feedback.nextActionLabel ?? feedback.detail}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            {feedback.nextOwner ? `${feedback.nextOwner} acts next.` : "No further owner is required."}
+          <p className="mt-1 text-sm font-semibold text-slate-950">{outcome.summary}</p>
+          <p className="mt-1 text-xs text-slate-600">
+            {stateNowLabel} · {stateNowReason}
           </p>
         </div>
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Unlocked / still blocked</p>
-          {feedback.unlockedItems.length > 0 ? (
-            <div className="mt-1 grid gap-1">
-              {feedback.unlockedItems.slice(0, 2).map((item, index) => (
-                <p key={`unlocked-${index}`} className="text-sm text-slate-900">{item}</p>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-slate-900">
-              {feedback.remainingBlockers.length > 0 ? feedback.remainingBlockers[0] : "No additional governed change was unlocked."}
-            </p>
-          )}
-          {feedback.remainingBlockers.length > 1 ? (
-            <p className="mt-1 text-xs text-slate-500">{`${feedback.remainingBlockers.length - 1} more blocker${feedback.remainingBlockers.length - 1 === 1 ? "" : "s"} remain.`}</p>
-          ) : feedback.remainingBlockers.length === 0 ? (
-            <p className="mt-1 text-xs text-slate-500">No active blocker remains.</p>
-          ) : null}
-        </div>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${badgeClass}`}>
+          {badgeLabel}
+        </span>
       </div>
+      {areaLabels.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500">
+          {areaLabels.map((label) => (
+            <span key={label} className="rounded-full bg-white/90 px-2 py-1">
+              Updated: {label}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -222,7 +175,7 @@ function StageDecisionSummaryCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stage decision summary</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payment summary</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{summary.statusLabel}</p>
           <p className="mt-1 text-sm text-slate-600">{summary.actionabilityLabel}</p>
         </div>
@@ -232,7 +185,7 @@ function StageDecisionSummaryCard({
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Primary next decision</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next payment decision</p>
           <p className="mt-1 text-sm text-slate-900">{summary.primaryDecisionLabel ?? "No immediate decision required."}</p>
         </div>
         <div>
@@ -243,7 +196,7 @@ function StageDecisionSummaryCard({
           </p>
         </div>
         <div className="xl:col-span-2">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking progression</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Holding payment up</p>
           <div className="mt-1 grid gap-1">
             {summary.blockerSummary.length > 0 ? (
               summary.blockerSummary.map((blocker, index) => (
@@ -300,10 +253,10 @@ function StageHealthStrip({
         : "bg-teal-100 text-teal-950";
   const label =
     health.overallStatus === "blocked"
-      ? "Blocked"
+      ? "Payment blocked"
       : health.overallStatus === "at_risk"
         ? "At risk"
-        : "Healthy";
+        : "Ready";
 
   return (
     <div className={`mt-4 rounded-2xl border px-4 py-3 ${toneClass}`}>
@@ -417,7 +370,7 @@ function StageFundingExplanationCard({
           <p className="mt-1 text-sm text-slate-900">{explanation.reserveLabel}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Release position</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payment position</p>
           <p className="mt-1 text-sm text-slate-900">{explanation.releasableLabel}</p>
           <p className="mt-1 text-xs text-slate-500">{explanation.shortfallLabel}</p>
         </div>
@@ -485,7 +438,7 @@ function StageRoleHandoffCard({
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next outcome</p>
-          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This advances the next governed control step."}</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This moves the package to the next payment step."}</p>
         </div>
       </div>
     </div>
@@ -536,7 +489,7 @@ function StageExitStateCard({
           <p className="mt-1 text-sm text-slate-900">{exitState.remainingExposureLabel ?? "No active exposure remains under normal progression."}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Exception path</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Under review</p>
           <p className="mt-1 text-sm text-slate-900">{exitState.reopenPathLabel ?? "No reopen path is currently expected."}</p>
         </div>
       </div>
@@ -588,7 +541,7 @@ function StageExceptionPathCard({
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Required decision</p>
-          <p className="mt-1 text-sm text-slate-900">{exceptionPath.requiredDecisionLabel ?? "Review the exception path."}</p>
+          <p className="mt-1 text-sm text-slate-900">{exceptionPath.requiredDecisionLabel ?? "Review what is holding payment up."}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Normal path paused</p>
@@ -628,7 +581,7 @@ function StageReleaseSummaryCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Release position</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payment position</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{releaseSummary.decisionLabel ?? releaseSummary.releaseState.replaceAll("_", " ")}</p>
           <p className="mt-1 text-sm text-slate-600">{releaseSummary.headline}</p>
         </div>
@@ -642,7 +595,7 @@ function StageReleaseSummaryCard({
           <p className="mt-1 text-sm text-slate-900">{releaseSummary.eligibleAmountLabel}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Released</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Paid</p>
           <p className="mt-1 text-sm text-slate-900">{releaseSummary.releasedAmountLabel}</p>
         </div>
         <div>
@@ -650,8 +603,8 @@ function StageReleaseSummaryCard({
           <p className="mt-1 text-sm text-slate-900">{releaseSummary.remainingHeldLabel}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next release step</p>
-          <p className="mt-1 text-sm text-slate-900">{releaseSummary.nextReleaseStepLabel ?? "No further release step is currently required."}</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next payment step</p>
+          <p className="mt-1 text-sm text-slate-900">{releaseSummary.nextReleaseStepLabel ?? "No further payment step is currently required."}</p>
         </div>
       </div>
       {releaseSummary.blockingConditionLabel ? (
@@ -662,7 +615,7 @@ function StageReleaseSummaryCard({
       ) : null}
       {releaseSummary.exceptionInteractionLabel ? (
         <div className="mt-3 rounded-2xl bg-white/80 p-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Exception interaction</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Under review</p>
           <p className="mt-1 text-sm text-slate-900">{releaseSummary.exceptionInteractionLabel}</p>
         </div>
       ) : null}
@@ -689,7 +642,7 @@ function StageEvidenceSummaryCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Evidence position</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Supporting information</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{evidenceSummary.sufficiencyLabel}</p>
           <p className="mt-1 text-sm text-slate-600">{evidenceSummary.headline}</p>
         </div>
@@ -717,7 +670,7 @@ function StageEvidenceSummaryCard({
       </div>
       {evidenceSummary.blockingConditionLabel ? (
         <div className="mt-3 rounded-2xl bg-white/80 p-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Blocking evidence condition</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What is holding payment up</p>
           <p className="mt-1 text-sm text-slate-900">{evidenceSummary.blockingConditionLabel}</p>
         </div>
       ) : null}
@@ -727,8 +680,8 @@ function StageEvidenceSummaryCard({
           <p className="mt-1 text-sm text-slate-900">{evidenceSummary.ownerLabel ?? "No active owner"}</p>
         </div>
         <div className="rounded-2xl bg-white/80 p-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next evidence step</p>
-          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.nextEvidenceStepLabel ?? "No further evidence step is required."}</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next supporting information step</p>
+          <p className="mt-1 text-sm text-slate-900">{evidenceSummary.nextEvidenceStepLabel ?? "No further supporting information step is required."}</p>
         </div>
       </div>
       <SummarySupportList lines={evidenceSummary.supportingLines} tone={evidenceSummary.tone} />
@@ -754,7 +707,7 @@ function StageApprovalSummaryCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Approval position</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Sign-off status</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{approvalSummary.approvalProgressLabel}</p>
           <p className="mt-1 text-sm text-slate-600">{approvalSummary.headline}</p>
         </div>
@@ -817,7 +770,7 @@ function StageCasePathSummaryCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Case path</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Review path</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{casePathSummary.activePathLabel ?? "Resolved case path"}</p>
           <p className="mt-1 text-sm text-slate-600">{casePathSummary.headline}</p>
         </div>
@@ -832,7 +785,7 @@ function StageCasePathSummaryCard({
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Required decision</p>
-          <p className="mt-1 text-sm text-slate-900">{casePathSummary.requiredDecisionLabel ?? "No case decision required."}</p>
+          <p className="mt-1 text-sm text-slate-900">{casePathSummary.requiredDecisionLabel ?? "No review decision required."}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Normal path impact</p>
@@ -974,7 +927,7 @@ function ActionControlCard({
     effectiveConfidence === "high" && descriptor.isPrimary
       ? "Primary action"
       : effectiveConfidence === "blocked"
-        ? "Blocked"
+        ? "Not available"
         : "Secondary action";
   const reason = formRequirementLabel ?? descriptor.blockerSummary;
 
@@ -1000,7 +953,7 @@ function ActionControlCard({
       {descriptor.sideEffects?.[0] ? <p className="mt-2 text-xs text-slate-500">{descriptor.sideEffects[0]}</p> : null}
       {reason ? (
         <p className="mt-2 text-sm text-slate-600">
-          {effectiveConfidence === "blocked" ? `Blocked: ${reason}` : reason}
+          {effectiveConfidence === "blocked" ? `Not available: ${reason}` : reason}
         </p>
       ) : null}
     </div>
@@ -1011,26 +964,7 @@ type StageDetailPanelProps = {
   detail: StageDetailModel;
   focusedSection: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
   entryCue: WorkspaceDecisionCue;
-  actionFeedback: {
-    section: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
-    tone: "success" | "warning";
-    title: string;
-    detail: string;
-    resultType: "advanced" | "released" | "waiting" | "blocked" | "exception" | "no_change";
-    resultTypeLabel: string;
-    resultHeadline: string;
-    resultSubline: string | null;
-    resultTone: "success" | "info" | "warning" | "neutral";
-    emphasis: "strong" | "normal" | "subtle";
-    progressionStatus: "advanced" | "ready_for_next_decision" | "waiting_on_other_role" | "still_blocked";
-    stateNowLabel: string;
-    stateNowDetail: string;
-    whatChanged: string[];
-    unlockedItems: string[];
-    remainingBlockers: string[];
-    nextOwner: string | null;
-    nextActionLabel: string | null;
-  } | null;
+  lastActionOutcome: LastActionOutcome | null;
   overrideReason: string;
   evidenceTitle: string;
   evidenceType: EvidenceType;
@@ -1069,7 +1003,7 @@ export default function StageDetailPanel({
   detail,
   focusedSection,
   entryCue,
-  actionFeedback,
+  lastActionOutcome,
   overrideReason,
   evidenceTitle,
   evidenceType,
@@ -1111,6 +1045,8 @@ export default function StageDetailPanel({
   const approvalsRef = useRef<HTMLDivElement | null>(null);
   const disputeRef = useRef<HTMLElement | null>(null);
   const variationRef = useRef<HTMLElement | null>(null);
+  const [visibleOutcomeTimestamp, setVisibleOutcomeTimestamp] = useState<number | null>(null);
+  const [highlightTimestamp, setHighlightTimestamp] = useState<number | null>(null);
   const stageWipTotal = detail.releaseDecision.releasableAmount + detail.releaseDecision.frozenAmount + detail.releaseDecision.blockedAmount;
   const parsedDisputeAmount = Number(disputeAmount);
   const parsedVariationAmount = Number(variationAmount);
@@ -1177,7 +1113,19 @@ export default function StageDetailPanel({
         ? "bg-amber-50 text-amber-700"
         : entryCue.decisionUrgency === "outcome"
           ? "bg-slate-100 text-slate-700"
-          : "bg-blue-50 text-blue-700";
+        : "bg-blue-50 text-blue-700";
+  const topModeLabel =
+    topSurface.primaryMode === "action"
+      ? "Action now"
+      : topSurface.primaryMode === "review"
+        ? "Review now"
+        : topSurface.primaryMode === "waiting"
+          ? "Waiting"
+          : topSurface.primaryMode === "exception"
+            ? "Under review"
+            : topSurface.primaryMode === "outcome"
+              ? "Current outcome"
+              : "Overview";
 
   useEffect(() => {
     const refMap = {
@@ -1196,19 +1144,39 @@ export default function StageDetailPanel({
     });
   }, [detail.stage.id, focusedSection]);
 
+  useEffect(() => {
+    if (!lastActionOutcome) {
+      return;
+    }
+
+    setVisibleOutcomeTimestamp(lastActionOutcome.timestamp);
+    setHighlightTimestamp(lastActionOutcome.timestamp);
+
+    const dismissTimer = window.setTimeout(() => {
+      setVisibleOutcomeTimestamp((current) => (current === lastActionOutcome.timestamp ? null : current));
+    }, 5000);
+    const highlightTimer = window.setTimeout(() => {
+      setHighlightTimestamp((current) => (current === lastActionOutcome.timestamp ? null : current));
+    }, 1600);
+
+    return () => {
+      window.clearTimeout(dismissTimer);
+      window.clearTimeout(highlightTimer);
+    };
+  }, [lastActionOutcome]);
+
   function getSectionClass(section: typeof focusedSection) {
     return focusedSection === section
       ? "scroll-mt-28 rounded-2xl ring-2 ring-teal-200/80 transition"
       : "scroll-mt-28";
   }
 
-  function renderSectionFeedback(section: typeof focusedSection) {
-    if (!actionFeedback || actionFeedback.section !== section) {
-      return null;
-    }
-
-    return <SectionOutcomeNotice feedback={actionFeedback} />;
-  }
+  const visibleOutcome =
+    lastActionOutcome && visibleOutcomeTimestamp === lastActionOutcome.timestamp ? lastActionOutcome : null;
+  const getAreaHighlightClass = (area: LastActionOutcome["affectedAreas"][number]) =>
+    highlightTimestamp === lastActionOutcome?.timestamp && lastActionOutcome.affectedAreas.includes(area)
+      ? "ring-2 ring-teal-200/80 bg-teal-50/40 transition-all duration-700"
+      : "";
 
   function renderTopSignalCard(signal: StageTopSignalKey) {
     switch (signal) {
@@ -1244,7 +1212,7 @@ export default function StageDetailPanel({
       case "funding":
         return (
           <CompactSignalCard
-            label="Funding"
+            label="Amount status"
             title={detail.fundingExplanation.coverageLabel}
             detail={detail.fundingExplanation.blockingConditionLabel ?? detail.fundingExplanation.nextFinancialStepLabel ?? detail.fundingExplanation.headline}
             tone={detail.fundingExplanation.tone}
@@ -1253,7 +1221,7 @@ export default function StageDetailPanel({
       case "evidence":
         return (
           <CompactSignalCard
-            label="Evidence"
+            label="Supporting information"
             title={detail.evidenceSummary.sufficiencyLabel}
             detail={detail.evidenceSummary.blockingConditionLabel ?? detail.evidenceSummary.nextEvidenceStepLabel ?? detail.evidenceSummary.reviewStatusLabel}
             tone={detail.evidenceSummary.tone}
@@ -1262,7 +1230,7 @@ export default function StageDetailPanel({
       case "approval":
         return (
           <CompactSignalCard
-            label="Approval"
+            label="Sign-off status"
             title={detail.approvalSummary.approvalProgressLabel}
             detail={detail.approvalSummary.blockingConditionLabel ?? detail.approvalSummary.nextApprovalStepLabel ?? detail.approvalSummary.activeApprovalLabel}
             tone={detail.approvalSummary.tone}
@@ -1271,7 +1239,7 @@ export default function StageDetailPanel({
       case "attention":
         return (
           <CompactSignalCard
-            label="Attention"
+            label="Why it matters"
             title={detail.attentionReason.reasonLabel}
             detail={detail.attentionReason.supportingDetails[0] ?? null}
             tone={detail.attentionReason.tone}
@@ -1280,7 +1248,7 @@ export default function StageDetailPanel({
       case "case_path":
         return (
           <CompactSignalCard
-            label="Case path"
+            label="Review path"
             title={detail.casePathSummary.activePathLabel ?? detail.casePathSummary.headline}
             detail={detail.casePathSummary.requiredDecisionLabel ?? detail.casePathSummary.returnToProgressionLabel}
             tone={detail.casePathSummary.tone}
@@ -1289,7 +1257,7 @@ export default function StageDetailPanel({
       case "handoff":
         return (
           <CompactSignalCard
-            label="Handoff"
+            label="Waiting on"
             title={detail.roleHandoff.handoffHeadline}
             detail={detail.roleHandoff.expectedActionLabel ?? detail.roleHandoff.blockingConditionLabel}
             tone={detail.roleHandoff.tone}
@@ -1298,7 +1266,7 @@ export default function StageDetailPanel({
       case "exception":
         return (
           <CompactSignalCard
-            label="Exception"
+            label="Under review"
             title={detail.exceptionPath.headline}
             detail={detail.exceptionPath.requiredDecisionLabel ?? detail.exceptionPath.returnPathLabel}
             tone={detail.exceptionPath.tone}
@@ -1307,7 +1275,7 @@ export default function StageDetailPanel({
       case "outcome":
         return (
           <CompactSignalCard
-            label="Outcome"
+            label="Current outcome"
             title={detail.exitState.outcomeLabel}
             detail={detail.exitState.valueOutcomeLabel ?? detail.exitState.reopenPathLabel}
             tone={detail.exitState.tone}
@@ -1316,7 +1284,7 @@ export default function StageDetailPanel({
       case "release":
         return (
           <CompactSignalCard
-            label="Release"
+            label="Payment"
             title={detail.releaseSummary.decisionLabel ?? detail.releaseSummary.headline}
             detail={detail.releaseSummary.blockingConditionLabel ?? detail.releaseSummary.nextReleaseStepLabel ?? detail.releaseSummary.eligibleAmountLabel}
             tone={detail.releaseSummary.tone}
@@ -1325,7 +1293,7 @@ export default function StageDetailPanel({
       case "decision":
         return (
           <CompactSignalCard
-            label="Decision"
+            label="Payment status"
             title={detail.decisionSummary.statusLabel}
             detail={detail.decisionSummary.primaryDecisionLabel ?? detail.decisionSummary.actionabilityLabel}
             tone={detail.decisionSummary.tone}
@@ -1343,8 +1311,8 @@ export default function StageDetailPanel({
       <div className={`mb-6 ${stageSurfaceHierarchy.primary}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{topSurface.primaryMode} surface</p>
-            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Work Package Detail"}</h2>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{topModeLabel}</p>
+            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Package payment detail"}</h2>
             <p className="mt-1 text-sm text-slate-600">{topSurface.topSublineLabel ?? `${detail.projectName} · ${detail.stage.name}`}</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
@@ -1370,22 +1338,16 @@ export default function StageDetailPanel({
           </div>
         </div>
 
-        <StageHealthStrip health={detail.healthDescriptor} />
+        <div className={getAreaHighlightClass("stage_state")}>
+          <StageHealthStrip health={detail.healthDescriptor} />
+        </div>
 
-        {actionFeedback && actionFeedback.section === "overview" ? (
-          <div
-            className={`mt-4 rounded-2xl border px-4 py-3 ${
-              actionFeedback.resultTone === "success"
-                ? "border-teal-200 bg-teal-50"
-                : actionFeedback.resultTone === "warning"
-                  ? "border-amber-200 bg-amber-50"
-                  : "border-slate-200 bg-slate-50"
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recent action result</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{actionFeedback.resultHeadline}</p>
-            {actionFeedback.resultSubline ? <p className="mt-1 text-xs text-slate-600">{actionFeedback.resultSubline}</p> : null}
-          </div>
+        {visibleOutcome ? (
+          <InlineActionConfirmation
+            outcome={visibleOutcome}
+            stateNowLabel={detail.decisionSummary.statusLabel}
+            stateNowReason={detail.healthDescriptor.primaryReason}
+          />
         ) : null}
 
         <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -1414,21 +1376,21 @@ export default function StageDetailPanel({
         ) : null}
       </div>
 
-      <div className={`grid gap-3 sm:grid-cols-2 xl:grid-cols-4 ${stageSurfaceHierarchy.secondaryBand}`}>
+      <div className={`grid gap-3 sm:grid-cols-2 xl:grid-cols-4 ${stageSurfaceHierarchy.secondaryBand} ${getAreaHighlightClass("funding")}`}>
         <div className={stageSurfaceHierarchy.secondaryCard}>
           <p className="text-sm text-slate-500">WIP</p>
           <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
         </div>
         <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">Releasable</p>
+          <p className="text-sm text-slate-500">Ready to pay</p>
           <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.releasableAmount)}</p>
         </div>
         <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">Frozen</p>
+          <p className="text-sm text-slate-500">On hold</p>
           <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
         </div>
         <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">Workflow</p>
+          <p className="text-sm text-slate-500">Payment status</p>
           <p className="mt-2 text-lg font-semibold text-slate-950">{detail.operationalStatus.label}</p>
           <p className="mt-1 text-xs text-slate-500">{detail.operationalStatus.reason}</p>
         </div>
@@ -1436,26 +1398,25 @@ export default function StageDetailPanel({
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className={stageSurfaceHierarchy.mutedBlock}>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next governed move</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next step</p>
           <p className="mt-2 text-sm font-medium text-slate-950">{detail.operationalStatus.nextStep}</p>
         </div>
         <div className={stageSurfaceHierarchy.mutedBlock}>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Release position</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payment position</p>
           <p className="mt-2 text-sm font-medium text-slate-950">{detail.releaseSummary.decisionLabel ?? detail.releaseDecision.explanation.label}</p>
           <p className="mt-1 text-xs text-slate-500">{detail.releaseSummary.eligibleAmountLabel} · {detail.releaseSummary.remainingHeldLabel}</p>
         </div>
       </div>
 
       <div ref={fundingRef} className={`mt-8 ${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("funding")}`}>
-        <SectionActionHeader title="Funding" guidance={detail.sectionGuidance.funding} />
-        {renderSectionFeedback("funding")}
+        <SectionActionHeader title="Amount status" guidance={detail.sectionGuidance.funding} />
       </div>
 
       <div className={`mt-6 ${stageSurfaceHierarchy.mutedBlock}`}>
         <div className="flex flex-col gap-1 border-b border-slate-200 pb-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Mini Decision Pack</p>
-          <p className="text-sm font-medium text-slate-900">Stage report card</p>
-          <p className="text-sm text-slate-600">Compact operational and treasury summary for this work package.</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Package snapshot</p>
+          <p className="text-sm font-medium text-slate-900">Package report card</p>
+          <p className="text-sm text-slate-600">Compact payment and status summary for this package.</p>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className={stageSurfaceHierarchy.secondaryCard}>
@@ -1463,11 +1424,11 @@ export default function StageDetailPanel({
             <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.status}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Treasury readiness</p>
+            <p className="text-xs text-slate-500">Funder readiness</p>
             <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryReadiness}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Release status</p>
+            <p className="text-xs text-slate-500">Payment status</p>
             <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.releaseStatus}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
@@ -1475,11 +1436,11 @@ export default function StageDetailPanel({
             <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.nextActionOwner}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Releasable</p>
+            <p className="text-xs text-slate-500">Ready to pay</p>
             <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.releasable)}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Frozen</p>
+            <p className="text-xs text-slate-500">On hold</p>
             <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.frozen)}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
@@ -1493,7 +1454,7 @@ export default function StageDetailPanel({
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Decision basis</p>
+            <p className="text-xs text-slate-500">Payment basis</p>
             <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.decisionBasis}</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
@@ -1504,28 +1465,28 @@ export default function StageDetailPanel({
       </div>
 
       <div className={`mt-6 ${stageSurfaceHierarchy.tertiaryPanel}`}>
-        <SectionActionHeader title="Funding Position" guidance={detail.sectionGuidance.funding} />
-        <h3 className="text-sm font-medium text-slate-900">Funding</h3>
+        <SectionActionHeader title="Amount position" guidance={detail.sectionGuidance.funding} />
+        <h3 className="text-sm font-medium text-slate-900">Amount status</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">WIP</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this Work Package.</p>
+            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this package.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">Releasable</p>
+            <p className="text-sm text-slate-500">Ready to pay</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.releasableAmount)}</p>
             <p className="mt-1 text-xs text-slate-500">Approved value within WIP.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">Frozen</p>
+            <p className="text-sm text-slate-500">On hold</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
             <p className="mt-1 text-xs text-slate-500">Disputed value within WIP.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">In progress</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.blockedAmount)}</p>
-            <p className="mt-1 text-xs text-slate-500">Committed work not yet approved for release.</p>
+            <p className="mt-1 text-xs text-slate-500">Committed work not yet approved for payment.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">Balance position</p>
@@ -1533,29 +1494,29 @@ export default function StageDetailPanel({
             <p className="mt-1 text-xs text-slate-500">Based on total project balance against current WIP.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">Blocking Release</p>
+            <p className="text-sm text-slate-500">Payment blocked</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{detail.blockingRelease ? "Yes" : "No"}</p>
             <p className="mt-1 text-xs text-slate-500">
               {detail.blockingRelease
-                ? "One or more current blockers in the release decision are stopping drawdown."
-                : "This Work Package is not currently blocked from drawdown."}
+                ? "One or more current blockers are stopping payment."
+                : "This package is not currently blocked from payment."}
             </p>
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className={stageSurfaceHierarchy.mutedPanel}>
-            <p className="text-sm font-medium text-slate-900">Dispute Position</p>
+            <p className="text-sm font-medium text-slate-900">Dispute review</p>
             <p className="mt-2 text-sm text-slate-600">{detail.disputeSummary.reason}</p>
             <div className="mt-3 grid gap-2 text-sm text-slate-700">
               <p>Disputed value: {currency.format(detail.disputeSummary.disputedValue)}</p>
-              <p>Frozen value: {currency.format(detail.disputeSummary.frozenValue)}</p>
+              <p>On-hold value: {currency.format(detail.disputeSummary.frozenValue)}</p>
               <p>Undisputed value: {currency.format(detail.disputeSummary.undisputedValue)}</p>
-              <p>Releasable value: {currency.format(detail.disputeSummary.releasableValue)}</p>
+              <p>Ready-to-pay value: {currency.format(detail.disputeSummary.releasableValue)}</p>
             </div>
           </div>
           <div className={stageSurfaceHierarchy.mutedPanel}>
-            <p className="text-sm font-medium text-slate-900">Variation Position</p>
+            <p className="text-sm font-medium text-slate-900">Variation review</p>
             <p className="mt-2 text-sm font-medium text-slate-950">{detail.variationSummary.status}</p>
             <p className="mt-1 text-sm text-slate-600">{detail.variationSummary.reason}</p>
           </div>
@@ -1563,11 +1524,11 @@ export default function StageDetailPanel({
 
         {!detail.actingRole.readOnly ? (
           <div className="mt-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Funding control</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Funding action</p>
             {fundDescriptor ? (
               <ActionControlCard
                 descriptor={fundDescriptor}
-                owner="Treasury"
+                owner="Funder"
                 disabled={!canFundStage}
                 onClick={onFundStage}
               />
@@ -1596,24 +1557,23 @@ export default function StageDetailPanel({
       ))}
 
       <div ref={releaseRef} className={`mt-8 ${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("release")}`}>
-        <SectionActionHeader title="Release" guidance={detail.sectionGuidance.release} />
-        {renderSectionFeedback("release")}
-        <p className="text-sm font-medium text-slate-900">Drawdown decision</p>
+        <SectionActionHeader title="Payment" guidance={detail.sectionGuidance.release} />
+        <p className="text-sm font-medium text-slate-900">Payment conditions</p>
         <div className="mt-2 grid gap-2">
           <p className="text-sm text-slate-600">{detail.releaseSummary.headline}</p>
           <p className="text-sm text-slate-600">
             {detail.releaseSummary.eligibleAmountLabel}. {detail.releaseSummary.releasedAmountLabel}. {detail.releaseSummary.remainingHeldLabel}.
           </p>
-          <p className="text-sm text-slate-600">Decision basis: {detail.releaseDecision.explanation.decisionBasis}</p>
+          <p className="text-sm text-slate-600">Payment basis: {detail.releaseDecision.explanation.decisionBasis}</p>
           {detail.releaseSummary.blockingConditionLabel ? (
-            <p className="text-sm text-slate-600">Blocking condition: {detail.releaseSummary.blockingConditionLabel}</p>
+            <p className="text-sm text-slate-600">What is holding payment up: {detail.releaseSummary.blockingConditionLabel}</p>
           ) : null}
           {detail.releaseSummary.exceptionInteractionLabel ? (
-            <p className="text-sm text-slate-600">Exception interaction: {detail.releaseSummary.exceptionInteractionLabel}</p>
+            <p className="text-sm text-slate-600">Under review: {detail.releaseSummary.exceptionInteractionLabel}</p>
           ) : null}
           {detail.releaseDecision.overridden ? (
             <p className="rounded-2xl bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900">
-              Treasury override is active and clearly flagged. Drawdown proceeds as an override, not a normal release.
+              Funder override is active and clearly flagged. Payment proceeds by override, not through the normal payment path.
             </p>
           ) : null}
           {detail.releaseDecision.reasons.map((reason, index) => (
@@ -1625,12 +1585,12 @@ export default function StageDetailPanel({
         {!detail.actingRole.readOnly ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <div className="sm:col-span-2 xl:col-span-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Release controls</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Payment actions</p>
             </div>
             {releaseDescriptor ? (
               <ActionControlCard
                 descriptor={releaseDescriptor}
-                owner="Treasury"
+                owner="Funder"
                 disabled={!canReleaseStage}
                 onClick={onRelease}
               />
@@ -1638,7 +1598,7 @@ export default function StageDetailPanel({
             {overrideDescriptor ? (
               <ActionControlCard
                 descriptor={overrideDescriptor}
-                owner="Treasury"
+                owner="Funder"
                 disabled={!canApplyOverride}
                 formRequirementLabel={
                   detail.actionReadiness.applyOverride.isAvailable && overrideReason.trim().length === 0
@@ -1651,13 +1611,13 @@ export default function StageDetailPanel({
           </div>
         ) : (
           <div className="sm:col-span-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            {detail.actingRole.label} view is read-only. Treasury and control actions remain visible through the decision and audit summaries only.
+            {detail.actingRole.label} view is read-only. Funder and payment actions remain visible through the status and audit summaries only.
           </div>
         )}
       </div>
 
       <div className="mt-4 rounded-2xl border border-dashed border-teal-200 bg-teal-50/80 p-4">
-        <p className="text-sm font-medium text-teal-950">Treasury Override</p>
+        <p className="text-sm font-medium text-teal-950">Funder override</p>
         <p className="mt-1 text-xs text-teal-900">Funding source in view: {fundingSource || "not selected"}</p>
         <textarea
           className="mt-3 min-h-24 w-full rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm"
@@ -1669,9 +1629,8 @@ export default function StageDetailPanel({
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <div ref={evidenceRef} className={getSectionClass("evidence")}>
-          <SectionActionHeader title="Evidence" guidance={detail.sectionGuidance.evidence} />
-          {renderSectionFeedback("evidence")}
+        <div ref={evidenceRef} className={`${getSectionClass("evidence")} ${getAreaHighlightClass("evidence")}`}>
+          <SectionActionHeader title="Supporting information" guidance={detail.sectionGuidance.evidence} />
           <EvidencePanel
             detail={detail}
             evidenceTitle={evidenceTitle}
@@ -1682,9 +1641,8 @@ export default function StageDetailPanel({
             onUpdateEvidenceStatus={onUpdateEvidenceStatus}
           />
         </div>
-        <div ref={approvalsRef} className={getSectionClass("approvals")}>
-          <SectionActionHeader title="Approvals" guidance={detail.sectionGuidance.approvals} />
-          {renderSectionFeedback("approvals")}
+        <div ref={approvalsRef} className={`${getSectionClass("approvals")} ${getAreaHighlightClass("approvals")}`}>
+          <SectionActionHeader title="Sign-offs" guidance={detail.sectionGuidance.approvals} />
           <ApprovalPanel detail={detail} onApprove={onApprove} onReject={onReject} />
         </div>
       </div>
@@ -1692,13 +1650,12 @@ export default function StageDetailPanel({
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <section ref={disputeRef} className={`${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("dispute")}`}>
           <SectionActionHeader title="Dispute" guidance={detail.sectionGuidance.dispute} />
-          {renderSectionFeedback("dispute")}
           <div>
             <h3 className="text-sm font-medium text-slate-900">Disputes</h3>
             <p className="mt-1 text-sm text-slate-500">
               {detail.casePathSummary.activePathLabel === "Dispute path"
                 ? detail.casePathSummary.headline
-                : "Freeze only the affected value while undisputed value can continue through control checks."}
+                : "Only the affected value is placed on hold while undisputed value can continue through payment checks."}
             </p>
             {detail.casePathSummary.activePathLabel === "Dispute path" ? (
               <p className="mt-2 text-sm text-slate-600">{detail.casePathSummary.returnToProgressionLabel}</p>
@@ -1722,13 +1679,13 @@ export default function StageDetailPanel({
             <input
               inputMode="numeric"
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Frozen value amount"
+              placeholder="On-hold amount"
               value={disputeAmount}
               disabled={!detail.availableActions.openDispute}
               onChange={(event) => onDisputeAmountChange(event.target.value)}
             />
             <div>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dispute control</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dispute action</p>
               {openDisputeDescriptor ? (
                 <ActionControlCard
                   descriptor={openDisputeDescriptor}
@@ -1775,14 +1732,13 @@ export default function StageDetailPanel({
               </article>
             ))}
             {detail.disputes.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this Work Package.</p>
+              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this package.</p>
             ) : null}
           </div>
         </section>
 
         <section ref={variationRef} className={`${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("variation")}`}>
           <SectionActionHeader title="Variation" guidance={detail.sectionGuidance.variation} />
-          {renderSectionFeedback("variation")}
           <div>
             <h3 className="text-sm font-medium text-slate-900">Variations</h3>
             <p className="mt-1 text-sm text-slate-500">
@@ -1818,7 +1774,7 @@ export default function StageDetailPanel({
               onChange={(event) => onVariationAmountChange(event.target.value)}
             />
             <div>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variation control</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variation action</p>
               {createVariationDescriptor ? (
                 <ActionControlCard
                   descriptor={createVariationDescriptor}
@@ -1929,7 +1885,7 @@ export default function StageDetailPanel({
               </article>
             ))}
             {detail.variations.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this Work Package.</p>
+              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this package.</p>
             ) : null}
           </div>
         </section>
@@ -1945,7 +1901,7 @@ export default function StageDetailPanel({
             </article>
           ))}
           {detail.blockers.length === 0 ? (
-            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No blockers recorded for this Work Package.</p>
+            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No payment blocker is recorded for this package.</p>
           ) : null}
         </div>
       </div>
