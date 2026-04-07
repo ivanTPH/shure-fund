@@ -77,7 +77,6 @@ export default function LedgerSummaryCard({
     <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-slate-900">Amount summary</h2>
-        <p className="mt-1 text-sm text-slate-500">A quick view of the same payment position.</p>
       </div>
 
       <div
@@ -173,7 +172,7 @@ export default function LedgerSummaryCard({
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          {addFundsHelperText} Contractor contributions are restricted to the selected package: {selectedWorkPackageName}.
+          {addFundsHelperText} Contractor contributions are restricted to the selected work package: {selectedWorkPackageName}.
         </p>
       </div>
     </section>

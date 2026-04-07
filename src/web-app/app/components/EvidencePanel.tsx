@@ -77,7 +77,7 @@ export default function EvidencePanel({
   const addItemHelp = getReadinessMessage(
     detail.actionReadiness.addEvidence,
     detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length === 0
-      ? "Enter a supporting information title before adding it to this package."
+      ? "Enter a supporting information title before adding it to this work package."
       : undefined,
   );
   const reviewHelp = getReadinessMessage(detail.actionReadiness.reviewEvidence);

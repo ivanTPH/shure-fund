@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 import type { ApprovalRole, EvidenceStatus, EvidenceType, FundingSourceType } from "@/lib/shureFundModels";
 import {
-  getStageDecisionPack,
   type DerivedActionDescriptor,
   type LastActionOutcome,
   type StageDetailModel,
@@ -112,7 +111,7 @@ function InlineActionConfirmation({
     outcome.result === "released"
       ? "Payment sent"
       : outcome.result === "advanced"
-        ? "Package updated"
+        ? "Work package updated"
         : outcome.result === "exception"
           ? "Under review"
           : outcome.result === "waiting"
@@ -203,7 +202,7 @@ function StageDecisionSummaryCard({
                 <p key={`summary-blocker-${index}`} className="text-sm text-slate-900">{blocker}</p>
               ))
             ) : (
-              <p className="text-sm text-slate-900">No active blocker is holding this stage.</p>
+              <p className="text-sm text-slate-900">No active blocker is holding this work package.</p>
             )}
           </div>
         </div>
@@ -295,7 +294,7 @@ function StageAttentionReasonCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why this stage needs attention</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why this work package needs attention</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{reason.headline}</p>
           <p className="mt-1 text-sm text-slate-600">{reason.reasonLabel}</p>
         </div>
@@ -438,7 +437,7 @@ function StageRoleHandoffCard({
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next outcome</p>
-          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This moves the package to the next payment step."}</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This moves the work package to the next payment step."}</p>
         </div>
       </div>
     </div>
@@ -817,7 +816,7 @@ function StageTimelineCard({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Audit support</p>
-          <p className="mt-1 text-sm font-semibold text-slate-900">Recent stage changes</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">Recent work package changes</p>
         </div>
         <p className="text-xs text-slate-500">Most recent first</p>
       </div>
@@ -851,7 +850,7 @@ function StageTimelineCard({
             </article>
           );
         })}
-        {entries.length === 0 ? <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No governed stage changes recorded yet.</p> : null}
+        {entries.length === 0 ? <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No governed work package changes recorded yet.</p> : null}
       </div>
     </div>
   );
@@ -1037,7 +1036,6 @@ export default function StageDetailPanel({
   onRejectVariation,
   onActivateVariation,
 }: StageDetailPanelProps) {
-  const decisionPack = getStageDecisionPack(detail);
   const overviewRef = useRef<HTMLElement | null>(null);
   const fundingRef = useRef<HTMLDivElement | null>(null);
   const releaseRef = useRef<HTMLDivElement | null>(null);
@@ -1312,7 +1310,7 @@ export default function StageDetailPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{topModeLabel}</p>
-            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Package payment detail"}</h2>
+            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Work package payment detail"}</h2>
             <p className="mt-1 text-sm text-slate-600">{topSurface.topSublineLabel ?? `${detail.projectName} · ${detail.stage.name}`}</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
@@ -1412,58 +1410,6 @@ export default function StageDetailPanel({
         <SectionActionHeader title="Amount status" guidance={detail.sectionGuidance.funding} />
       </div>
 
-      <div className={`mt-6 ${stageSurfaceHierarchy.mutedBlock}`}>
-        <div className="flex flex-col gap-1 border-b border-slate-200 pb-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Package snapshot</p>
-          <p className="text-sm font-medium text-slate-900">Package report card</p>
-          <p className="text-sm text-slate-600">Compact payment and status summary for this package.</p>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Status</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.status}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Funder readiness</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.treasuryReadiness}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Payment status</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.releaseStatus}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Next owner</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.nextActionOwner}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Ready to pay</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.releasable)}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">On hold</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.frozen)}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">In progress</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{currency.format(decisionPack.inProgress)}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Principal blocker</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.principalBlocker}</p>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Payment basis</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.decisionBasis}</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-xs text-slate-500">Latest activity</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{decisionPack.latestActivity}</p>
-          </div>
-        </div>
-      </div>
-
       <div className={`mt-6 ${stageSurfaceHierarchy.tertiaryPanel}`}>
         <SectionActionHeader title="Amount position" guidance={detail.sectionGuidance.funding} />
         <h3 className="text-sm font-medium text-slate-900">Amount status</h3>
@@ -1471,7 +1417,7 @@ export default function StageDetailPanel({
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">WIP</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this package.</p>
+            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this work package.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">Ready to pay</p>
@@ -1499,7 +1445,7 @@ export default function StageDetailPanel({
             <p className="mt-1 text-xs text-slate-500">
               {detail.blockingRelease
                 ? "One or more current blockers are stopping payment."
-                : "This package is not currently blocked from payment."}
+                : "This work package is not currently blocked from payment."}
             </p>
           </div>
         </div>
@@ -1732,7 +1678,7 @@ export default function StageDetailPanel({
               </article>
             ))}
             {detail.disputes.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this package.</p>
+              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this work package.</p>
             ) : null}
           </div>
         </section>
@@ -1885,7 +1831,7 @@ export default function StageDetailPanel({
               </article>
             ))}
             {detail.variations.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this package.</p>
+              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this work package.</p>
             ) : null}
           </div>
         </section>
@@ -1901,7 +1847,7 @@ export default function StageDetailPanel({
             </article>
           ))}
           {detail.blockers.length === 0 ? (
-            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No payment blocker is recorded for this package.</p>
+            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No payment blocker is recorded for this work package.</p>
           ) : null}
         </div>
       </div>

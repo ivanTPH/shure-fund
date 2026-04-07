@@ -94,6 +94,29 @@ function SectionCard({
   );
 }
 
+const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
+  overview: {
+    title: "Overview",
+    subtitle: "Current payment position, the next hold-up to clear, and the work packages that need attention now.",
+  },
+  payments: {
+    title: "Payments",
+    subtitle: "Funding position, payment readiness, and value that is ready to pay or on hold.",
+  },
+  packages: {
+    title: "Work packages",
+    subtitle: "Selectable payment units within the current project, with live payment detail for the active work package.",
+  },
+  activity: {
+    title: "Activity",
+    subtitle: "Recent governed actions, audit history, and outstanding payment work.",
+  },
+  settings: {
+    title: "Settings",
+    subtitle: "Account, organisation, invitations, and platform configuration entry points.",
+  },
+};
+
 
 function ExpandableSection({
   title,
@@ -446,10 +469,14 @@ export default function ShureFundDashboard({
         : "Executive";
   const modeSummary =
     audienceMode === "operations"
-      ? "Focus on payment hold-ups, sign-offs, supporting information, and the next step to get a package paid."
+      ? "Focus on payment hold-ups, sign-offs, supporting information, and the next step to get a work package paid."
       : audienceMode === "treasury"
         ? "Focus on amounts ready to pay, amounts on hold, funder sign-off, and payment conditions."
-        : "Focus on payment status, exposure, on-hold value, and concise package updates.";
+        : "Focus on payment status, exposure, on-hold value, and concise work package updates.";
+  const sectionHeading = sectionMeta[section];
+  const showAudienceControls = section === "payments" || section === "packages" || section === "activity";
+  const showPrintAction = section === "overview" || section === "payments" || section === "packages";
+
   return (
     <main className="flex flex-col gap-8 text-slate-900">
 
@@ -531,11 +558,11 @@ export default function ShureFundDashboard({
             </section>
 
             <section className="print-section mt-8">
-              <h2 className="text-lg font-semibold text-slate-950">Selected package</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Selected work package</h2>
               <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-6">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <p className="text-xs text-slate-500">Package status</p>
+                    <p className="text-xs text-slate-500">Work package status</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.operationalStatus.label}</p>
                   </div>
                   <div>
@@ -581,36 +608,53 @@ export default function ShureFundDashboard({
         </section>
 
         <div className="no-print flex flex-col gap-8">
-          <div className="flex flex-wrap items-center gap-3">
-            {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setAudienceMode(mode)}
-                className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  audienceMode === mode ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={handleShareDecision}
-              className="rounded-full bg-teal-300 px-4 py-2 text-sm font-medium text-slate-950"
-            >
-              Print payment summary
-            </button>
-            <p className="text-sm text-slate-500">{modeTitle} view. {modeSummary}</p>
-          </div>
+          <section className="flex flex-col gap-4 rounded-[30px] border border-slate-200/80 bg-white/90 px-6 py-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{sectionHeading.title}</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">{project.name}</h2>
+                <p className="mt-2 max-w-3xl text-sm text-slate-600">{sectionHeading.subtitle}</p>
+              </div>
+              {(showAudienceControls || showPrintAction) ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  {showAudienceControls ? (
+                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+                      {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setAudienceMode(mode)}
+                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                            audienceMode === mode ? "bg-slate-950 text-white" : "text-slate-600"
+                          }`}
+                        >
+                          {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {showPrintAction ? (
+                    <button
+                      type="button"
+                      onClick={handleShareDecision}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      Print payment summary
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {showAudienceControls ? <p className="text-sm text-slate-500">{modeTitle} view. {modeSummary}</p> : null}
+          </section>
         {section === "overview" ? (
         <>
         <SectionCard
           title={currentUser.role === "executive" ? "Exceptions Overview" : "What Needs Your Attention"}
           subtitle={
             currentUser.role === "executive"
-              ? "Important package issues to understand now."
-              : "Package items that currently need attention in this project."
+              ? "Important work package issues to understand now."
+              : "Work packages that currently need attention in this project."
           }
         >
           <div className="grid gap-3">
@@ -671,7 +715,7 @@ export default function ShureFundDashboard({
         </SectionCard>
 
         <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
-          <SectionCard title="Payment status" subtitle="Current payment position, what is holding it up, and what happens next.">
+          <SectionCard title="Payment status">
             <div
               className={`rounded-[28px] border p-6 ${
                 selectedDecision.explanation.tone === "positive"
@@ -705,7 +749,7 @@ export default function ShureFundDashboard({
             </div>
           </SectionCard>
 
-          <SectionCard title="Next step" subtitle="The single most important action to move payment forward.">
+          <SectionCard title="Next action">
             {primaryAction ? (
               <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-6">
                 <p className="text-sm text-slate-500">{primaryAction.stageName}</p>
@@ -746,9 +790,8 @@ export default function ShureFundDashboard({
           </SectionCard>
         </div>
 
-        <SectionCard title="Amount status" subtitle="One view of cash, WIP, and how much is ready to pay.">
+        <SectionCard title="Amount status">
           <div className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-5">
-            <p className="text-sm leading-6 text-slate-600">{fundingSummarySentence}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-2xl bg-white/95 p-4">
                 <p className="text-sm text-slate-500">Balance</p>
@@ -773,6 +816,7 @@ export default function ShureFundDashboard({
                 <p className="mt-2 text-2xl font-semibold text-slate-950">{currency.format(fundingSummary.frozenFunds)}</p>
               </div>
             </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">{fundingSummarySentence}</p>
           </div>
         </SectionCard>
         </>
@@ -783,11 +827,11 @@ export default function ShureFundDashboard({
           <div className="grid gap-6">
             {section === "packages" ? (
             <SectionCard
-              title="Packages"
+              title="Work packages"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise package payment status and key hold-ups."
-                  : "Select a package to see payment status, supporting information, sign-offs, review items, and payment conditions."
+                  ? "Concise work package payment status and key hold-ups."
+                  : "Select a work package to see payment status, supporting information, sign-offs, review items, and payment conditions."
               }
             >
               <div className="grid gap-3">
@@ -849,8 +893,8 @@ export default function ShureFundDashboard({
               title="Status summary"
               subtitle={
                 audienceMode === "executive"
-                  ? "Package counts by payment status."
-                  : "Current package counts across payment, sign-off, review, and on-hold states."
+                  ? "Work package counts by payment status."
+                  : "Current work package counts across payment, sign-off, review, and on-hold states."
               }
             >
               <div className="grid gap-3 sm:grid-cols-2">
@@ -911,7 +955,7 @@ export default function ShureFundDashboard({
               title="Payment conditions"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise package payment-readiness summaries."
+                  ? "Concise work package payment-readiness summaries."
                   : "Payment is allowed only when funding, supporting information, and sign-off are complete unless a funder override is active. On-hold value remains outside payable amount."
               }
               >
@@ -1038,7 +1082,7 @@ export default function ShureFundDashboard({
           ) : null}
 
           <ExpandableSection
-            title="Selected package"
+            title="Selected work package"
             subtitle="Detailed payment checks, supporting information, sign-offs, review items, and payment actions."
             open={showStageDetail}
             onToggle={setShowStageDetail}

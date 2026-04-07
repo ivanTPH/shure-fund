@@ -48,7 +48,7 @@ function getSectionFromPath(pathname: string): AppSection {
 const navItems: Array<{ section: AppSection; label: string; href: string }> = [
   { section: "overview", label: "Overview", href: "/" },
   { section: "payments", label: "Payments", href: "/payments" },
-  { section: "packages", label: "Packages", href: "/packages" },
+  { section: "packages", label: "Work packages", href: "/packages" },
   { section: "activity", label: "Activity", href: "/activity" },
   { section: "settings", label: "Settings", href: "/settings" },
 ];
@@ -114,10 +114,17 @@ export default function ShureFundAppShell({
       <div className="flex h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.08),_transparent_28%),linear-gradient(180deg,#fbfcfc_0%,#f8fafc_44%,#f1f5f4_100%)] text-slate-900">
         <aside className="hidden h-screen w-72 shrink-0 border-r border-slate-200/80 bg-white/96 px-5 py-6 xl:flex xl:flex-col xl:justify-between">
           <div>
-            <div className="rounded-2xl bg-slate-950 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-300">Shure.Fund</p>
-              <p className="mt-3 text-2xl font-semibold tracking-[-0.02em] text-white">Platform</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Payment control for construction packages.</p>
+            <div className="rounded-[28px] bg-slate-950 px-5 py-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-300 text-sm font-semibold tracking-[0.18em] text-slate-950">
+                  SF
+                </div>
+                <div>
+                  <p className="text-lg font-semibold tracking-[-0.02em] text-white">Shure.Fund</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-teal-200">Payment control</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">Trusted payment readiness for construction work packages.</p>
             </div>
 
             <nav className="mt-8 grid gap-2">
@@ -141,7 +148,7 @@ export default function ShureFundAppShell({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Organisation</p>
             <p className="mt-2 text-sm font-medium text-slate-950">Shure.Fund workspace</p>
-            <p className="mt-1 text-xs text-slate-500">Settings, invitations, and access controls live here.</p>
+            <p className="mt-1 text-xs text-slate-500">Organisation settings, invitations, and access controls live here.</p>
           </div>
         </aside>
 
@@ -149,13 +156,13 @@ export default function ShureFundAppShell({
           <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/92 backdrop-blur">
             <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Current project</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Project</p>
                 <h1 className="mt-1 truncate text-2xl font-semibold tracking-[-0.02em] text-slate-950">{project.name}</h1>
                 <p className="mt-1 text-sm text-slate-500">{projectSummary.postureReason}</p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-[minmax(220px,1.2fr)_minmax(190px,0.9fr)_minmax(180px,0.8fr)]">
                 <label className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-500">Project</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Workspace</p>
                   <select
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950"
                     value={selectedProjectId}
@@ -168,8 +175,8 @@ export default function ShureFundAppShell({
                     ))}
                   </select>
                 </label>
-                <label className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-500">Current role</p>
+                <label className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Role view</p>
                   <select
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950"
                     value={state.currentUserId}
@@ -182,9 +189,10 @@ export default function ShureFundAppShell({
                     ))}
                   </select>
                 </label>
-                <Link href="/settings" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-slate-300 hover:bg-white">
-                  <p className="text-xs text-slate-500">Account</p>
+                <Link href="/settings" className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Account</p>
                   <p className="mt-1 text-sm font-medium text-slate-950">{currentUser.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">Settings and organisation</p>
                 </Link>
               </div>
             </div>

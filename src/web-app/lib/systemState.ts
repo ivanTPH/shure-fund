@@ -2263,7 +2263,7 @@ export const demoContracts = [
   {
     id: "c1",
     projectId: "p1",
-    title: "Groundworks Package",
+    title: "Groundworks Work Package",
     totalValue: 400000,
     allocatedFunding: 350000,
     status: "active"
@@ -2271,7 +2271,7 @@ export const demoContracts = [
   {
     id: "c2",
     projectId: "p1",
-    title: "Superstructure Package",
+    title: "Superstructure Work Package",
     totalValue: 600000,
     allocatedFunding: 450000,
     status: "active"
@@ -2656,7 +2656,7 @@ function getStageRoleViewGuidance(params: {
       viewMode = "action_led";
       primarySignals = ["decision", "attention", "handoff", "evidence", "approval"];
       secondarySignals = ["release", "exception", "case_path", "funding", "outcome"];
-      primaryWorkspaceLabel = "Package progress";
+      primaryWorkspaceLabel = "Work package progress";
       workspaceHintLabel = "Next step";
       break;
   }
@@ -3938,7 +3938,7 @@ function getVariationOperationalSummary(stage: SystemStageRecord): VariationOper
 
   return {
     status: "No variation",
-    reason: "No variation is currently affecting this Work Package.",
+      reason: "No variation is currently affecting this work package.",
     blocking: false,
   };
 }
@@ -4060,7 +4060,7 @@ function getOperationalStageStatus(state: SystemStateRecord, stage: SystemStageR
   if (stage.releasedAmount >= stage.requiredAmount) {
     return {
       label: "Paid",
-      reason: "This package has already been paid.",
+      reason: "This work package has already been paid.",
       nextStep: "No action needed.",
       tone: "neutral",
     };
@@ -4420,7 +4420,7 @@ function getStageFundingExplanation({
   return {
     headline:
       coverageState === "released"
-        ? "This package has already paid its current payable value."
+        ? "This work package has already paid its current payable value."
         : coverageState === "releasable"
           ? "Allocated funds and sign-offs have produced value ready to pay."
           : coverageState === "underfunded"
@@ -4478,7 +4478,7 @@ export function getStageBlockers(state: SystemStateRecord, stageId: string): Sta
   if (stage.onHold) {
     blockers.push({
       code: "on_hold",
-      label: "Work Package is on hold and cannot progress.",
+      label: "Work package is on hold and cannot progress.",
       priority: "critical",
     });
   }
@@ -4867,9 +4867,9 @@ function getStageSectionGuidance({
           status: availableActions.fundStage ? "Needs action now" : "Waiting on Funder",
           summary:
             funding.gapToRequiredCover > 0
-              ? `This package is short of ${dashboardCurrency.format(funding.gapToRequiredCover)} against current WIP.`
+              ? `This work package is short of ${dashboardCurrency.format(funding.gapToRequiredCover)} against current WIP.`
               : "Funding is aligned to current WIP.",
-          nextStep: funding.gapToRequiredCover > 0 ? "Allocate funds to align the package to WIP." : "No funding action is needed.",
+          nextStep: funding.gapToRequiredCover > 0 ? "Allocate funds to align the work package to WIP." : "No funding action is needed.",
           recommendedAction: availableActions.fundStage ? "Allocate the remaining funding." : availableActions.fundStageReason,
           ownerLabel: "Funder",
           state: availableActions.fundStage ? "act_now" : "waiting",
@@ -4991,7 +4991,7 @@ function getStageSectionGuidance({
       ? {
           key: "variation",
           status: "No variation",
-          summary: "No variation is currently affecting this package.",
+          summary: "No variation is currently affecting this work package.",
           nextStep: "No variation action is needed.",
           recommendedAction: availableActions.createVariation ? "Only propose a variation if the scope changes." : availableActions.createVariationReason,
           ownerLabel: "Commercial",
@@ -5585,8 +5585,8 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
 
   const releasePostureLine =
     summaryStrip.releaseReadyPackages > 0
-      ? `${summaryStrip.releaseReadyPackages} package${summaryStrip.releaseReadyPackages === 1 ? "" : "s"} are release-ready with ${summaryStrip.partiallyBlockedPackages} partially blocked and ${summaryStrip.blockedPackages} blocked.`
-      : `${summaryStrip.blockedPackages} package${summaryStrip.blockedPackages === 1 ? "" : "s"} remain blocked with no package currently release-ready.`;
+      ? `${summaryStrip.releaseReadyPackages} work package${summaryStrip.releaseReadyPackages === 1 ? "" : "s"} are ready to pay with ${summaryStrip.partiallyBlockedPackages} partly blocked and ${summaryStrip.blockedPackages} blocked.`
+      : `${summaryStrip.blockedPackages} work package${summaryStrip.blockedPackages === 1 ? "" : "s"} remain blocked with no work package currently ready to pay.`;
 
   const blockerThemeLine = topBlockedDecision
     ? `Principal blocker theme: ${topBlockedDecision.explanation.reason}`
@@ -5596,9 +5596,9 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
 
   const treasuryConfidenceLine =
     summaryStrip.treasuryBlockedPackages > 0
-      ? `${summaryStrip.treasuryBlockedPackages} package${summaryStrip.treasuryBlockedPackages === 1 ? "" : "s"} are funder blocked; confidence is constrained by current blockers.`
+      ? `${summaryStrip.treasuryBlockedPackages} work package${summaryStrip.treasuryBlockedPackages === 1 ? "" : "s"} are funder blocked; confidence is constrained by current blockers.`
       : summaryStrip.treasuryReviewRequiredPackages > 0
-        ? `${summaryStrip.treasuryReviewRequiredPackages} package${summaryStrip.treasuryReviewRequiredPackages === 1 ? "" : "s"} require funder review; checks are progressing but not fully clear.`
+        ? `${summaryStrip.treasuryReviewRequiredPackages} work package${summaryStrip.treasuryReviewRequiredPackages === 1 ? "" : "s"} require funder review; checks are progressing but not fully clear.`
         : "Funder confidence is high; current payment decisions are supported by sign-off, supporting information acceptance, and approved value within WIP.";
 
   const disputeExposureLine =
@@ -5608,7 +5608,7 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
           currency: "GBP",
           maximumFractionDigits: 0,
         })}, with undisputed value continuing through controls where permitted.`
-      : "Dispute exposure is currently nil across the active package set.";
+      : "Dispute exposure is currently nil across the active work package set.";
 
   const latestMaterialActivityLine = projectActivity.recentEvents[0]
     ? `Latest material activity: ${projectActivity.recentEvents[0].summary}`
@@ -5827,7 +5827,7 @@ function getStageExitState(detail: Pick<
       : exitState === "withheld" || exitState === "in_dispute"
         ? "Dispute hold applied"
         : exitState === "superseded"
-          ? "Variation moved this package out of the normal payment path"
+          ? "Variation moved this work package out of the normal payment path"
           : exitState === "complete"
             ? "No additional action required"
             : null;
@@ -5951,7 +5951,7 @@ function getStageExceptionPath(detail: Pick<
         : exceptionType === "dispute"
           ? "Dispute handling has replaced the normal payment path"
           : exceptionType === "variation"
-            ? "Variation handling has moved the package under review"
+            ? "Variation handling has moved this work package under review"
             : exceptionType === "withheld_release"
               ? "Payment is being withheld under review"
               : "A governed review path is active",
@@ -5969,7 +5969,7 @@ function getStageExceptionPath(detail: Pick<
         : exceptionType === "dispute"
           ? "The normal payment path is paused while disputed value remains on hold."
         : exceptionType === "variation"
-            ? "The normal package path is paused until the variation review completes."
+            ? "The normal work package path is paused until the variation review completes."
             : "The normal payment path is paused pending a review decision.",
     ownerLabel:
       exceptionType === "override"
@@ -6136,7 +6136,7 @@ function getStageEvidenceSummary(detail: {
               ? "Some evidence is accepted, but the stage is still waiting on the remaining evidence outcome."
               : evidenceState === "under_review" || evidenceState === "submitted"
                 ? "Supporting information is present but still under review."
-                : "This package does not require supporting information to progress.",
+                : "This work package does not require supporting information to progress.",
     sufficiencyLabel:
       evidenceState === "accepted"
         ? "Supporting information sufficient"
@@ -6844,7 +6844,7 @@ function getStageActionReadinessModel(detail: Pick<
       guidance: detail.sectionGuidance.release,
       missingPrerequisites: releaseMissing,
       availableReason: "Funder can send the current payment now.",
-      completeReason: "No further payment is currently needed for this package.",
+      completeReason: "No further payment is currently needed for this work package.",
     }),
     applyOverride: buildActionReadiness({
       actionKey: "applyOverride",
@@ -7015,7 +7015,7 @@ function getApprovalOutcomeLabel(
 
 function getEvidenceOutcomeLabel(status: EvidenceStatus) {
   if (status === "accepted") {
-    return "Moves the package toward sign-off";
+    return "Moves the work package toward sign-off";
   }
 
   if (status === "rejected") {
@@ -7108,7 +7108,7 @@ function getStageDerivedActionDescriptors(detail: {
         detail.funding.gapToRequiredCover > 0
           ? `Allocate ${dashboardCurrency.format(detail.funding.gapToRequiredCover)}`
           : "Allocate funds",
-      outcomeLabel: "Brings this package back into funded position",
+      outcomeLabel: "Brings this work package back into funded position",
       fromState: getCurrentStateLabelForAction(detail, "fund-stage"),
       toState: detail.funding.gapToRequiredCover > 0 ? "Funding aligned" : detail.fundingExplanation.coverageLabel,
       readiness: detail.actionReadiness.fundStage,
@@ -7116,7 +7116,7 @@ function getStageDerivedActionDescriptors(detail: {
         detail.funding.gapToRequiredCover > 0
           ? [
               `${dashboardCurrency.format(detail.funding.gapToRequiredCover)} gap is covered`,
-              "Package sits within the current WIP position",
+              "Work package sits within the current WIP position",
             ]
           : undefined,
       impactSummary:
@@ -7190,7 +7190,7 @@ function getStageDerivedActionDescriptors(detail: {
     buildDerivedActionDescriptor({
       actionId: "resolve-dispute",
       label: "Resolve dispute",
-      outcomeLabel: "Returns the package to the governed payment path",
+      outcomeLabel: "Returns the work package to the governed payment path",
       fromState: getCurrentStateLabelForAction(detail, "resolve-dispute"),
       toState: "Dispute resolved",
       readiness: detail.actionReadiness.resolveDispute,
@@ -7209,7 +7209,7 @@ function getStageDerivedActionDescriptors(detail: {
     buildDerivedActionDescriptor({
       actionId: "create-variation",
       label: "Propose variation",
-      outcomeLabel: "Moves the package into variation review",
+      outcomeLabel: "Moves the work package into variation review",
       fromState: getCurrentStateLabelForAction(detail, "create-variation"),
       toState: "Pending review",
       readiness: detail.actionReadiness.createVariation,
@@ -7236,7 +7236,7 @@ function getStageDerivedActionDescriptors(detail: {
     buildDerivedActionDescriptor({
       actionId: "activate-variation",
       label: "Activate variation",
-      outcomeLabel: "Applies the approved change to the live package",
+      outcomeLabel: "Applies the approved change to the live work package",
       fromState: getCurrentStateLabelForAction(detail, "activate-variation"),
       toState: "Variation active",
       readiness: detail.actionReadiness.activateVariation,
@@ -7248,7 +7248,7 @@ function getStageDerivedActionDescriptors(detail: {
     ...approval,
     approveAction: buildDerivedActionDescriptor({
       actionId: `approval-${approval.role}-approve`,
-      label: "Approve package",
+      label: "Approve work package",
       outcomeLabel: getApprovalOutcomeLabel(detail.approvals, approval.role, "approve"),
       fromState: getCurrentStateLabelForAction(detail, `approval-${approval.role}-approve`),
       toState:
@@ -7263,12 +7263,12 @@ function getStageDerivedActionDescriptors(detail: {
     }),
     rejectAction: buildDerivedActionDescriptor({
       actionId: `approval-${approval.role}-reject`,
-      label: "Reject package",
+      label: "Reject work package",
       outcomeLabel: getApprovalOutcomeLabel(detail.approvals, approval.role, "reject"),
       fromState: getCurrentStateLabelForAction(detail, `approval-${approval.role}-reject`),
       toState: "Payment on hold",
       readiness: approval.readiness,
-      sideEffects: ["Package remains on hold for sign-off rework"],
+      sideEffects: ["Work package remains on hold for sign-off rework"],
     }),
   }));
 
@@ -7643,12 +7643,12 @@ function getOutcomeResultMeta(params: {
   if (stateNow.progressionStatus === "advanced") {
     return {
         resultType: "advanced",
-        resultTypeLabel: releasableDelta > 0 ? "Payment available" : "Package updated",
+        resultTypeLabel: releasableDelta > 0 ? "Payment available" : "Work package updated",
         resultHeadline:
           releasableDelta > 0
             ? "Payment now available"
             : after.operationalStatus.label === "Ready for payment"
-              ? "Package ready for payment"
+              ? "Work package ready for payment"
               : `${after.stage.name} advanced`,
       resultSubline: releasableDelta > 0 ? after.releaseSummary.eligibleAmountLabel : stateNow.stateNowDetail,
       resultTone: "success",
@@ -7775,7 +7775,7 @@ export function getStageActionOutcomeSummary(
     ];
     unlockedItems =
       before.funding.gapToRequiredCover > 0 && after.funding.gapToRequiredCover === 0
-        ? ["Funding no longer blocks this package."]
+        ? ["Funding no longer blocks this work package."]
         : unlockedItems;
     nextActionLabel = after.sectionGuidance.funding.nextStep;
   } else if (section === "approvals") {
@@ -7835,13 +7835,13 @@ export function getStageActionOutcomeSummary(
       before.variationSummary.status !== after.variationSummary.status && after.variationSummary.status === "Approved variation"
         ? ["The approved variation can now move toward activation."]
         : before.variationSummary.status !== after.variationSummary.status && after.variationSummary.status === "No variation"
-          ? ["Variation review no longer blocks this package."]
+          ? ["Variation review no longer blocks this work package."]
           : unlockedItems;
     nextActionLabel = after.sectionGuidance.variation.nextStep;
   } else if (section === "release") {
     whatChanged = [
       releasedDelta > 0
-        ? `${dashboardCurrency.format(releasedDelta)} has been paid from this package.`
+        ? `${dashboardCurrency.format(releasedDelta)} has been paid from this work package.`
         : defaultWhatChanged,
     ];
     unlockedItems =
@@ -8083,7 +8083,7 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     reviewEvidence: canReviewEvidence,
     reviewEvidenceReason: getPermissionReason(canReviewEvidence, "Evidence reviewer", "Evidence decisions can be recorded in this role."),
     fundStage: canFundStage,
-    fundStageReason: getPermissionReason(canFundStage, "Funder", "Funder can allocate funds to this package."),
+    fundStageReason: getPermissionReason(canFundStage, "Funder", "Funder can allocate funds to this work package."),
     applyOverride: canApplyOverride,
     applyOverrideReason: getPermissionReason(canApplyOverride, "Funder", "Funder can apply a governed override."),
     release: canRelease,
