@@ -21,6 +21,7 @@ import {
   getOperationalSummary,
   getProjectActivitySummary,
   getPrimaryActionForRole,
+  getProjectWorkspaceSummary,
   getResponsibilityCue,
   getReleaseDecisions,
   getLastActionOutcome,
@@ -53,6 +54,7 @@ import LedgerSummaryCard from "./LedgerSummaryCard";
 import LedgerTransactionsList from "./LedgerTransactionsList";
 import { useShureFundShellState, type AppSection } from "./ShureFundAppShell";
 import StageDetailPanel from "./StageDetailPanel";
+import { activeControl, disabledControl, hiddenControl, isControlActive, shouldShowControl, uiControlChecklist } from "./uiCapability";
 
 type RequestDetailSheetKey = "payment" | "supporting" | "approval" | "history";
 
@@ -106,7 +108,7 @@ const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
     subtitle: "Open the next request, inspect only what matters, and complete the governed step without working through a dashboard first.",
   },
   summary: {
-    title: "Project summary",
+    title: "Overview",
     subtitle: "Current payment position, the next hold-up to clear, and the project stages that need attention now.",
   },
   payments: {
@@ -114,7 +116,7 @@ const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
     subtitle: "Funding position, payment readiness, and value that is ready to pay or on hold.",
   },
   packages: {
-    title: "Project stages",
+    title: "Projects",
     subtitle: "Selectable payment stages within the current project, with live payment detail for the active project stage.",
   },
   activity: {
@@ -122,7 +124,7 @@ const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
     subtitle: "Recent governed actions, audit history, and outstanding payment work.",
   },
   settings: {
-    title: "Settings",
+    title: "Account",
     subtitle: "Account, organisation, invitations, and platform configuration entry points.",
   },
 };
@@ -274,6 +276,34 @@ function getStageSurfaceActionLabel(detail: StageDetailModel, hasRequest: boolea
   return "Open project stage";
 }
 
+function getOutcomeHeadline(outcome: { actionId: string; summary: string } | null | undefined) {
+  if (!outcome) return "";
+  if (outcome.actionId === "release:execute") return "Payment sent";
+  if (outcome.actionId.includes(":approve") || outcome.actionId === "review-variation-approve") return "Approved";
+  if (outcome.actionId.includes(":reject") || outcome.actionId.includes("-rejected")) return "Rejected";
+  if (outcome.actionId.includes("requires_more")) return "Information requested";
+  if (outcome.actionId === "dispute:open") return "Dispute opened";
+  if (outcome.actionId.includes("dispute:") && outcome.actionId.endsWith(":resolve")) return "Dispute resolved";
+  if (outcome.actionId === "funding:allocate") return "Funds allocated";
+  if (outcome.actionId === "evidence:add") return "Information added";
+  return outcome.summary;
+}
+
+function getOutcomeTrustLine(outcome: { actionId: string } | null | undefined, detail: StageDetailModel) {
+  if (!outcome) return "Recorded just now.";
+  if (outcome.actionId === "release:execute") return "Recorded just now. All actions are logged.";
+  if (outcome.actionId === "funding:allocate") return "Funds secured. Recorded just now.";
+  if (outcome.actionId.includes(":approve") || outcome.actionId === "review-variation-approve") {
+    return "Approval recorded. All actions are logged.";
+  }
+  if (outcome.actionId.includes(":reject") || outcome.actionId.includes("requires_more")) {
+    return "Reason recorded. All actions are logged.";
+  }
+  return detail.releaseDecision.releasable
+    ? "Funds secured. All actions are logged."
+    : "Recorded just now. All actions are logged.";
+}
+
 export default function ShureFundDashboard({
   section,
 }: {
@@ -314,6 +344,8 @@ export default function ShureFundDashboard({
   const [evidenceReviewReasons, setEvidenceReviewReasons] = useState<Record<string, string>>({});
   const [variationRejectReasons, setVariationRejectReasons] = useState<Record<string, string>>({});
   const [requestDetailSheet, setRequestDetailSheet] = useState<RequestDetailSheetKey | null>(null);
+  const [activeDecisionComposerId, setActiveDecisionComposerId] = useState<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId)!;
   const projectStages = useMemo(() => state.stages.filter((stage) => stage.projectId === project.id), [state, project.id]);
@@ -336,6 +368,18 @@ export default function ShureFundDashboard({
   const shortfallActive = fundingSummary.shortfall > 0;
   const fundingSummarySentence = getFundingSummarySentence(fundingSummary);
   const crossProjectAttentionCount = allProjectInbox.filter((item) => item.projectId !== project.id).length;
+  const projectDirectory = useMemo(
+    () =>
+      state.projects.map((entry) => ({
+        projectId: entry.id,
+        projectName: entry.name,
+        workspaceSummary: getProjectWorkspaceSummary(state, entry.id),
+        requestCount: getRoleInboxItems(state, currentUser.role, entry.id).length,
+        fundingSummary: getFundingSummary(state, entry.id),
+        isCurrent: entry.id === project.id,
+      })),
+    [state, currentUser.role, project.id],
+  );
 
   const selectedDecision = releaseDecisions.find((entry) => entry.stageId === activeStageId)!;
   const primaryAction = useMemo(() => getPrimaryActionForRole(state, project.id, currentUser.role), [state, project.id, currentUser.role]);
@@ -491,6 +535,26 @@ export default function ShureFundDashboard({
     }
   }, [state.projects, state.stages, selectedProjectId, selectedStageId, selectedStageSection]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const currentProject = params.get("project") ?? "";
+    const currentStage = params.get("stage") ?? "";
+    const currentSection = params.get("section") ?? "";
+    const nextProject = project.id;
+    const nextStage = activeStageId ?? "";
+    const nextSection = selectedStageSection ?? "";
+
+    if (currentProject === nextProject && currentStage === nextStage && currentSection === nextSection) {
+      return;
+    }
+
+    syncRequestLocation(nextProject, nextStage || undefined, nextSection || undefined);
+  }, [project.id, activeStageId, selectedStageSection]);
+
   function syncRequestLocation(projectId: string, stageId?: string, stageSection?: StageDetailSectionKey) {
     const params = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
     params.set("project", projectId);
@@ -537,6 +601,15 @@ export default function ShureFundDashboard({
     setSelectedStageSection(nextSection);
     setShowStageDetail(true);
     syncRequestLocation(nextProjectId, undefined, nextSection);
+  }
+
+  function pulsePendingAction(actionId: string) {
+    setPendingActionId(actionId);
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        setPendingActionId((current) => (current === actionId ? null : current));
+      }, 450);
+    }
   }
 
   function commit(updater: (current: SystemStateRecord) => SystemStateRecord) {
@@ -638,6 +711,51 @@ export default function ShureFundDashboard({
       descriptor.actionId.endsWith("-rejected") ||
       descriptor.actionId.endsWith("-requires_more")
     );
+  }
+
+  function getDecisionConfirmationLine(descriptor: DerivedActionDescriptor | null | undefined) {
+    if (!descriptor) return "Complete this governed action.";
+    switch (descriptor.actionId) {
+      case "release":
+        return "Release payment now.";
+      case "review-variation-approve":
+        return "Approve variation and move this project stage forward.";
+      case "review-variation-reject":
+        return "Reject variation and record your reason.";
+      case "approval-professional-approve":
+      case "approval-commercial-approve":
+      case "approval-treasury-approve":
+        return "Approve and move this project stage forward.";
+      case "approval-professional-reject":
+      case "approval-commercial-reject":
+      case "approval-treasury-reject":
+        return "Reject request and record your reason.";
+      default:
+        if (descriptor.actionId.endsWith("-requires_more")) {
+          return "Request more information and return this for update.";
+        }
+        if (descriptor.actionId.endsWith("-rejected")) {
+          return "Reject request and record your reason.";
+        }
+        if (descriptor.actionId === "resolve-dispute") {
+          return "Resolve this dispute and update the payment position.";
+        }
+        return descriptor.sideEffects?.[0] ?? descriptor.outcomeLabel;
+    }
+  }
+
+  function getDecisionReasonPlaceholder(descriptor: DerivedActionDescriptor | null | undefined) {
+    if (!descriptor) return "Add a reason";
+    if (descriptor.actionId.endsWith("-requires_more")) {
+      return "What needs to be updated before this can continue?";
+    }
+    if (descriptor.actionId.includes("variation")) {
+      return "Why should this variation be rejected?";
+    }
+    if (descriptor.actionId.includes("approval-")) {
+      return "Why are you rejecting this request?";
+    }
+    return "Why are you taking this action?";
   }
 
   function getApprovalRoleFromDescriptor(descriptor: DerivedActionDescriptor) {
@@ -898,39 +1016,81 @@ export default function ShureFundDashboard({
     return descriptor.confidence === "blocked";
   };
 
+  const canEditPrimaryActionFields = (descriptor: DerivedActionDescriptor | null | undefined) => {
+    if (!descriptor) return false;
+    if (descriptor.actionId === "add-evidence") return stageDetail.actionReadiness.addEvidence.isAvailable;
+    if (descriptor.actionId === "open-dispute") return stageDetail.actionReadiness.openDispute.isAvailable;
+    if (descriptor.actionId === "create-variation") return stageDetail.actionReadiness.createVariation.isAvailable;
+    if (descriptor.actionId === "apply-override") return stageDetail.actionReadiness.applyOverride.isAvailable;
+    if (requiresDecisionReason(descriptor)) return descriptor.confidence !== "blocked";
+    return descriptor.confidence !== "blocked";
+  };
+  const requestPrimaryActionControl = !taskDescriptorSet?.primary
+    ? hiddenControl("No direct action is available in this request.")
+    : isDescriptorDisabled(taskDescriptorSet.primary)
+      ? disabledControl(taskDescriptorSet.primary.blockerSummary ?? stageDetail.operationalStatus.reason)
+      : activeControl(taskDescriptorSet.primary.outcomeLabel);
+
+  useEffect(() => {
+    if (!selectedTask) {
+      setActiveDecisionComposerId(null);
+      return;
+    }
+
+    const availableActionIds = [
+      taskDescriptorSet?.primary?.actionId,
+      ...(taskDescriptorSet?.secondary.map((descriptor) => descriptor.actionId) ?? []),
+    ].filter(Boolean);
+
+    if (activeDecisionComposerId && !availableActionIds.includes(activeDecisionComposerId)) {
+      setActiveDecisionComposerId(null);
+    }
+  }, [activeDecisionComposerId, selectedTask, taskDescriptorSet]);
+
   const runDescriptorAction = (descriptor: DerivedActionDescriptor | null | undefined) => {
     if (!descriptor) return;
+    pulsePendingAction(descriptor.actionId);
 
     switch (descriptor.actionId) {
       case "fund-stage":
         handleFundStage();
+        setActiveDecisionComposerId(null);
         return;
       case "release":
         handleReleaseStage();
+        setActiveDecisionComposerId(null);
         return;
       case "apply-override":
         handleApplyOverride();
+        setActiveDecisionComposerId(null);
         return;
       case "add-evidence":
         handleAddEvidence();
+        setActiveDecisionComposerId(null);
         return;
       case "approval-professional-approve":
         onApproveTask("professional");
+        setActiveDecisionComposerId(null);
         return;
       case "approval-commercial-approve":
         onApproveTask("commercial");
+        setActiveDecisionComposerId(null);
         return;
       case "approval-treasury-approve":
         onApproveTask("treasury");
+        setActiveDecisionComposerId(null);
         return;
       case "approval-professional-reject":
         onRejectTask("professional", approvalRejectReasons.professional ?? "");
+        setActiveDecisionComposerId(null);
         return;
       case "approval-commercial-reject":
         onRejectTask("commercial", approvalRejectReasons.commercial ?? "");
+        setActiveDecisionComposerId(null);
         return;
       case "approval-treasury-reject":
         onRejectTask("treasury", approvalRejectReasons.treasury ?? "");
+        setActiveDecisionComposerId(null);
         return;
       case "resolve-dispute":
         if (taskDescriptorSet?.disputeId) {
@@ -938,12 +1098,15 @@ export default function ShureFundDashboard({
             resolveDispute(current, stageDetail.stage.id, taskDescriptorSet.disputeId!),
           );
         }
+        setActiveDecisionComposerId(null);
         return;
       case "open-dispute":
         handleOpenDispute();
+        setActiveDecisionComposerId(null);
         return;
       case "create-variation":
         handleCreateVariation();
+        setActiveDecisionComposerId(null);
         return;
       case "activate-variation":
         if (taskDescriptorSet?.variationId) {
@@ -951,6 +1114,7 @@ export default function ShureFundDashboard({
             activateVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!),
           );
         }
+        setActiveDecisionComposerId(null);
         return;
       case "review-variation-approve":
         if (taskDescriptorSet?.variationId) {
@@ -958,6 +1122,7 @@ export default function ShureFundDashboard({
             reviewVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!, "approved"),
           );
         }
+        setActiveDecisionComposerId(null);
         return;
       case "review-variation-reject":
         if (taskDescriptorSet?.variationId) {
@@ -968,6 +1133,7 @@ export default function ShureFundDashboard({
           );
           setVariationRejectReasons((current) => ({ ...current, [taskDescriptorSet.variationId!]: "" }));
         }
+        setActiveDecisionComposerId(null);
         return;
       default:
         if (descriptor.actionId.startsWith("evidence-") && taskDescriptorSet?.evidenceId) {
@@ -980,6 +1146,7 @@ export default function ShureFundDashboard({
           }
           if (descriptor.actionId.endsWith("-pending")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "pending");
         }
+        setActiveDecisionComposerId(null);
     }
   };
 
@@ -1102,6 +1269,11 @@ export default function ShureFundDashboard({
                     <p className="mt-2 text-sm text-slate-500">{item.type === "file" ? "Document" : "Information"}</p>
                   </div>
                 ))}
+                {stageDetail.evidence.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    No supporting information has been added to this project stage yet.
+                  </div>
+                ) : null}
               </div>
             ),
           }
@@ -1135,16 +1307,21 @@ export default function ShureFundDashboard({
                 subtitle: `${project.name} · ${stageDetail.stage.name}`,
                 content: (
                   <div className="grid gap-3">
-                    {stageDetail.timelineEntries.slice(0, 8).map((entry) => (
-                      <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <p className="text-sm font-medium text-slate-950">{entry.headline}</p>
-                        <p className="mt-2 text-sm text-slate-600">{entry.detail}</p>
-                        <p className="mt-2 text-xs text-slate-500">{entry.actorLabel ?? "System"} · {entry.timestampLabel}</p>
-                      </div>
-                    ))}
-                  </div>
-                ),
-              }
+                  {stageDetail.timelineEntries.slice(0, 8).map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-medium text-slate-950">{entry.headline}</p>
+                      <p className="mt-2 text-sm text-slate-600">{entry.detail}</p>
+                      <p className="mt-2 text-xs text-slate-500">{entry.actorLabel ?? "System"} · {entry.timestampLabel}</p>
+                    </div>
+                  ))}
+                  {stageDetail.timelineEntries.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      No governed events have been recorded for this project stage yet.
+                    </div>
+                  ) : null}
+                </div>
+              ),
+            }
             : null;
 
   return (
@@ -1279,9 +1456,9 @@ export default function ShureFundDashboard({
 
         <div className="no-print flex flex-col gap-8 pb-28">
           {section === "actions" ? (
-            <div className={`sticky top-24 z-10 flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3 shadow-[0_14px_32px_-26px_rgba(15,23,42,0.35)] backdrop-blur ${bannerTone}`}>
+            <div className={`sticky top-24 z-10 mx-auto flex w-full max-w-3xl items-center justify-between gap-3 rounded-[22px] border px-4 py-3 shadow-[0_14px_32px_-26px_rgba(15,23,42,0.35)] backdrop-blur ${bannerTone}`}>
               <div className="min-w-0">
-                <p className={`text-[11px] uppercase tracking-[0.18em] ${topUrgency === "immediate" ? "text-white/70" : "text-current/70"}`}>Attention</p>
+                <p className={`text-[11px] uppercase tracking-[0.18em] ${topUrgency === "immediate" ? "text-white/70" : "text-current/70"}`}>Requests inbox</p>
                 <p className="truncate text-sm font-semibold">{bannerLabel}</p>
               </div>
               <button
@@ -1303,51 +1480,67 @@ export default function ShureFundDashboard({
               </button>
             </div>
           ) : null}
-          <section className="flex flex-col gap-4 rounded-[30px] border border-slate-200/80 bg-white/90 px-6 py-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          {section === "actions" ? (
+            <section className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-[28px] border border-slate-200/80 bg-white/92 px-5 py-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{sectionHeading.title}</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">{project.name}</h2>
-                <p className="mt-2 max-w-3xl text-sm text-slate-600">{sectionHeading.subtitle}</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">This is where work happens</h2>
+                <p className="mt-2 text-sm text-slate-600">{sectionHeading.subtitle}</p>
+                <p className="mt-2 text-sm text-slate-500">
+                  {project.name} · Acting as {getUserFacingRoleLabel(currentUser.role)}
+                </p>
               </div>
-              {(showAudienceControls || showPrintAction) ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  {showAudienceControls ? (
-                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
-                      {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setAudienceMode(mode)}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                            audienceMode === mode ? "bg-slate-950 text-white" : "text-slate-600"
-                          }`}
-                        >
-                          {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {showPrintAction ? (
-                    <button
-                      type="button"
-                      onClick={handleShareDecision}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                    >
-                      Print payment summary
-                    </button>
-                  ) : null}
+            </section>
+          ) : (
+            <section className="flex flex-col gap-4 rounded-[30px] border border-slate-200/80 bg-white/90 px-6 py-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{sectionHeading.title}</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">{project.name}</h2>
+                  <p className="mt-2 max-w-3xl text-sm text-slate-600">{sectionHeading.subtitle}</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Acting as {getUserFacingRoleLabel(currentUser.role)} in this project. Changing role changes which governed actions are available here.
+                  </p>
                 </div>
-              ) : null}
-            </div>
-            {showAudienceControls ? <p className="text-sm text-slate-500">{modeTitle} view. {modeSummary}</p> : null}
-          </section>
+                {(showAudienceControls || showPrintAction) ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {showAudienceControls ? (
+                      <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+                        {(["operations", "treasury", "executive"] as DashboardAudienceMode[]).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setAudienceMode(mode)}
+                            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                              audienceMode === mode ? "bg-slate-950 text-white" : "text-slate-600"
+                            }`}
+                          >
+                            {mode === "operations" ? "Delivery" : mode === "treasury" ? "Funder" : "Executive"}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {showPrintAction ? (
+                      <button
+                        type="button"
+                        onClick={handleShareDecision}
+                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        Print payment summary
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              {showAudienceControls ? <p className="text-sm text-slate-500">{modeTitle} view. {modeSummary}</p> : null}
+            </section>
+          )}
         {section === "actions" ? (
         <>
-        <div className="mx-auto grid w-full max-w-2xl gap-4">
+        <div className="mx-auto grid w-full max-w-3xl gap-4">
           <RequestStepCard
             title="Requests"
-            subtitle={primaryTaskCount > 0 ? `${primaryTaskCount} request${primaryTaskCount === 1 ? "" : "s"} waiting in ${project.name}.` : "All requests up to date for this project."}
+            subtitle={primaryTaskCount > 0 ? `${primaryTaskCount} waiting in ${project.name}.` : "All requests up to date."}
           >
             {currentProjectInbox.length > 0 ? (
               <div className="grid gap-2">
@@ -1366,19 +1559,16 @@ export default function ShureFundDashboard({
                     >
                       <div className="min-w-0">
                         <p className={`truncate text-base font-semibold ${selected ? "text-white" : "text-slate-950"}`}>{item.title}</p>
-                        <p className={`mt-1 truncate text-sm ${selected ? "text-slate-300" : "text-slate-600"}`}>{item.reason}</p>
-                        <div className={`mt-2 flex items-center gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
-                          <span>{project.name}</span>
-                          <span aria-hidden="true">/</span>
-                          <span>{item.stageName ?? stageDetail.stage.name}</span>
-                          <span aria-hidden="true">•</span>
-                          <span>{formatRelativeTime(getStageDetail(state, item.stageId ?? activeStageId).lastUpdatedAt)}</span>
-                        </div>
+                        <p className={`mt-1 truncate text-sm ${selected ? "text-slate-300" : "text-slate-600"}`}>{item.stageName ?? stageDetail.stage.name}</p>
+                        <p className={`mt-2 truncate text-sm ${selected ? "text-slate-200" : "text-slate-500"}`}>{item.reason}</p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${selected ? "bg-white/15 text-white" : urgencyTone(item.decisionCue.decisionUrgency)}`}>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <div className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${selected ? "text-slate-300" : "text-slate-500"}`}>
                           {urgencyLabel(item.decisionCue.decisionUrgency)}
-                        </span>
+                        </div>
+                        <div className={`text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
+                          {formatRelativeTime(getStageDetail(state, item.stageId ?? activeStageId).lastUpdatedAt)}
+                        </div>
                         <ChevronRight size={18} className={selected ? "text-white" : "text-slate-400"} />
                       </div>
                     </button>
@@ -1394,7 +1584,7 @@ export default function ShureFundDashboard({
                   </button>
                 ) : null}
                 {crossProjectAttentionCount > 0 ? (
-                  <p className="px-1 text-xs text-slate-500">
+                <p className="px-1 text-xs text-slate-500">
                     {crossProjectAttentionCount} additional item{crossProjectAttentionCount === 1 ? "" : "s"} need attention in other projects.
                   </p>
                 ) : null}
@@ -1402,7 +1592,7 @@ export default function ShureFundDashboard({
             ) : (
               <div className="rounded-[24px] border border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(249,250,251,1)_100%)] px-5 py-5">
                 <p className="text-base font-semibold text-teal-950">All requests up to date</p>
-                <p className="mt-2 text-sm text-teal-900">No actions are waiting in this project right now. Payment controls and governed checks remain in place.</p>
+                <p className="mt-2 text-sm text-teal-900">No requests waiting in this project.</p>
                 <button
                   type="button"
                   onClick={() => router.push("/summary")}
@@ -1430,7 +1620,7 @@ export default function ShureFundDashboard({
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Who needs to act</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Action owner</p>
                     <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}</p>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1448,7 +1638,7 @@ export default function ShureFundDashboard({
                   <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTask.decisionCue.primaryCue}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next step / consequence</p>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What happens next</p>
                   <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTask.nextStep ?? stageDetail.operationalStatus.nextStep}</p>
                 </div>
                 {taskAlertLines.length > 0 ? (
@@ -1463,7 +1653,16 @@ export default function ShureFundDashboard({
               </div>
             </RequestStepCard>
 
-            <RequestStepCard title="Primary action area" subtitle={taskDescriptorSet?.primary ? "Take the governed action directly from this request." : "No direct action is available in this request."}>
+            <RequestStepCard
+              title="Primary action area"
+              subtitle={
+                shouldShowControl(requestPrimaryActionControl)
+                  ? isControlActive(requestPrimaryActionControl)
+                    ? "Review it. Decide. Move on."
+                    : requestPrimaryActionControl.reason
+                  : "No direct action is available in this request."
+              }
+            >
               <div className="grid gap-4">
                 {lastActionOutcome ? (
                   <div className={`rounded-[24px] border px-4 py-4 ${
@@ -1473,156 +1672,227 @@ export default function ShureFundDashboard({
                         ? "border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,1)_0%,rgba(254,243,199,0.62)_100%)]"
                         : "border-slate-200 bg-slate-50"
                   }`}>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Outcome confirmed</p>
-                    <p className="mt-2 text-base font-semibold text-slate-950">{lastActionOutcome.summary}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Done</p>
+                    <p className="mt-2 text-base font-semibold text-slate-950">{getOutcomeHeadline(lastActionOutcome)}</p>
+                    <p className="mt-2 text-sm text-slate-600">{getOutcomeTrustLine(lastActionOutcome, stageDetail)}</p>
                   </div>
                 ) : null}
 
-                {taskDescriptorSet?.primary ? (
+                {shouldShowControl(requestPrimaryActionControl) && taskDescriptorSet?.primary ? (
                   <div className="rounded-[26px] border border-slate-200 bg-slate-50/70 p-4">
                     <div className={`rounded-2xl border px-4 py-3 text-sm ${
-                      isDescriptorDisabled(taskDescriptorSet.primary)
+                      !isControlActive(requestPrimaryActionControl)
                         ? "border-amber-200 bg-amber-50 text-amber-950"
                         : "border-teal-200 bg-white text-slate-900"
                     }`}>
-                      {isDescriptorDisabled(taskDescriptorSet.primary)
-                        ? `This role cannot complete the current governed action here. ${taskDescriptorSet.primary.blockerSummary ?? `Who must act: ${selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}.`}`
+                      {!isControlActive(requestPrimaryActionControl)
+                        ? `This role cannot act here. ${requestPrimaryActionControl.reason ?? `Action owner: ${selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}.`}`
                         : taskDescriptorSet.primary.sideEffects?.[0] ?? taskDescriptorSet.primary.outcomeLabel}
                     </div>
 
-                  {taskDescriptorSet.primary.actionId === "add-evidence" ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem]">
-                      <input
-                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Supporting information title"
-                        value={evidenceTitle}
-                        onChange={(event) => setEvidenceTitle(event.target.value)}
-                      />
-                      <select
-                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        value={evidenceType}
-                        onChange={(event) => setEvidenceType(event.target.value as EvidenceType)}
+                    {taskDescriptorSet.primary.actionId === "add-evidence" ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem]">
+                        <input
+                          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Supporting information title"
+                          value={evidenceTitle}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setEvidenceTitle(event.target.value)}
+                        />
+                        <select
+                          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          value={evidenceType}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setEvidenceType(event.target.value as EvidenceType)}
+                        >
+                          <option value="file">Document</option>
+                          <option value="form">Information</option>
+                        </select>
+                      </div>
+                    ) : null}
+
+                    {taskDescriptorSet.primary.actionId === "open-dispute" ? (
+                      <div className="mt-4 grid gap-3">
+                        <input
+                          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Dispute title"
+                          value={disputeTitle}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setDisputeTitle(event.target.value)}
+                        />
+                        <textarea
+                          className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Why payment should be held"
+                          value={disputeReason}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setDisputeReason(event.target.value)}
+                        />
+                        <input
+                          inputMode="numeric"
+                          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Disputed amount"
+                          value={disputeAmount}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setDisputeAmount(event.target.value)}
+                        />
+                      </div>
+                    ) : null}
+
+                    {taskDescriptorSet.primary.actionId === "create-variation" ? (
+                      <div className="mt-4 grid gap-3">
+                        <input
+                          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Variation title"
+                          value={variationTitle}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setVariationTitle(event.target.value)}
+                        />
+                        <textarea
+                          className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="What is changing"
+                          value={variationReason}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setVariationReason(event.target.value)}
+                        />
+                        <input
+                          inputMode="numeric"
+                          className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Variation amount"
+                          value={variationAmount}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setVariationAmount(event.target.value)}
+                        />
+                      </div>
+                    ) : null}
+
+                    {taskDescriptorSet.primary.actionId === "apply-override" ? (
+                      <div className="mt-4">
+                        <textarea
+                          className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder="Override reason"
+                          value={overrideReason}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setOverrideReason(event.target.value)}
+                        />
+                      </div>
+                    ) : null}
+
+                    {requiresDecisionReason(taskDescriptorSet.primary) ? (
+                      <div className="mt-4">
+                        <textarea
+                          className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                          placeholder={getDecisionReasonPlaceholder(taskDescriptorSet.primary)}
+                          value={getDescriptorReasonDraft(taskDescriptorSet.primary)}
+                          disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                          onChange={(event) => setDescriptorReasonDraft(taskDescriptorSet.primary, event.target.value)}
+                        />
+                      </div>
+                    ) : null}
+
+                    <div className="sticky bottom-20 z-10 mt-4 rounded-[24px] border border-slate-950 bg-slate-950 px-4 py-4 text-white shadow-[0_24px_50px_-30px_rgba(15,23,42,0.65)] md:bottom-6">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Ready</p>
+                      <p className="mt-2 text-lg font-semibold">{taskDescriptorSet.primary.label}</p>
+                      <p className="mt-2 text-sm text-slate-200">{getDecisionConfirmationLine(taskDescriptorSet.primary)}</p>
+                      <p className="mt-2 text-xs text-slate-400">All actions are logged.</p>
+                      <button
+                        type="button"
+                        aria-label={uiControlChecklist.requestPrimaryAction.label}
+                        onClick={() => runDescriptorAction(taskDescriptorSet.primary)}
+                        disabled={isDescriptorDisabled(taskDescriptorSet.primary) || pendingActionId === taskDescriptorSet.primary.actionId}
+                        className={getActionButtonClass(
+                          taskDescriptorSet.primary,
+                          isDescriptorDisabled(taskDescriptorSet.primary) || pendingActionId === taskDescriptorSet.primary.actionId,
+                          true,
+                        )}
                       >
-                        <option value="file">Document</option>
-                        <option value="form">Information</option>
-                      </select>
+                        <span className="block text-base font-semibold">
+                          {pendingActionId === taskDescriptorSet.primary.actionId ? "Recording..." : taskDescriptorSet.primary.label}
+                        </span>
+                        <span className="mt-1 block text-sm opacity-85">
+                          {pendingActionId === taskDescriptorSet.primary.actionId ? "Recorded just now" : getDecisionConfirmationLine(taskDescriptorSet.primary)}
+                        </span>
+                      </button>
                     </div>
-                  ) : null}
 
-                  {taskDescriptorSet.primary.actionId === "open-dispute" ? (
-                    <div className="mt-4 grid gap-3">
-                      <input
-                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Dispute title"
-                        value={disputeTitle}
-                        onChange={(event) => setDisputeTitle(event.target.value)}
-                      />
-                      <textarea
-                        className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Why payment should be held"
-                        value={disputeReason}
-                        onChange={(event) => setDisputeReason(event.target.value)}
-                      />
-                      <input
-                        inputMode="numeric"
-                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Disputed amount"
-                        value={disputeAmount}
-                        onChange={(event) => setDisputeAmount(event.target.value)}
-                      />
-                    </div>
-                  ) : null}
+                    {taskDescriptorSet.secondary.length > 0 ? (
+                      <div className="mt-4 grid gap-3">
+                        {taskDescriptorSet.secondary.map((descriptor) => {
+                          const disabled = isDescriptorDisabled(descriptor);
+                          const composerOpen = activeDecisionComposerId === descriptor.actionId;
+                          const needsReason = requiresDecisionReason(descriptor);
 
-                  {taskDescriptorSet.primary.actionId === "create-variation" ? (
-                    <div className="mt-4 grid gap-3">
-                      <input
-                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Variation title"
-                        value={variationTitle}
-                        onChange={(event) => setVariationTitle(event.target.value)}
-                      />
-                      <textarea
-                        className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="What is changing"
-                        value={variationReason}
-                        onChange={(event) => setVariationReason(event.target.value)}
-                      />
-                      <input
-                        inputMode="numeric"
-                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Variation amount"
-                        value={variationAmount}
-                        onChange={(event) => setVariationAmount(event.target.value)}
-                      />
-                    </div>
-                  ) : null}
+                          return (
+                            <div key={descriptor.actionId} className="rounded-2xl border border-slate-200 bg-white p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-950">{descriptor.label}</p>
+                                  <p className="mt-1 text-sm text-slate-600">{getDecisionConfirmationLine(descriptor)}</p>
+                                </div>
+                                {needsReason ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveDecisionComposerId(descriptor.actionId)}
+                                    aria-label={uiControlChecklist.requestSecondaryAction.label}
+                                    disabled={descriptor.confidence === "blocked"}
+                                    className={getActionButtonClass(descriptor, descriptor.confidence === "blocked")}
+                                  >
+                                    <span className="block">{descriptor.label}</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => runDescriptorAction(descriptor)}
+                                    aria-label={uiControlChecklist.requestSecondaryAction.label}
+                                    disabled={disabled || pendingActionId === descriptor.actionId}
+                                    className={getActionButtonClass(descriptor, disabled || pendingActionId === descriptor.actionId)}
+                                  >
+                                    <span className="block">{pendingActionId === descriptor.actionId ? "Recording..." : descriptor.label}</span>
+                                  </button>
+                                )}
+                              </div>
 
-                  {taskDescriptorSet.primary.actionId === "apply-override" ? (
-                    <div className="mt-4">
-                      <textarea
-                        className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Override reason"
-                        value={overrideReason}
-                        onChange={(event) => setOverrideReason(event.target.value)}
-                      />
-                    </div>
-                  ) : null}
+                              {composerOpen ? (
+                                <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                  <p className="text-sm font-medium text-slate-900">{getDecisionConfirmationLine(descriptor)}</p>
+                                  <textarea
+                                    className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                                    placeholder={getDecisionReasonPlaceholder(descriptor)}
+                                    value={getDescriptorReasonDraft(descriptor)}
+                                    disabled={descriptor.confidence === "blocked"}
+                                    onChange={(event) => setDescriptorReasonDraft(descriptor, event.target.value)}
+                                  />
+                                  <div className="flex flex-col gap-2 sm:flex-row">
+                                    <button
+                                      type="button"
+                                      onClick={() => runDescriptorAction(descriptor)}
+                                      disabled={disabled || pendingActionId === descriptor.actionId}
+                                      className={getActionButtonClass(descriptor, disabled || pendingActionId === descriptor.actionId)}
+                                    >
+                                      {pendingActionId === descriptor.actionId ? "Recording..." : `Confirm ${descriptor.label.toLowerCase()}`}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveDecisionComposerId(null)}
+                                      className="min-h-12 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : null}
 
-                  {requiresDecisionReason(taskDescriptorSet.primary) ? (
-                    <div className="mt-4">
-                      <textarea
-                        className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                        placeholder="Reason for this decision"
-                        value={getDescriptorReasonDraft(taskDescriptorSet.primary)}
-                        onChange={(event) => setDescriptorReasonDraft(taskDescriptorSet.primary, event.target.value)}
-                      />
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-base font-semibold text-slate-950">{taskDescriptorSet.primary.label}</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {taskDescriptorSet.primary.stateTransitionPreview.fromState} → {taskDescriptorSet.primary.stateTransitionPreview.toState}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      {isDescriptorDisabled(taskDescriptorSet.primary)
-                        ? taskDescriptorSet.primary.blockerSummary ?? stageDetail.operationalStatus.reason
-                        : taskDescriptorSet.primary.sideEffects?.[0] ?? taskDescriptorSet.primary.outcomeLabel}
-                    </p>
-                  </div>
-
-                  {taskDescriptorSet.secondary.length > 0 ? (
-                    <div className="mt-4 grid gap-3">
-                      {taskDescriptorSet.secondary.map((descriptor) => (
-                        <div key={descriptor.actionId} className="grid gap-2">
-                          {requiresDecisionReason(descriptor) ? (
-                            <textarea
-                              className="min-h-20 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                              placeholder="Reason for this decision"
-                              value={getDescriptorReasonDraft(descriptor)}
-                              onChange={(event) => setDescriptorReasonDraft(descriptor, event.target.value)}
-                            />
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => runDescriptorAction(descriptor)}
-                            disabled={isDescriptorDisabled(descriptor)}
-                            className={getActionButtonClass(descriptor, isDescriptorDisabled(descriptor))}
-                          >
-                            <span className="block">{descriptor.label}</span>
-                            <span className="mt-1 block text-xs opacity-80">
-                              {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
-                            </span>
-                            <span className="mt-2 block text-xs opacity-75">
-                              {isDescriptorDisabled(descriptor)
-                                ? descriptor.blockerSummary ?? descriptor.outcomeLabel
-                                : descriptor.sideEffects?.[0] ?? descriptor.outcomeLabel}
-                            </span>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                              {!composerOpen ? (
+                                <p className="mt-3 text-xs text-slate-500">
+                                  {disabled
+                                    ? descriptor.blockerSummary ?? descriptor.outcomeLabel
+                                    : descriptor.stateTransitionPreview.fromState + " → " + descriptor.stateTransitionPreview.toState}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
@@ -1661,6 +1931,7 @@ export default function ShureFundDashboard({
                     <button
                       type="button"
                       onClick={() => setRequestDetailSheet(detailCard.key)}
+                      aria-label={uiControlChecklist.requestDetailReveal.label}
                       className="shrink-0 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       View details
@@ -1669,13 +1940,13 @@ export default function ShureFundDashboard({
                 </RequestStepCard>
               ))}
 
-              <RequestStepCard title="Full project stage detail" subtitle="All governed controls remain available in the complete stage view.">
+              <RequestStepCard title="Full project stage detail" subtitle="Open the full stage view when you need the complete governed context for this project stage.">
                 <button
                   type="button"
                   onClick={() => openStageContext(stageDetail.stage.id, selectedStageSection)}
                   className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
                 >
-                  Keep current stage open
+                  Open full stage detail
                 </button>
               </RequestStepCard>
             </div>
@@ -1863,6 +2134,70 @@ export default function ShureFundDashboard({
         {(section === "payments" || section === "packages") ? (
         <div className={`grid gap-6 ${section === "packages" ? "xl:grid-cols-1" : "xl:grid-cols-[1.3fr_0.9fr]"}`}>
           <div className="grid gap-6">
+            {lastActionOutcome ? (
+              <SectionCard
+                title="Recent update"
+                subtitle={`${project.name} · ${stageDetail.stage.name}`}
+              >
+                <div className={`rounded-[24px] border px-4 py-4 ${
+                  lastActionOutcome.result === "advanced" || lastActionOutcome.result === "released"
+                    ? "border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(236,253,245,0.92)_100%)]"
+                    : lastActionOutcome.result === "exception" || lastActionOutcome.result === "blocked"
+                      ? "border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,1)_0%,rgba(254,243,199,0.62)_100%)]"
+                      : "border-slate-200 bg-slate-50"
+                }`}>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What changed</p>
+                  <p className="mt-2 text-base font-semibold text-slate-950">{getOutcomeHeadline(lastActionOutcome)}</p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Ready to pay {currency.format(stageDetail.releaseDecision.releasableAmount)} · On hold {currency.format(stageDetail.releaseDecision.frozenAmount)}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">{getOutcomeTrustLine(lastActionOutcome, stageDetail)}</p>
+                </div>
+              </SectionCard>
+            ) : null}
+
+            {section === "packages" ? (
+            <SectionCard
+              title="My projects"
+              subtitle="Switch project context, see what needs attention, and enter the current working project."
+            >
+              <div className="grid gap-3">
+                {projectDirectory.map((entry) => (
+                  <button
+                    key={entry.projectId}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProjectId(entry.projectId);
+                      setSelectedWorkspaceCue(null);
+                      setShowStageDetail(false);
+                    }}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      entry.isCurrent
+                        ? "border-slate-950 bg-slate-950 text-white"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={`text-base font-semibold ${entry.isCurrent ? "text-white" : "text-slate-950"}`}>{entry.projectName}</p>
+                        <p className={`mt-1 text-sm ${entry.isCurrent ? "text-slate-300" : "text-slate-600"}`}>{entry.workspaceSummary.postureLabel}</p>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${entry.isCurrent ? "bg-white text-slate-950" : entry.requestCount > 0 ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
+                        {entry.requestCount > 0 ? `${entry.requestCount} request${entry.requestCount === 1 ? "" : "s"}` : "No requests waiting"}
+                      </span>
+                    </div>
+                    <p className={`mt-2 text-sm ${entry.isCurrent ? "text-slate-300" : "text-slate-500"}`}>{entry.workspaceSummary.postureReason}</p>
+                    <div className={`mt-3 flex flex-wrap gap-2 text-xs ${entry.isCurrent ? "text-slate-300" : "text-slate-500"}`}>
+                      <span>Ready to pay {currency.format(entry.fundingSummary.releasableFunds)}</span>
+                      <span aria-hidden="true">•</span>
+                      <span>On hold {currency.format(entry.fundingSummary.frozenFunds)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+            ) : null}
+
             {section === "packages" ? (
             <SectionCard
               title="Project stages"
@@ -1924,6 +2259,11 @@ export default function ShureFundDashboard({
                     </button>
                   );
                 })}
+                {fundingSummary.stageSummaries.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    No additional project stages need action in this project.
+                  </div>
+                ) : null}
               </div>
             </SectionCard>
             ) : null}
@@ -2109,6 +2449,11 @@ export default function ShureFundDashboard({
                     })()}
                   </article>
                 ))}
+                {releaseDecisions.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    No payment action required in this project right now.
+                  </div>
+                ) : null}
               </div>
             </ExpandableSection>
           </div>
@@ -2235,36 +2580,45 @@ export default function ShureFundDashboard({
 
         {section === "settings" ? (
         <div className="grid gap-6 xl:grid-cols-2">
-          <SectionCard title="Profile and account" subtitle="A clear home for user profile and account controls.">
+          <SectionCard title="Profile and account" subtitle="Current user identity and prototype truth state.">
             <div className="grid gap-3">
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Name</p>
                 <p className="mt-1 text-sm font-medium text-slate-950">{currentUser.name}</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">Current role</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">{getUserFacingRoleLabel(currentUser.role)}</p>
-                <p className="mt-1 text-xs text-slate-500">Role context remains visible across the workspace, but stays secondary to the selected project.</p>
+                <p className="text-xs text-slate-500">Current project</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{project.name}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {currentProjectInbox.length > 0
+                    ? `${currentProjectInbox.length} request${currentProjectInbox.length === 1 ? "" : "s"} waiting in this project.`
+                    : "No requests waiting in this project."}
+                </p>
               </div>
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-                Profile settings, notification preferences, and personal security controls can live here.
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Acting as</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">{getUserFacingRoleLabel(currentUser.role)}</p>
+                <p className="mt-1 text-xs text-slate-500">Role context stays secondary to the selected project and changes which governed actions are available.</p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                Not yet available in this prototype. Account editing and notification preferences are intentionally read-only here.
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard title="Organisation and access" subtitle="A clear product home for settings, invitations, and configuration.">
+          <SectionCard title="Organisation and access" subtitle="Prototype truth state for organisation controls.">
             <div className="grid gap-3">
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Organisation</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">Shure.Fund workspace</p>
-                <p className="mt-1 text-xs text-slate-500">Configuration, commercial defaults, and connected payment controls can live here.</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">Shure.Fund organisation</p>
+                <p className="mt-1 text-xs text-slate-500">Read-only in this prototype.</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Invitations and team access</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">Manage who can access projects and which role they hold.</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">Available in a later prototype phase.</p>
               </div>
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-                This shell now gives settings, organisation controls, invitations, and configuration a durable product home.
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                Organisation editing, invitations, and configuration are not yet available in this prototype.
               </div>
             </div>
           </SectionCard>

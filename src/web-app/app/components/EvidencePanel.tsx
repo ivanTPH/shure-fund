@@ -1,5 +1,6 @@
 import type { EvidenceStatus, EvidenceType } from "@/lib/shureFundModels";
 import type { DerivedActionDescriptor, StageDetailModel } from "@/lib/systemState";
+import { activeControl, disabledControl, isControlActive, uiControlChecklist } from "./uiCapability";
 
 function getActionButtonClass(descriptor: DerivedActionDescriptor, disabled: boolean) {
   if (descriptor.confidence === "high" && descriptor.isPrimary) {
@@ -85,6 +86,9 @@ export default function EvidencePanel({
       : undefined,
   );
   const reviewHelp = getReadinessMessage(detail.actionReadiness.reviewEvidence);
+  const addEvidenceControl = detail.actionReadiness.addEvidence.isAvailable
+    ? activeControl("Add supporting information for this project stage.")
+    : disabledControl(addItemHelp);
 
   return (
     <section>
@@ -130,11 +134,14 @@ export default function EvidencePanel({
             className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
             placeholder="Supporting information title"
             value={evidenceTitle}
+            disabled={!isControlActive(addEvidenceControl)}
             onChange={(event) => onEvidenceTitleChange(event.target.value)}
+            aria-label={uiControlChecklist.addSupportingInformation.label}
           />
           <select
             className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
             value={evidenceType}
+            disabled={!isControlActive(addEvidenceControl)}
             onChange={(event) => onEvidenceTypeChange(event.target.value as EvidenceType)}
           >
             <option value="file">Document</option>
@@ -156,7 +163,7 @@ export default function EvidencePanel({
           {getDescriptorLabel(addEvidenceDescriptor)}
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          {canAddItem ? addEvidenceDescriptor.sideEffects?.[0] ?? addEvidenceDescriptor.outcomeLabel : addItemHelp}
+          {canAddItem ? addEvidenceDescriptor.sideEffects?.[0] ?? addEvidenceDescriptor.outcomeLabel : addEvidenceControl.reason}
         </p>
       </div>
 
