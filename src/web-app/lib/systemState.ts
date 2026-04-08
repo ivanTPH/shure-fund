@@ -262,6 +262,11 @@ export interface HomeTaskItem {
   handoff?: StageRoleHandoff;
   exitState?: StageExitState;
   exceptionPath?: StageExceptionPath;
+  deepLinkTarget?: {
+    projectId: string;
+    stageId?: string;
+    section?: StageDetailSectionKey;
+  };
   roleCueLabel?: string;
   roleViewMode?: StageRoleViewMode;
   decisionCue?: WorkspaceDecisionCue;

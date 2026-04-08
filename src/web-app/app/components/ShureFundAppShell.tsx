@@ -16,7 +16,7 @@ import {
 import type { SystemStateRecord } from "@/lib/shureFundModels";
 import type { WorkspaceDecisionCue } from "@/lib/systemState";
 
-export type AppSection = "overview" | "payments" | "packages" | "activity" | "settings";
+export type AppSection = "actions" | "summary" | "payments" | "packages" | "activity" | "settings";
 
 type ShellState = {
   state: SystemStateRecord;
@@ -38,15 +38,17 @@ type ShellState = {
 const ShellStateContext = createContext<ShellState | null>(null);
 
 function getSectionFromPath(pathname: string): AppSection {
+  if (pathname === "/summary") return "summary";
   if (pathname === "/payments") return "payments";
   if (pathname === "/packages") return "packages";
   if (pathname === "/activity" || pathname === "/audit-log") return "activity";
   if (pathname === "/settings") return "settings";
-  return "overview";
+  return "actions";
 }
 
 const navItems: Array<{ section: AppSection; label: string; href: string }> = [
-  { section: "overview", label: "Overview", href: "/" },
+  { section: "actions", label: "Action feed", href: "/" },
+  { section: "summary", label: "Summary", href: "/summary" },
   { section: "payments", label: "Payments", href: "/payments" },
   { section: "packages", label: "Work packages", href: "/packages" },
   { section: "activity", label: "Activity", href: "/activity" },

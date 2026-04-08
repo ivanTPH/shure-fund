@@ -9,6 +9,7 @@ import {
   applyOverride,
   createVariation,
   createLastActionOutcome,
+  type DerivedActionDescriptor,
   depositFunds,
   getActionQueue,
   getDashboardDecisionPack,
@@ -32,6 +33,7 @@ import {
   releaseStage,
   recordLastActionOutcome,
   resolveDispute,
+  type StageDetailModel,
   reviewVariation,
   updateEvidenceStatus,
   type DashboardAudienceMode,
@@ -95,8 +97,12 @@ function SectionCard({
 }
 
 const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
-  overview: {
-    title: "Overview",
+  actions: {
+    title: "Action feed",
+    subtitle: "One task at a time. Open the next work package that needs action and complete the governed step without working through a dashboard first.",
+  },
+  summary: {
+    title: "Project summary",
     subtitle: "Current payment position, the next hold-up to clear, and the work packages that need attention now.",
   },
   payments: {
@@ -166,6 +172,20 @@ function formatRelativeTime(timestamp?: string | null) {
   if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
   if (hours < 24) return `${hours}h ago`;
   return `${days}d ago`;
+}
+
+function getActionButtonClass(descriptor: DerivedActionDescriptor, disabled: boolean, primary = false) {
+  if (primary) {
+    return disabled
+      ? "w-full rounded-2xl bg-slate-300 px-4 py-4 text-left text-sm font-medium text-white"
+      : descriptor.confidence === "high"
+        ? "w-full rounded-2xl bg-slate-950 px-4 py-4 text-left text-sm font-medium text-white"
+        : "w-full rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left text-sm font-medium text-slate-950";
+  }
+
+  return disabled
+    ? "w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-medium text-slate-400"
+    : "w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-left text-sm font-medium text-slate-900";
 }
 
 export default function ShureFundDashboard({
@@ -238,11 +258,26 @@ export default function ShureFundDashboard({
         ? stageBlockers[0].label
         : `${stageBlockers[0].label} + ${stageBlockers.length - 1} more blocker${stageBlockers.length - 1 === 1 ? "" : "s"}.`;
   const parsedDepositAmount = Number(depositAmount);
+  const parsedDisputeAmount = Number(disputeAmount);
+  const parsedVariationAmount = Number(variationAmount);
   const canAddFunds =
     !isAddingFunds &&
     Number.isFinite(parsedDepositAmount) &&
     parsedDepositAmount > 0 &&
     (fundingSource === "funder" || fundingSource === "contractor");
+  const canApplyOverride = stageDetail.actionReadiness.applyOverride.isAvailable && overrideReason.trim().length > 0;
+  const canOpenDispute =
+    stageDetail.actionReadiness.openDispute.isAvailable &&
+    disputeTitle.trim().length > 0 &&
+    disputeReason.trim().length > 0 &&
+    Number.isFinite(parsedDisputeAmount) &&
+    parsedDisputeAmount > 0;
+  const canCreateVariation =
+    stageDetail.actionReadiness.createVariation.isAvailable &&
+    variationTitle.trim().length > 0 &&
+    variationReason.trim().length > 0 &&
+    Number.isFinite(parsedVariationAmount) &&
+    parsedVariationAmount !== 0;
   const addFundsHelperText = isAddingFunds
     ? "Adding funds."
     : depositAmount.trim() === ""
@@ -473,9 +508,268 @@ export default function ShureFundDashboard({
       : audienceMode === "treasury"
         ? "Focus on amounts ready to pay, amounts on hold, funder sign-off, and payment conditions."
         : "Focus on payment status, exposure, on-hold value, and concise work package updates.";
+  const selectedTask =
+    currentProjectInbox.find(
+      (item) =>
+        item.stageId === activeStageId &&
+        (item.deepLinkTarget?.section ?? "overview") === selectedStageSection,
+    ) ??
+    currentProjectInbox.find((item) => item.stageId === activeStageId) ??
+    currentProjectInbox[0] ??
+    null;
+  const primaryTaskCount = currentProjectInbox.length;
   const sectionHeading = sectionMeta[section];
   const showAudienceControls = section === "payments" || section === "packages" || section === "activity";
-  const showPrintAction = section === "overview" || section === "payments" || section === "packages";
+  const showPrintAction = section === "summary" || section === "payments" || section === "packages";
+
+  useEffect(() => {
+    if (section !== "actions" || currentProjectInbox.length === 0) {
+      return;
+    }
+
+    const matchesCurrentTask = currentProjectInbox.some((item) => item.stageId === activeStageId);
+    if (matchesCurrentTask) {
+      return;
+    }
+
+    handleWorkspaceItemSelect(currentProjectInbox[0]);
+  }, [section, currentProjectInbox, activeStageId]);
+
+  const getTaskDescriptorSet = (
+    detail: StageDetailModel,
+    task: {
+      deepLinkTarget?: {
+        section?: StageDetailSectionKey;
+      };
+    } | null,
+  ) => {
+    const approvalCandidate =
+      detail.approvals.find((approval) => approval.readiness.readinessState === "available") ??
+      detail.approvals.find((approval) => approval.readiness.readinessState !== "complete") ??
+      detail.approvals[0];
+    const evidenceCandidate =
+      detail.evidence.find((item) => item.actionDescriptors.accepted) ??
+      detail.evidence[0];
+    const openDisputeItem = detail.disputes.find((item) => item.status === "open") ?? detail.disputes[0];
+    const pendingVariation =
+      detail.variations.find((item) => item.status === "pending") ??
+      detail.variations.find((item) => item.status === "approved") ??
+      detail.variations[0];
+    const focusSection = task?.deepLinkTarget?.section ?? selectedStageSection;
+
+    switch (focusSection) {
+      case "funding":
+        return {
+          primary: detail.actionDescriptorMap["fund-stage"],
+          secondary: [] as DerivedActionDescriptor[],
+        };
+      case "release":
+        return {
+          primary: detail.actionDescriptorMap["release"],
+          secondary: detail.actionDescriptorMap["apply-override"] ? [detail.actionDescriptorMap["apply-override"]] : [],
+        };
+      case "approvals":
+        return {
+          primary: approvalCandidate?.approveAction ?? detail.actionDescriptors.find((descriptor) => descriptor.isPrimary) ?? null,
+          secondary: approvalCandidate?.rejectAction ? [approvalCandidate.rejectAction] : [],
+          approvalRole: approvalCandidate?.role,
+        };
+      case "evidence":
+        if (detail.actionReadiness.addEvidence.isAvailable || detail.evidenceSummary.evidenceState === "missing") {
+          return {
+            primary: detail.actionDescriptorMap["add-evidence"],
+            secondary: [] as DerivedActionDescriptor[],
+          };
+        }
+        return {
+          primary: evidenceCandidate?.actionDescriptors.accepted ?? detail.actionDescriptorMap["review-evidence"],
+          secondary: [
+            evidenceCandidate?.actionDescriptors.requires_more,
+            evidenceCandidate?.actionDescriptors.rejected,
+          ].filter(Boolean) as DerivedActionDescriptor[],
+          evidenceId: evidenceCandidate?.id,
+        };
+      case "dispute":
+        return openDisputeItem?.resolveAction
+          ? {
+              primary: openDisputeItem.resolveAction,
+              secondary: [] as DerivedActionDescriptor[],
+              disputeId: openDisputeItem.id,
+            }
+          : {
+              primary: detail.actionDescriptorMap["open-dispute"],
+              secondary: [] as DerivedActionDescriptor[],
+            };
+      case "variation":
+        if (pendingVariation?.activateAction && pendingVariation.status === "approved") {
+          return {
+            primary: pendingVariation.activateAction,
+            secondary: [] as DerivedActionDescriptor[],
+            variationId: pendingVariation.id,
+          };
+        }
+        if (pendingVariation?.approveAction && pendingVariation.status === "pending") {
+          return {
+            primary: pendingVariation.approveAction,
+            secondary: pendingVariation.rejectAction ? [pendingVariation.rejectAction] : [],
+            variationId: pendingVariation.id,
+          };
+        }
+        return {
+          primary: detail.actionDescriptorMap["create-variation"],
+          secondary: [] as DerivedActionDescriptor[],
+        };
+      default:
+        return {
+          primary: detail.actionDescriptors.find((descriptor) => descriptor.isPrimary) ?? detail.actionDescriptors[0] ?? null,
+          secondary: detail.actionDescriptors.filter((descriptor) => !descriptor.isPrimary).slice(0, 2),
+        };
+    }
+  };
+
+  const taskDescriptorSet = selectedTask ? getTaskDescriptorSet(stageDetail, selectedTask) : null;
+
+  const isDescriptorDisabled = (descriptor: DerivedActionDescriptor | null | undefined) => {
+    if (!descriptor) return true;
+    if (descriptor.actionId === "fund-stage") return !stageDetail.actionReadiness.fundStage.isAvailable || stageDetail.funding.gapToRequiredCover <= 0;
+    if (descriptor.actionId === "release") return !stageDetail.actionReadiness.release.isAvailable || !stageDetail.releaseDecision.releasable;
+    if (descriptor.actionId === "apply-override") return !canApplyOverride;
+    if (descriptor.actionId === "add-evidence") return !(stageDetail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length > 0);
+    if (descriptor.actionId === "open-dispute") return !canOpenDispute;
+    if (descriptor.actionId === "create-variation") return !canCreateVariation;
+    return descriptor.confidence === "blocked";
+  };
+
+  const runDescriptorAction = (descriptor: DerivedActionDescriptor | null | undefined) => {
+    if (!descriptor) return;
+
+    switch (descriptor.actionId) {
+      case "fund-stage":
+        handleFundStage();
+        return;
+      case "release":
+        handleReleaseStage();
+        return;
+      case "apply-override":
+        handleApplyOverride();
+        return;
+      case "add-evidence":
+        handleAddEvidence();
+        return;
+      case "approval-professional-approve":
+        onApproveTask("professional");
+        return;
+      case "approval-commercial-approve":
+        onApproveTask("commercial");
+        return;
+      case "approval-treasury-approve":
+        onApproveTask("treasury");
+        return;
+      case "approval-professional-reject":
+        onRejectTask("professional");
+        return;
+      case "approval-commercial-reject":
+        onRejectTask("commercial");
+        return;
+      case "approval-treasury-reject":
+        onRejectTask("treasury");
+        return;
+      case "resolve-dispute":
+        if (taskDescriptorSet?.disputeId) {
+          runStageAction(`dispute:${taskDescriptorSet.disputeId}:resolve`, stageDetail.stage.id, "dispute", (current) =>
+            resolveDispute(current, stageDetail.stage.id, taskDescriptorSet.disputeId!),
+          );
+        }
+        return;
+      case "open-dispute":
+        handleOpenDispute();
+        return;
+      case "create-variation":
+        handleCreateVariation();
+        return;
+      case "activate-variation":
+        if (taskDescriptorSet?.variationId) {
+          runStageAction(`variation:${taskDescriptorSet.variationId}:activate`, stageDetail.stage.id, "variation", (current) =>
+            activateVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!),
+          );
+        }
+        return;
+      case "review-variation-approve":
+        if (taskDescriptorSet?.variationId) {
+          runStageAction(`variation:${taskDescriptorSet.variationId}:approve`, stageDetail.stage.id, "variation", (current) =>
+            reviewVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!, "approved"),
+          );
+        }
+        return;
+      case "review-variation-reject":
+        if (taskDescriptorSet?.variationId) {
+          runStageAction(`variation:${taskDescriptorSet.variationId}:reject`, stageDetail.stage.id, "variation", (current) =>
+            reviewVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!, "rejected"),
+          );
+        }
+        return;
+      default:
+        if (descriptor.actionId.startsWith("evidence-") && taskDescriptorSet?.evidenceId) {
+          if (descriptor.actionId.endsWith("-accepted")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "accepted");
+          if (descriptor.actionId.endsWith("-rejected")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "rejected");
+          if (descriptor.actionId.endsWith("-requires_more")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "requires_more");
+          if (descriptor.actionId.endsWith("-pending")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "pending");
+        }
+    }
+  };
+
+  function onApproveTask(role: "professional" | "commercial" | "treasury") {
+    runStageAction(`approval:${role}:approve`, stageDetail.stage.id, "approvals", (current) => giveApproval(current, stageDetail.stage.id, role));
+  }
+
+  function onRejectTask(role: "professional" | "commercial" | "treasury") {
+    runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role));
+  }
+
+  const stageDetailSurface = (
+    <StageDetailPanel
+      detail={stageDetail}
+      focusedSection={selectedStageSection}
+      lastActionOutcome={lastActionOutcome}
+      entryCue={selectedWorkspaceCue?.stageId === stageDetail.stage.id ? selectedWorkspaceCue.cue : stageDetail.entryOrientation}
+      overrideReason={overrideReason}
+      evidenceTitle={evidenceTitle}
+      evidenceType={evidenceType}
+      fundingSource={fundingSource}
+      disputeTitle={disputeTitle}
+      disputeReason={disputeReason}
+      disputeAmount={disputeAmount}
+      variationTitle={variationTitle}
+      variationReason={variationReason}
+      variationAmount={variationAmount}
+      onOverrideReasonChange={setOverrideReason}
+      onEvidenceTitleChange={setEvidenceTitle}
+      onEvidenceTypeChange={setEvidenceType}
+      onDisputeTitleChange={setDisputeTitle}
+      onDisputeReasonChange={setDisputeReason}
+      onDisputeAmountChange={setDisputeAmount}
+      onVariationTitleChange={setVariationTitle}
+      onVariationReasonChange={setVariationReason}
+      onVariationAmountChange={setVariationAmount}
+      onAddEvidence={handleAddEvidence}
+      onUpdateEvidenceStatus={handleEvidenceUpdate}
+      onApprove={(role) => runStageAction(`approval:${role}:approve`, stageDetail.stage.id, "approvals", (current) => giveApproval(current, stageDetail.stage.id, role))}
+      onReject={(role) => runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role))}
+      onFundStage={handleFundStage}
+      onApplyOverride={handleApplyOverride}
+      onRelease={handleReleaseStage}
+      onOpenDispute={handleOpenDispute}
+      onResolveDispute={(disputeId) => runStageAction(`dispute:${disputeId}:resolve`, stageDetail.stage.id, "dispute", (current) => resolveDispute(current, stageDetail.stage.id, disputeId))}
+      onCreateVariation={handleCreateVariation}
+      onApproveVariation={(variationId) =>
+        runStageAction(`variation:${variationId}:approve`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"))
+      }
+      onRejectVariation={(variationId) =>
+        runStageAction(`variation:${variationId}:reject`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"))
+      }
+      onActivateVariation={(variationId) => runStageAction(`variation:${variationId}:activate`, stageDetail.stage.id, "variation", (current) => activateVariation(current, stageDetail.stage.id, variationId))}
+    />
+  );
 
   return (
     <main className="flex flex-col gap-8 text-slate-900">
@@ -647,7 +941,238 @@ export default function ShureFundDashboard({
             </div>
             {showAudienceControls ? <p className="text-sm text-slate-500">{modeTitle} view. {modeSummary}</p> : null}
           </section>
-        {section === "overview" ? (
+        {section === "actions" ? (
+        <>
+        <SectionCard
+          title="Action feed"
+          subtitle={`${primaryTaskCount} item${primaryTaskCount === 1 ? "" : "s"} currently need attention in ${project.name}.`}
+        >
+          <div className="grid gap-2">
+            {currentProjectInbox.map((item) => {
+              const selected =
+                item.stageId === selectedTask?.stageId &&
+                (item.deepLinkTarget?.section ?? "overview") === (selectedTask?.deepLinkTarget?.section ?? "overview");
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleWorkspaceItemSelect(item)}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    selected ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`text-sm ${selected ? "text-slate-300" : "text-slate-500"}`}>{item.stageName ?? project.name}</p>
+                      <p className="mt-1 text-base font-semibold">{item.title}</p>
+                      <p className={`mt-2 text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>
+                        {item.decisionCue.primaryCue}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${selected ? "bg-white/15 text-white" : urgencyTone(item.decisionCue.decisionUrgency)}`}>
+                      {urgencyLabel(item.decisionCue.decisionUrgency)}
+                    </span>
+                  </div>
+                  <div className={`mt-3 flex flex-wrap gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
+                    <span className={`rounded-full px-2.5 py-1 ${selected ? "bg-white/10" : "bg-slate-100"}`}>Who acts: {item.handoff?.toRoleLabel ?? item.ownerLabel}</span>
+                    <span className={`rounded-full px-2.5 py-1 ${selected ? "bg-white/10" : "bg-slate-100"}`}>Open in: {item.decisionCue.entryOrientationLabel ?? focusHintLabel(item.decisionCue.detailFocusHint)}</span>
+                    <span className={`rounded-full px-2.5 py-1 ${selected ? "bg-white/10" : "bg-slate-100"}`}>
+                      {item.readinessState === "actionable" ? "Your action" : "Monitor"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            {currentProjectInbox.length === 0 ? (
+              <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No immediate action is waiting in this project.</p>
+            ) : null}
+          </div>
+          {crossProjectAttentionCount > 0 ? (
+            <p className="mt-4 text-xs text-slate-500">
+              {crossProjectAttentionCount} additional item{crossProjectAttentionCount === 1 ? "" : "s"} need attention in other projects.
+            </p>
+          ) : null}
+        </SectionCard>
+
+        {selectedTask ? (
+          <section className="rounded-[30px] border border-slate-200/80 bg-white/96 p-6 shadow-[0_22px_52px_-40px_rgba(15,23,42,0.35)]">
+            <div className="max-w-4xl">
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Current task</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-slate-950">{selectedTask.title}</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                {selectedTask.stageName ?? stageDetail.stage.name} · Updated {formatRelativeTime(stageDetail.lastUpdatedAt)}
+              </p>
+            </div>
+
+            {lastActionOutcome ? (
+              <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${
+                lastActionOutcome.result === "advanced" || lastActionOutcome.result === "released"
+                  ? "border-teal-200 bg-teal-50 text-teal-950"
+                  : lastActionOutcome.result === "exception" || lastActionOutcome.result === "blocked"
+                    ? "border-amber-200 bg-amber-50 text-amber-950"
+                    : "border-slate-200 bg-slate-50 text-slate-700"
+              }`}>
+                {lastActionOutcome.summary}
+              </div>
+            ) : null}
+
+            <div className="mt-6 grid gap-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why action is needed</p>
+                <p className="mt-2 text-sm leading-6 text-slate-900">{selectedTask.decisionCue.primaryCue}</p>
+                {selectedTask.decisionCue.secondaryCue ? (
+                  <p className="mt-2 text-sm text-slate-600">{selectedTask.decisionCue.secondaryCue}</p>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What happens next</p>
+                <p className="mt-2 text-sm leading-6 text-slate-900">{selectedTask.nextStep ?? stageDetail.operationalStatus.nextStep}</p>
+                <p className="mt-2 text-sm text-slate-600">Who needs to act: {selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}</p>
+              </div>
+
+              {taskDescriptorSet?.primary ? (
+                <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.28)]">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Primary action</p>
+
+                  {taskDescriptorSet.primary.actionId === "add-evidence" ? (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem]">
+                      <input
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Supporting information title"
+                        value={evidenceTitle}
+                        onChange={(event) => setEvidenceTitle(event.target.value)}
+                      />
+                      <select
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        value={evidenceType}
+                        onChange={(event) => setEvidenceType(event.target.value as EvidenceType)}
+                      >
+                        <option value="file">Document</option>
+                        <option value="form">Information</option>
+                      </select>
+                    </div>
+                  ) : null}
+
+                  {taskDescriptorSet.primary.actionId === "open-dispute" ? (
+                    <div className="mt-4 grid gap-3">
+                      <input
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Dispute title"
+                        value={disputeTitle}
+                        onChange={(event) => setDisputeTitle(event.target.value)}
+                      />
+                      <textarea
+                        className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Why payment should be held"
+                        value={disputeReason}
+                        onChange={(event) => setDisputeReason(event.target.value)}
+                      />
+                      <input
+                        inputMode="numeric"
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Disputed amount"
+                        value={disputeAmount}
+                        onChange={(event) => setDisputeAmount(event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {taskDescriptorSet.primary.actionId === "create-variation" ? (
+                    <div className="mt-4 grid gap-3">
+                      <input
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Variation title"
+                        value={variationTitle}
+                        onChange={(event) => setVariationTitle(event.target.value)}
+                      />
+                      <textarea
+                        className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="What is changing"
+                        value={variationReason}
+                        onChange={(event) => setVariationReason(event.target.value)}
+                      />
+                      <input
+                        inputMode="numeric"
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Variation amount"
+                        value={variationAmount}
+                        onChange={(event) => setVariationAmount(event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {taskDescriptorSet.primary.actionId === "apply-override" ? (
+                    <div className="mt-4">
+                      <textarea
+                        className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Override reason"
+                        value={overrideReason}
+                        onChange={(event) => setOverrideReason(event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => runDescriptorAction(taskDescriptorSet.primary)}
+                      disabled={isDescriptorDisabled(taskDescriptorSet.primary)}
+                      className={getActionButtonClass(taskDescriptorSet.primary, isDescriptorDisabled(taskDescriptorSet.primary), true)}
+                    >
+                      <span className="block text-base font-semibold">{taskDescriptorSet.primary.label}</span>
+                      <span className="mt-1 block text-sm opacity-85">
+                        {taskDescriptorSet.primary.stateTransitionPreview.fromState} → {taskDescriptorSet.primary.stateTransitionPreview.toState}
+                      </span>
+                      <span className="mt-2 block text-sm opacity-80">
+                        {isDescriptorDisabled(taskDescriptorSet.primary)
+                          ? taskDescriptorSet.primary.blockerSummary ?? stageDetail.operationalStatus.reason
+                          : taskDescriptorSet.primary.sideEffects?.[0] ?? taskDescriptorSet.primary.outcomeLabel}
+                      </span>
+                    </button>
+                  </div>
+
+                  {taskDescriptorSet.secondary.length > 0 ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {taskDescriptorSet.secondary.map((descriptor) => (
+                        <button
+                          key={descriptor.actionId}
+                          type="button"
+                          onClick={() => runDescriptorAction(descriptor)}
+                          disabled={isDescriptorDisabled(descriptor)}
+                          className={getActionButtonClass(descriptor, isDescriptorDisabled(descriptor))}
+                        >
+                          <span className="block">{descriptor.label}</span>
+                          <span className="mt-1 block text-xs opacity-80">
+                            {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
+                          </span>
+                          <span className="mt-2 block text-xs opacity-75">
+                            {isDescriptorDisabled(descriptor)
+                              ? descriptor.blockerSummary ?? descriptor.outcomeLabel
+                              : descriptor.sideEffects?.[0] ?? descriptor.outcomeLabel}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <ExpandableSection
+                title="View full work package details"
+                subtitle="Payment checks, supporting information, sign-offs, review items, and audit history."
+                defaultOpen={false}
+              >
+                {stageDetailSurface}
+              </ExpandableSection>
+            </div>
+          </section>
+        ) : null}
+        </>
+        ) : null}
+
+        {section === "summary" ? (
         <>
         <SectionCard
           title={currentUser.role === "executive" ? "Exceptions Overview" : "What Needs Your Attention"}
@@ -1087,48 +1612,7 @@ export default function ShureFundDashboard({
             open={showStageDetail}
             onToggle={setShowStageDetail}
           >
-            <StageDetailPanel
-              detail={stageDetail}
-              focusedSection={selectedStageSection}
-              lastActionOutcome={lastActionOutcome}
-              entryCue={selectedWorkspaceCue?.stageId === stageDetail.stage.id ? selectedWorkspaceCue.cue : stageDetail.entryOrientation}
-              overrideReason={overrideReason}
-              evidenceTitle={evidenceTitle}
-              evidenceType={evidenceType}
-              fundingSource={fundingSource}
-              disputeTitle={disputeTitle}
-              disputeReason={disputeReason}
-              disputeAmount={disputeAmount}
-              variationTitle={variationTitle}
-              variationReason={variationReason}
-              variationAmount={variationAmount}
-              onOverrideReasonChange={setOverrideReason}
-              onEvidenceTitleChange={setEvidenceTitle}
-              onEvidenceTypeChange={setEvidenceType}
-              onDisputeTitleChange={setDisputeTitle}
-              onDisputeReasonChange={setDisputeReason}
-              onDisputeAmountChange={setDisputeAmount}
-              onVariationTitleChange={setVariationTitle}
-              onVariationReasonChange={setVariationReason}
-              onVariationAmountChange={setVariationAmount}
-              onAddEvidence={handleAddEvidence}
-              onUpdateEvidenceStatus={handleEvidenceUpdate}
-              onApprove={(role) => runStageAction(`approval:${role}:approve`, stageDetail.stage.id, "approvals", (current) => giveApproval(current, stageDetail.stage.id, role))}
-              onReject={(role) => runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role))}
-              onFundStage={handleFundStage}
-              onApplyOverride={handleApplyOverride}
-              onRelease={handleReleaseStage}
-              onOpenDispute={handleOpenDispute}
-              onResolveDispute={(disputeId) => runStageAction(`dispute:${disputeId}:resolve`, stageDetail.stage.id, "dispute", (current) => resolveDispute(current, stageDetail.stage.id, disputeId))}
-              onCreateVariation={handleCreateVariation}
-              onApproveVariation={(variationId) =>
-                runStageAction(`variation:${variationId}:approve`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"))
-              }
-              onRejectVariation={(variationId) =>
-                runStageAction(`variation:${variationId}:reject`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"))
-              }
-              onActivateVariation={(variationId) => runStageAction(`variation:${variationId}:activate`, stageDetail.stage.id, "variation", (current) => activateVariation(current, stageDetail.stage.id, variationId))}
-            />
+            {stageDetailSurface}
           </ExpandableSection>
         </div>
         ) : null}
