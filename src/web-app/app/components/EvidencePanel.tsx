@@ -59,25 +59,29 @@ export default function EvidencePanel({
   detail,
   evidenceTitle,
   evidenceType,
+  evidenceReviewReasons,
   onEvidenceTitleChange,
   onEvidenceTypeChange,
+  onEvidenceReviewReasonChange,
   onAddEvidence,
   onUpdateEvidenceStatus,
 }: {
   detail: StageDetailModel;
   evidenceTitle: string;
   evidenceType: EvidenceType;
+  evidenceReviewReasons: Record<string, string>;
   onEvidenceTitleChange: (value: string) => void;
   onEvidenceTypeChange: (value: EvidenceType) => void;
+  onEvidenceReviewReasonChange: (evidenceId: string, value: string) => void;
   onAddEvidence: () => void;
-  onUpdateEvidenceStatus: (requirementId: string, status: EvidenceStatus) => void;
+  onUpdateEvidenceStatus: (requirementId: string, status: EvidenceStatus, reason?: string) => void;
 }) {
   const canAddItem = detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length > 0;
   const addEvidenceDescriptor = detail.actionDescriptorMap["add-evidence"];
   const addItemHelp = getReadinessMessage(
     detail.actionReadiness.addEvidence,
     detail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length === 0
-      ? "Enter a supporting information title before adding it to this work package."
+      ? "Enter a supporting information title before adding it to this project stage."
       : undefined,
   );
   const reviewHelp = getReadinessMessage(detail.actionReadiness.reviewEvidence);
@@ -182,22 +186,33 @@ export default function EvidencePanel({
                 {(["pending", "accepted", "rejected", "requires_more"] as EvidenceStatus[]).map((status) => {
                   const descriptor = item.actionDescriptors[status];
                   if (!descriptor) return null;
+                  const requiresReason = status === "rejected" || status === "requires_more";
+                  const hasReason = (evidenceReviewReasons[item.id] ?? "").trim().length > 0;
 
                   return (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => onUpdateEvidenceStatus(item.id, status)}
-                    disabled={!detail.actionReadiness.reviewEvidence.isAvailable}
-                    className={`disabled:cursor-not-allowed ${
-                      getActionButtonClass(descriptor, !detail.actionReadiness.reviewEvidence.isAvailable)
-                    }`}
-                  >
-                    <span className="block">{descriptor.label}</span>
-                    <span className="mt-1 block text-[10px] opacity-80">
-                      {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
-                    </span>
-                  </button>
+                  <div key={status} className="grid gap-2">
+                    {requiresReason && detail.actionReadiness.reviewEvidence.isAvailable ? (
+                      <textarea
+                        className="min-h-20 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs"
+                        placeholder="Reason for this review decision"
+                        value={evidenceReviewReasons[item.id] ?? ""}
+                        onChange={(event) => onEvidenceReviewReasonChange(item.id, event.target.value)}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => onUpdateEvidenceStatus(item.id, status, evidenceReviewReasons[item.id] ?? "")}
+                      disabled={!detail.actionReadiness.reviewEvidence.isAvailable || (requiresReason && !hasReason)}
+                      className={`disabled:cursor-not-allowed ${
+                        getActionButtonClass(descriptor, !detail.actionReadiness.reviewEvidence.isAvailable || (requiresReason && !hasReason))
+                      }`}
+                    >
+                      <span className="block">{descriptor.label}</span>
+                      <span className="mt-1 block text-[10px] opacity-80">
+                        {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
+                      </span>
+                    </button>
+                  </div>
                   );
                 })}
               </div>

@@ -2268,7 +2268,7 @@ export const demoContracts = [
   {
     id: "c1",
     projectId: "p1",
-    title: "Groundworks Work Package",
+    title: "Groundworks Contract",
     totalValue: 400000,
     allocatedFunding: 350000,
     status: "active"
@@ -2276,7 +2276,7 @@ export const demoContracts = [
   {
     id: "c2",
     projectId: "p1",
-    title: "Superstructure Work Package",
+    title: "Superstructure Contract",
     totalValue: 600000,
     allocatedFunding: 450000,
     status: "active"
@@ -2661,7 +2661,7 @@ function getStageRoleViewGuidance(params: {
       viewMode = "action_led";
       primarySignals = ["decision", "attention", "handoff", "evidence", "approval"];
       secondarySignals = ["release", "exception", "case_path", "funding", "outcome"];
-      primaryWorkspaceLabel = "Work package progress";
+      primaryWorkspaceLabel = "Project stage progress";
       workspaceHintLabel = "Next step";
       break;
   }
@@ -3463,6 +3463,53 @@ export interface DerivedActionDescriptor {
   isPrimary: boolean;
 }
 
+function getQueueRequestTitle(actionType: QueueActionType) {
+  switch (actionType) {
+    case "review_dispute":
+      return "Resolve dispute";
+    case "review_variation":
+      return "Review variation";
+    case "review_evidence":
+      return "Review supporting information";
+    case "approve_stage":
+      return "Approve payment";
+    case "activate_variation":
+      return "Apply approved variation";
+    case "release_funding":
+      return "Release payment";
+    case "resolve_blockers":
+      return "Review payment hold-up";
+    case "fund_stage":
+      return "Allocate funds";
+    default:
+      return "Open request";
+  }
+}
+
+function getContractorRequestTitle(detail: StageDetailModel) {
+  if (detail.availableActions.addEvidence || detail.evidenceSummary.evidenceState === "missing") {
+    return "Provide supporting information";
+  }
+
+  if (detail.availableActions.openDispute || detail.disputeSummary.frozenValue > 0 || detail.blockers.some((blocker) => blocker.code === "disputed")) {
+    return "Raise dispute";
+  }
+
+  if (detail.availableActions.createVariation || detail.variationSummary.blocking) {
+    return "Review variation";
+  }
+
+  if (detail.roleHandoff.isWaitingOnAnotherRole) {
+    return `Track ${detail.roleHandoff.toRoleLabel ?? "next response"}`;
+  }
+
+  if (detail.blockers.length > 0) {
+    return "Review payment hold-up";
+  }
+
+  return "Review project stage";
+}
+
 export interface RoleJourneySummary {
   role: FundingUserRole;
   heading: string;
@@ -3597,9 +3644,9 @@ function buildInitialEventHistory(state: SystemStateRecord): SystemEventRecord[]
     const projectId = account?.projectId ?? stage?.projectId;
     const summary =
       entry.type === "release"
-        ? `${stage?.name ?? "Work Package"} released.`
+        ? `${stage?.name ?? "Project stage"} released.`
         : entry.type === "allocation_in"
-          ? `Funding allocated to ${stage?.name ?? "Work Package"}.`
+          ? `Funding allocated to ${stage?.name ?? "Project stage"}.`
           : "Project funding added.";
 
     events.push({
@@ -3624,7 +3671,7 @@ function buildInitialEventHistory(state: SystemStateRecord): SystemEventRecord[]
       stageId: entry.stageId,
       eventType: "evidence",
       actor: undefined,
-      summary: `Evidence updated for ${stage?.name ?? "Work Package"}.`,
+      summary: `Evidence updated for ${stage?.name ?? "Project stage"}.`,
       details: {
         projectId: stage?.projectId ?? null,
         status: entry.status,
@@ -3648,7 +3695,7 @@ function buildInitialEventHistory(state: SystemStateRecord): SystemEventRecord[]
       stageId: entry.stageId,
       eventType: "approval",
       actor: actorId ? userById[actorId]?.role : undefined,
-      summary: `${entry.role[0].toUpperCase()}${entry.role.slice(1)} approval ${entry.status} for ${stage?.name ?? "Work Package"}.`,
+      summary: `${entry.role[0].toUpperCase()}${entry.role.slice(1)} approval ${entry.status} for ${stage?.name ?? "Project stage"}.`,
       details: {
         projectId: stage?.projectId ?? null,
         role: entry.role,
@@ -3943,7 +3990,7 @@ function getVariationOperationalSummary(stage: SystemStageRecord): VariationOper
 
   return {
     status: "No variation",
-      reason: "No variation is currently affecting this work package.",
+      reason: "No variation is currently affecting this project stage.",
     blocking: false,
   };
 }
@@ -4065,7 +4112,7 @@ function getOperationalStageStatus(state: SystemStateRecord, stage: SystemStageR
   if (stage.releasedAmount >= stage.requiredAmount) {
     return {
       label: "Paid",
-      reason: "This work package has already been paid.",
+      reason: "This project stage has already been paid.",
       nextStep: "No action needed.",
       tone: "neutral",
     };
@@ -4425,7 +4472,7 @@ function getStageFundingExplanation({
   return {
     headline:
       coverageState === "released"
-        ? "This work package has already paid its current payable value."
+        ? "This project stage has already paid its current payable value."
         : coverageState === "releasable"
           ? "Allocated funds and sign-offs have produced value ready to pay."
           : coverageState === "underfunded"
@@ -4483,7 +4530,7 @@ export function getStageBlockers(state: SystemStateRecord, stageId: string): Sta
   if (stage.onHold) {
     blockers.push({
       code: "on_hold",
-      label: "Work package is on hold and cannot progress.",
+      label: "Project stage is on hold and cannot progress.",
       priority: "critical",
     });
   }
@@ -4872,9 +4919,9 @@ function getStageSectionGuidance({
           status: availableActions.fundStage ? "Needs action now" : "Waiting on Funder",
           summary:
             funding.gapToRequiredCover > 0
-              ? `This work package is short of ${dashboardCurrency.format(funding.gapToRequiredCover)} against current WIP.`
+              ? `This project stage is short of ${dashboardCurrency.format(funding.gapToRequiredCover)} against current WIP.`
               : "Funding is aligned to current WIP.",
-          nextStep: funding.gapToRequiredCover > 0 ? "Allocate funds to align the work package to WIP." : "No funding action is needed.",
+          nextStep: funding.gapToRequiredCover > 0 ? "Allocate funds to align the project stage to WIP." : "No funding action is needed.",
           recommendedAction: availableActions.fundStage ? "Allocate the remaining funding." : availableActions.fundStageReason,
           ownerLabel: "Funder",
           state: availableActions.fundStage ? "act_now" : "waiting",
@@ -4996,7 +5043,7 @@ function getStageSectionGuidance({
       ? {
           key: "variation",
           status: "No variation",
-          summary: "No variation is currently affecting this work package.",
+          summary: "No variation is currently affecting this project stage.",
           nextStep: "No variation action is needed.",
           recommendedAction: availableActions.createVariation ? "Only propose a variation if the scope changes." : availableActions.createVariationReason,
           ownerLabel: "Commercial",
@@ -5117,11 +5164,11 @@ export function getRoleInboxItems(
           projectName: project.name,
           stageId: decision.stageId,
           stageName: decision.stageName,
-          title: `${decision.stageName} exception`,
+          title: "Review payment position",
           reason: decision.explanation.reason,
           nextStep: detail.operationalStatus.nextStep,
           priority: decision.explanation.label === "Cannot release" ? "critical" : "high",
-          ownerLabel: detail.blockers[0] ? getBlockerResponsibilityCue(detail.blockers[0].code) : "Treasury",
+          ownerLabel: detail.blockers[0] ? getBlockerResponsibilityCue(detail.blockers[0].code) : "Funder",
           attentionReason: detail.attentionReason,
           handoff: detail.roleHandoff,
           exitState: detail.exitState,
@@ -5166,11 +5213,11 @@ export function getRoleInboxItems(
             projectName: project.name,
             stageId: stage.id,
             stageName: stage.name,
-            title: `Coordinate ${stage.name}`,
+            title: getContractorRequestTitle(detail),
             reason: detail.operationalStatus.reason,
             nextStep: detail.operationalStatus.nextStep,
             priority: detail.blockers[0]?.priority ?? "medium",
-            ownerLabel: detail.blockers[0] ? getBlockerResponsibilityCue(detail.blockers[0].code) : "Ops",
+            ownerLabel: detail.blockers[0] ? getBlockerResponsibilityCue(detail.blockers[0].code) : "Delivery",
             attentionReason: detail.attentionReason,
             handoff: detail.roleHandoff,
             exitState: detail.exitState,
@@ -5210,7 +5257,7 @@ export function getRoleInboxItems(
           projectName: item.projectName,
           stageId: item.stageId,
           stageName: item.stageName,
-          title: item.primaryAction.title,
+          title: getQueueRequestTitle(item.primaryAction.actionType),
           reason: item.primaryAction.detail,
           nextStep: item.operationalStatus.nextStep,
           priority: item.priority,
@@ -5590,8 +5637,8 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
 
   const releasePostureLine =
     summaryStrip.releaseReadyPackages > 0
-      ? `${summaryStrip.releaseReadyPackages} work package${summaryStrip.releaseReadyPackages === 1 ? "" : "s"} are ready to pay with ${summaryStrip.partiallyBlockedPackages} partly blocked and ${summaryStrip.blockedPackages} blocked.`
-      : `${summaryStrip.blockedPackages} work package${summaryStrip.blockedPackages === 1 ? "" : "s"} remain blocked with no work package currently ready to pay.`;
+      ? `${summaryStrip.releaseReadyPackages} project stage${summaryStrip.releaseReadyPackages === 1 ? "" : "s"} are ready to pay with ${summaryStrip.partiallyBlockedPackages} partly blocked and ${summaryStrip.blockedPackages} blocked.`
+      : `${summaryStrip.blockedPackages} project stage${summaryStrip.blockedPackages === 1 ? "" : "s"} remain blocked with no project stage currently ready to pay.`;
 
   const blockerThemeLine = topBlockedDecision
     ? `Principal blocker theme: ${topBlockedDecision.explanation.reason}`
@@ -5601,9 +5648,9 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
 
   const treasuryConfidenceLine =
     summaryStrip.treasuryBlockedPackages > 0
-      ? `${summaryStrip.treasuryBlockedPackages} work package${summaryStrip.treasuryBlockedPackages === 1 ? "" : "s"} are funder blocked; confidence is constrained by current blockers.`
+      ? `${summaryStrip.treasuryBlockedPackages} project stage${summaryStrip.treasuryBlockedPackages === 1 ? "" : "s"} are funder blocked; confidence is constrained by current blockers.`
       : summaryStrip.treasuryReviewRequiredPackages > 0
-        ? `${summaryStrip.treasuryReviewRequiredPackages} work package${summaryStrip.treasuryReviewRequiredPackages === 1 ? "" : "s"} require funder review; checks are progressing but not fully clear.`
+        ? `${summaryStrip.treasuryReviewRequiredPackages} project stage${summaryStrip.treasuryReviewRequiredPackages === 1 ? "" : "s"} require funder review; checks are progressing but not fully clear.`
         : "Funder confidence is high; current payment decisions are supported by sign-off, supporting information acceptance, and approved value within WIP.";
 
   const disputeExposureLine =
@@ -5613,7 +5660,7 @@ export function getDashboardDecisionPack(state: SystemStateRecord, projectId: st
           currency: "GBP",
           maximumFractionDigits: 0,
         })}, with undisputed value continuing through controls where permitted.`
-      : "Dispute exposure is currently nil across the active work package set.";
+      : "Dispute exposure is currently nil across the active project stage set.";
 
   const latestMaterialActivityLine = projectActivity.recentEvents[0]
     ? `Latest material activity: ${projectActivity.recentEvents[0].summary}`
@@ -5832,7 +5879,7 @@ function getStageExitState(detail: Pick<
       : exitState === "withheld" || exitState === "in_dispute"
         ? "Dispute hold applied"
         : exitState === "superseded"
-          ? "Variation moved this work package out of the normal payment path"
+          ? "Variation moved this project stage out of the normal payment path"
           : exitState === "complete"
             ? "No additional action required"
             : null;
@@ -5956,7 +6003,7 @@ function getStageExceptionPath(detail: Pick<
         : exceptionType === "dispute"
           ? "Dispute handling has replaced the normal payment path"
           : exceptionType === "variation"
-            ? "Variation handling has moved this work package under review"
+            ? "Variation handling has moved this project stage under review"
             : exceptionType === "withheld_release"
               ? "Payment is being withheld under review"
               : "A governed review path is active",
@@ -5974,7 +6021,7 @@ function getStageExceptionPath(detail: Pick<
         : exceptionType === "dispute"
           ? "The normal payment path is paused while disputed value remains on hold."
         : exceptionType === "variation"
-            ? "The normal work package path is paused until the variation review completes."
+            ? "The normal project stage path is paused until the variation review completes."
             : "The normal payment path is paused pending a review decision.",
     ownerLabel:
       exceptionType === "override"
@@ -6141,7 +6188,7 @@ function getStageEvidenceSummary(detail: {
               ? "Some evidence is accepted, but the stage is still waiting on the remaining evidence outcome."
               : evidenceState === "under_review" || evidenceState === "submitted"
                 ? "Supporting information is present but still under review."
-                : "This work package does not require supporting information to progress.",
+                : "This project stage does not require supporting information to progress.",
     sufficiencyLabel:
       evidenceState === "accepted"
         ? "Supporting information sufficient"
@@ -6849,7 +6896,7 @@ function getStageActionReadinessModel(detail: Pick<
       guidance: detail.sectionGuidance.release,
       missingPrerequisites: releaseMissing,
       availableReason: "Funder can send the current payment now.",
-      completeReason: "No further payment is currently needed for this work package.",
+      completeReason: "No further payment is currently needed for this project stage.",
     }),
     applyOverride: buildActionReadiness({
       actionKey: "applyOverride",
@@ -7020,7 +7067,7 @@ function getApprovalOutcomeLabel(
 
 function getEvidenceOutcomeLabel(status: EvidenceStatus) {
   if (status === "accepted") {
-    return "Moves the work package toward sign-off";
+    return "Moves the project stage toward sign-off";
   }
 
   if (status === "rejected") {
@@ -7113,7 +7160,7 @@ function getStageDerivedActionDescriptors(detail: {
         detail.funding.gapToRequiredCover > 0
           ? `Allocate ${dashboardCurrency.format(detail.funding.gapToRequiredCover)}`
           : "Allocate funds",
-      outcomeLabel: "Brings this work package back into funded position",
+      outcomeLabel: "Brings this project stage back into funded position",
       fromState: getCurrentStateLabelForAction(detail, "fund-stage"),
       toState: detail.funding.gapToRequiredCover > 0 ? "Funding aligned" : detail.fundingExplanation.coverageLabel,
       readiness: detail.actionReadiness.fundStage,
@@ -7121,7 +7168,7 @@ function getStageDerivedActionDescriptors(detail: {
         detail.funding.gapToRequiredCover > 0
           ? [
               `${dashboardCurrency.format(detail.funding.gapToRequiredCover)} gap is covered`,
-              "Work package sits within the current WIP position",
+              "Project stage sits within the current WIP position",
             ]
           : undefined,
       impactSummary:
@@ -7195,7 +7242,7 @@ function getStageDerivedActionDescriptors(detail: {
     buildDerivedActionDescriptor({
       actionId: "resolve-dispute",
       label: "Resolve dispute",
-      outcomeLabel: "Returns the work package to the governed payment path",
+      outcomeLabel: "Returns the project stage to the governed payment path",
       fromState: getCurrentStateLabelForAction(detail, "resolve-dispute"),
       toState: "Dispute resolved",
       readiness: detail.actionReadiness.resolveDispute,
@@ -7214,7 +7261,7 @@ function getStageDerivedActionDescriptors(detail: {
     buildDerivedActionDescriptor({
       actionId: "create-variation",
       label: "Propose variation",
-      outcomeLabel: "Moves the work package into variation review",
+      outcomeLabel: "Moves the project stage into variation review",
       fromState: getCurrentStateLabelForAction(detail, "create-variation"),
       toState: "Pending review",
       readiness: detail.actionReadiness.createVariation,
@@ -7241,7 +7288,7 @@ function getStageDerivedActionDescriptors(detail: {
     buildDerivedActionDescriptor({
       actionId: "activate-variation",
       label: "Activate variation",
-      outcomeLabel: "Applies the approved change to the live work package",
+      outcomeLabel: "Applies the approved change to the live project stage",
       fromState: getCurrentStateLabelForAction(detail, "activate-variation"),
       toState: "Variation active",
       readiness: detail.actionReadiness.activateVariation,
@@ -7253,7 +7300,7 @@ function getStageDerivedActionDescriptors(detail: {
     ...approval,
     approveAction: buildDerivedActionDescriptor({
       actionId: `approval-${approval.role}-approve`,
-      label: "Approve work package",
+      label: "Approve project stage",
       outcomeLabel: getApprovalOutcomeLabel(detail.approvals, approval.role, "approve"),
       fromState: getCurrentStateLabelForAction(detail, `approval-${approval.role}-approve`),
       toState:
@@ -7268,12 +7315,12 @@ function getStageDerivedActionDescriptors(detail: {
     }),
     rejectAction: buildDerivedActionDescriptor({
       actionId: `approval-${approval.role}-reject`,
-      label: "Reject work package",
+      label: "Reject project stage",
       outcomeLabel: getApprovalOutcomeLabel(detail.approvals, approval.role, "reject"),
       fromState: getCurrentStateLabelForAction(detail, `approval-${approval.role}-reject`),
       toState: "Payment on hold",
       readiness: approval.readiness,
-      sideEffects: ["Work package remains on hold for sign-off rework"],
+      sideEffects: ["Project stage remains on hold for sign-off rework"],
     }),
   }));
 
@@ -7648,12 +7695,12 @@ function getOutcomeResultMeta(params: {
   if (stateNow.progressionStatus === "advanced") {
     return {
         resultType: "advanced",
-        resultTypeLabel: releasableDelta > 0 ? "Payment available" : "Work package updated",
+        resultTypeLabel: releasableDelta > 0 ? "Payment available" : "Project stage updated",
         resultHeadline:
           releasableDelta > 0
             ? "Payment now available"
             : after.operationalStatus.label === "Ready for payment"
-              ? "Work package ready for payment"
+              ? "Project stage ready for payment"
               : `${after.stage.name} advanced`,
       resultSubline: releasableDelta > 0 ? after.releaseSummary.eligibleAmountLabel : stateNow.stateNowDetail,
       resultTone: "success",
@@ -7780,7 +7827,7 @@ export function getStageActionOutcomeSummary(
     ];
     unlockedItems =
       before.funding.gapToRequiredCover > 0 && after.funding.gapToRequiredCover === 0
-        ? ["Funding no longer blocks this work package."]
+        ? ["Funding no longer blocks this project stage."]
         : unlockedItems;
     nextActionLabel = after.sectionGuidance.funding.nextStep;
   } else if (section === "approvals") {
@@ -7840,13 +7887,13 @@ export function getStageActionOutcomeSummary(
       before.variationSummary.status !== after.variationSummary.status && after.variationSummary.status === "Approved variation"
         ? ["The approved variation can now move toward activation."]
         : before.variationSummary.status !== after.variationSummary.status && after.variationSummary.status === "No variation"
-          ? ["Variation review no longer blocks this work package."]
+          ? ["Variation review no longer blocks this project stage."]
           : unlockedItems;
     nextActionLabel = after.sectionGuidance.variation.nextStep;
   } else if (section === "release") {
     whatChanged = [
       releasedDelta > 0
-        ? `${dashboardCurrency.format(releasedDelta)} has been paid from this work package.`
+        ? `${dashboardCurrency.format(releasedDelta)} has been paid from this project stage.`
         : defaultWhatChanged,
     ];
     unlockedItems =
@@ -8088,7 +8135,7 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
     reviewEvidence: canReviewEvidence,
     reviewEvidenceReason: getPermissionReason(canReviewEvidence, "Evidence reviewer", "Evidence decisions can be recorded in this role."),
     fundStage: canFundStage,
-    fundStageReason: getPermissionReason(canFundStage, "Funder", "Funder can allocate funds to this work package."),
+    fundStageReason: getPermissionReason(canFundStage, "Funder", "Funder can allocate funds to this project stage."),
     applyOverride: canApplyOverride,
     applyOverrideReason: getPermissionReason(canApplyOverride, "Funder", "Funder can apply a governed override."),
     release: canRelease,
@@ -8654,9 +8701,18 @@ export function updateEvidenceStatus(
   state: SystemStateRecord,
   requirementId: string,
   status: EvidenceStatus,
-  userId = state.currentUserId,
+  options?: {
+    userId?: string;
+    reason?: string;
+  },
 ): SystemStateRecord {
+  const userId = options?.userId ?? state.currentUserId;
   if (getUserRecord(state, userId).role !== "professional") {
+    return state;
+  }
+
+  const decisionReason = options?.reason?.trim();
+  if ((status === "rejected" || status === "requires_more") && !decisionReason) {
     return state;
   }
 
@@ -8696,6 +8752,7 @@ export function updateEvidenceStatus(
       projectId: getStageDetail(nextState, requirement.stageId).stage.projectId,
       requirementId,
       status,
+      reason: decisionReason ?? null,
     },
   });
   appendAuditLog(
@@ -8977,11 +9034,20 @@ export function reviewVariation(
   stageId: string,
   variationId: string,
   decision: "approved" | "rejected",
-  userId = state.currentUserId,
+  options?: {
+    userId?: string;
+    reason?: string;
+  },
 ): SystemStateRecord {
+  const userId = options?.userId ?? state.currentUserId;
   const actor = getUserRecord(state, userId);
+  const decisionReason = options?.reason?.trim();
 
   if (!["commercial", "treasury"].includes(actor.role)) {
+    return state;
+  }
+
+  if (decision === "rejected" && !decisionReason) {
     return state;
   }
 
@@ -9028,6 +9094,7 @@ export function reviewVariation(
       projectId: stage.projectId,
       variationId,
       decision,
+      reason: decisionReason ?? null,
     },
   });
   appendAuditLog(
@@ -9117,11 +9184,16 @@ export function decideApproval(
   stageId: string,
   role: FundingApprovalRole,
   decision: Extract<FundingApprovalStatus, "approved" | "rejected">,
-  userId = state.currentUserId,
+  options?: {
+    userId?: string;
+    reason?: string;
+  },
 ): SystemStateRecord {
+  const userId = options?.userId ?? state.currentUserId;
   const actor = getUserRecord(state, userId);
   const stage = state.stages.find((entry) => entry.id === stageId);
   const stageStatus = stage ? getDerivedStageStatus(state, stage) : null;
+  const decisionReason = options?.reason?.trim();
 
   if (
     !stage ||
@@ -9129,6 +9201,10 @@ export function decideApproval(
     !["ready", "partially_approved", "disputed"].includes(stageStatus ?? "") ||
     !canApprovalRoleAct(state, stage, role)
   ) {
+    return state;
+  }
+
+  if (decision === "rejected" && !decisionReason) {
     return state;
   }
 
@@ -9163,6 +9239,7 @@ export function decideApproval(
       projectId: getStageDetail(nextState, stageId).stage.projectId,
       role,
       decision,
+      reason: decisionReason ?? null,
     },
   });
   appendAuditLog(
@@ -9184,16 +9261,17 @@ export function giveApproval(
   role: FundingApprovalRole,
   userId = state.currentUserId,
 ): SystemStateRecord {
-  return decideApproval(state, stageId, role, "approved", userId);
+  return decideApproval(state, stageId, role, "approved", { userId });
 }
 
 export function rejectApproval(
   state: SystemStateRecord,
   stageId: string,
   role: FundingApprovalRole,
+  reason: string,
   userId = state.currentUserId,
 ): SystemStateRecord {
-  return decideApproval(state, stageId, role, "rejected", userId);
+  return decideApproval(state, stageId, role, "rejected", { userId, reason });
 }
 
 export function applyOverride(

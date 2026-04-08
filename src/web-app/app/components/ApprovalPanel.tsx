@@ -33,12 +33,16 @@ function getDescriptorStatus(descriptor: DerivedActionDescriptor) {
 
 export default function ApprovalPanel({
   detail,
+  approvalRejectReasons,
+  onApprovalRejectReasonChange,
   onApprove,
   onReject,
 }: {
   detail: StageDetailModel;
+  approvalRejectReasons: Record<string, string>;
+  onApprovalRejectReasonChange: (role: ApprovalRole, value: string) => void;
   onApprove: (role: ApprovalRole) => void;
-  onReject: (role: ApprovalRole) => void;
+  onReject: (role: ApprovalRole, reason: string) => void;
 }) {
   return (
     <section>
@@ -118,10 +122,18 @@ export default function ApprovalPanel({
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                     {approval.readiness.readinessState === "complete" ? "Completed" : getDescriptorStatus(approval.rejectAction)}
                     </p>
+                    {approval.readiness.isAvailable ? (
+                      <textarea
+                        className="min-h-20 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Reason for rejecting this sign-off"
+                        value={approvalRejectReasons[approval.role] ?? ""}
+                        onChange={(event) => onApprovalRejectReasonChange(approval.role, event.target.value)}
+                      />
+                    ) : null}
                     <button
                       type="button"
-                      onClick={() => onReject(approval.role)}
-                      disabled={!approval.readiness.isAvailable}
+                      onClick={() => onReject(approval.role, approvalRejectReasons[approval.role] ?? "")}
+                      disabled={!approval.readiness.isAvailable || !(approvalRejectReasons[approval.role] ?? "").trim().length}
                       className={`disabled:cursor-not-allowed ${getActionButtonClass(approval.rejectAction, !approval.readiness.isAvailable)}`}
                     >
                       <span className="block">{approval.rejectAction.label}</span>
@@ -135,6 +147,9 @@ export default function ApprovalPanel({
                   {approval.readiness.isAvailable
                     ? approval.approveAction.sideEffects?.[0] ?? approval.approveAction.outcomeLabel
                     : approval.approveAction.blockerSummary ?? approval.readiness.nextConditionLabel}
+                  {approval.readiness.isAvailable && !(approvalRejectReasons[approval.role] ?? "").trim().length
+                    ? " Enter a reason to reject."
+                    : ""}
                 </p>
               </div>
             </div>

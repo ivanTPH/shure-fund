@@ -11,7 +11,7 @@ export default function LedgerSummaryCard({
   fundingSummary,
   depositAmount,
   fundingSource,
-  selectedWorkPackageName,
+  selectedProjectStageName,
   onDepositAmountChange,
   onFundingSourceChange,
   onAddFunds,
@@ -21,7 +21,7 @@ export default function LedgerSummaryCard({
   fundingSummary: FundingSummary;
   depositAmount: string;
   fundingSource: FundingSourceType | "";
-  selectedWorkPackageName: string;
+  selectedProjectStageName: string;
   onDepositAmountChange: (value: string) => void;
   onFundingSourceChange: (value: FundingSourceType | "") => void;
   onAddFunds: () => void;
@@ -172,7 +172,7 @@ export default function LedgerSummaryCard({
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          {addFundsHelperText} Contractor contributions are restricted to the selected work package: {selectedWorkPackageName}.
+          {addFundsHelperText} Contractor contributions are restricted to the selected project stage: {selectedProjectStageName}.
         </p>
       </div>
     </section>

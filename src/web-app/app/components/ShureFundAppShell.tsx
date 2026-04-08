@@ -1,11 +1,13 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { initialSystemState } from "@/lib/demoData";
 import {
+  getRoleInboxItems,
   getProjectWorkspaceSummary,
   getUserFacingRoleLabel,
   initializeSystemState,
@@ -47,10 +49,10 @@ function getSectionFromPath(pathname: string): AppSection {
 }
 
 const navItems: Array<{ section: AppSection; label: string; href: string }> = [
-  { section: "actions", label: "Action feed", href: "/" },
+  { section: "actions", label: "Requests", href: "/" },
   { section: "summary", label: "Summary", href: "/summary" },
   { section: "payments", label: "Payments", href: "/payments" },
-  { section: "packages", label: "Work packages", href: "/packages" },
+  { section: "packages", label: "Project stages", href: "/packages" },
   { section: "activity", label: "Activity", href: "/activity" },
   { section: "settings", label: "Settings", href: "/settings" },
 ];
@@ -82,6 +84,7 @@ export default function ShureFundAppShell({
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId) ?? state.users[0];
   const roleSwitchUsers = state.users.filter((entry) => ["contractor", "commercial", "professional", "treasury", "executive"].includes(entry.role));
   const projectSummary = useMemo(() => getProjectWorkspaceSummary(state, project.id), [state, project.id]);
+  const requestCount = useMemo(() => getRoleInboxItems(state, currentUser.role).length, [state, currentUser.role]);
 
   const contextValue = useMemo<ShellState>(
     () => ({
@@ -116,17 +119,12 @@ export default function ShureFundAppShell({
       <div className="flex h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.08),_transparent_28%),linear-gradient(180deg,#fbfcfc_0%,#f8fafc_44%,#f1f5f4_100%)] text-slate-900">
         <aside className="hidden h-screen w-72 shrink-0 border-r border-slate-200/80 bg-white/96 px-5 py-6 xl:flex xl:flex-col xl:justify-between">
           <div>
-            <div className="rounded-[28px] bg-slate-950 px-5 py-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-300 text-sm font-semibold tracking-[0.18em] text-slate-950">
-                  SF
-                </div>
-                <div>
-                  <p className="text-lg font-semibold tracking-[-0.02em] text-white">Shure.Fund</p>
-                  <p className="text-xs uppercase tracking-[0.24em] text-teal-200">Payment control</p>
-                </div>
+            <div className="flex items-center gap-3 px-2 py-1.5">
+              <Image src="/favicon.ico" alt="Shure.Fund" width={34} height={34} className="h-8 w-8 rounded-[10px]" priority />
+              <div className="min-w-0">
+                <p className="truncate text-lg font-semibold tracking-[-0.03em] text-slate-950">Shure.Fund</p>
+                <p className="text-[11px] uppercase tracking-[0.26em] text-slate-500">Financial operations</p>
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-300">Trusted payment readiness for construction work packages.</p>
             </div>
 
             <nav className="mt-8 grid gap-2">
@@ -136,11 +134,16 @@ export default function ShureFundAppShell({
                   <Link
                     key={item.section}
                     href={item.href}
-                    className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                    className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
                       active ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.section === "actions" && requestCount > 0 ? (
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${active ? "bg-white text-slate-950" : "bg-slate-950 text-white"}`}>
+                        {requestCount}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}
@@ -158,6 +161,23 @@ export default function ShureFundAppShell({
           <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/92 backdrop-blur">
             <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
+                <div className="mb-3 flex items-center justify-between gap-3 xl:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Image src="/favicon.ico" alt="Shure.Fund" width={30} height={30} className="h-7 w-7 rounded-[9px]" priority />
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold tracking-[-0.03em] text-slate-950">Shure.Fund</p>
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Requests</p>
+                    </div>
+                  </div>
+                  {requestCount > 0 ? (
+                    <Link
+                      href="/"
+                      className="shrink-0 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      Requests ({requestCount})
+                    </Link>
+                  ) : null}
+                </div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Project</p>
                 <h1 className="mt-1 truncate text-2xl font-semibold tracking-[-0.02em] text-slate-950">{project.name}</h1>
                 <p className="mt-1 text-sm text-slate-500">{projectSummary.postureReason}</p>

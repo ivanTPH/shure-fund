@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
   activateVariation,
@@ -52,6 +54,8 @@ import LedgerTransactionsList from "./LedgerTransactionsList";
 import { useShureFundShellState, type AppSection } from "./ShureFundAppShell";
 import StageDetailPanel from "./StageDetailPanel";
 
+type RequestDetailSheetKey = "payment" | "supporting" | "approval" | "history";
+
 const currency = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -98,20 +102,20 @@ function SectionCard({
 
 const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
   actions: {
-    title: "Action feed",
-    subtitle: "One task at a time. Open the next work package that needs action and complete the governed step without working through a dashboard first.",
+    title: "Requests",
+    subtitle: "Open the next request, inspect only what matters, and complete the governed step without working through a dashboard first.",
   },
   summary: {
     title: "Project summary",
-    subtitle: "Current payment position, the next hold-up to clear, and the work packages that need attention now.",
+    subtitle: "Current payment position, the next hold-up to clear, and the project stages that need attention now.",
   },
   payments: {
     title: "Payments",
     subtitle: "Funding position, payment readiness, and value that is ready to pay or on hold.",
   },
   packages: {
-    title: "Work packages",
-    subtitle: "Selectable payment units within the current project, with live payment detail for the active work package.",
+    title: "Project stages",
+    subtitle: "Selectable payment stages within the current project, with live payment detail for the active project stage.",
   },
   activity: {
     title: "Activity",
@@ -159,6 +163,72 @@ function ExpandableSection({
   );
 }
 
+function RequestStepCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[28px] border border-slate-200/80 bg-white px-5 py-5 shadow-[0_18px_42px_-36px_rgba(15,23,42,0.35)]">
+      <div className="mb-4">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{title}</p>
+        {subtitle ? <p className="mt-2 text-sm text-slate-600">{subtitle}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function RequestDetailSheet({
+  open,
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-40">
+      <button
+        type="button"
+        aria-label="Close details"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
+      />
+      <div className="absolute inset-x-0 bottom-0 max-h-[82vh] rounded-t-[30px] border border-slate-200 bg-white shadow-[0_-28px_60px_-26px_rgba(15,23,42,0.45)] md:inset-y-0 md:right-0 md:left-auto md:w-[32rem] md:max-w-[92vw] md:rounded-none md:rounded-l-[30px]">
+        <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Request details</p>
+            <h3 className="mt-1 text-lg font-semibold tracking-[-0.02em] text-slate-950">{title}</h3>
+            {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-5 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function formatRelativeTime(timestamp?: string | null) {
   if (!timestamp) {
     return "No recent activity";
@@ -188,6 +258,22 @@ function getActionButtonClass(descriptor: DerivedActionDescriptor, disabled: boo
     : "w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-left text-sm font-medium text-slate-900";
 }
 
+function getStageSurfaceActionLabel(detail: StageDetailModel, hasRequest: boolean) {
+  if (detail.actionReadiness.release.isAvailable && detail.releaseDecision.releasable) {
+    return detail.actionDescriptorMap["release"]?.label ?? "Release payment";
+  }
+
+  if (detail.actionReadiness.fundStage.isAvailable && detail.funding.gapToRequiredCover > 0) {
+    return detail.actionDescriptorMap["fund-stage"]?.label ?? "Allocate funds";
+  }
+
+  if (hasRequest) {
+    return "Open request";
+  }
+
+  return "Open project stage";
+}
+
 export default function ShureFundDashboard({
   section,
 }: {
@@ -209,6 +295,8 @@ export default function ShureFundDashboard({
     selectedWorkspaceCue,
     setSelectedWorkspaceCue,
   } = useShureFundShellState();
+  const router = useRouter();
+  const pathname = usePathname();
   const [depositAmount, setDepositAmount] = useState("50000");
   const [fundingSource, setFundingSource] = useState<FundingSourceType | "">("");
   const [isAddingFunds, setIsAddingFunds] = useState(false);
@@ -222,6 +310,10 @@ export default function ShureFundDashboard({
   const [variationTitle, setVariationTitle] = useState("");
   const [variationReason, setVariationReason] = useState("");
   const [variationAmount, setVariationAmount] = useState("10000");
+  const [approvalRejectReasons, setApprovalRejectReasons] = useState<Record<string, string>>({});
+  const [evidenceReviewReasons, setEvidenceReviewReasons] = useState<Record<string, string>>({});
+  const [variationRejectReasons, setVariationRejectReasons] = useState<Record<string, string>>({});
+  const [requestDetailSheet, setRequestDetailSheet] = useState<RequestDetailSheetKey | null>(null);
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId)!;
   const projectStages = useMemo(() => state.stages.filter((stage) => stage.projectId === project.id), [state, project.id]);
@@ -321,6 +413,29 @@ export default function ShureFundDashboard({
                 : hint === "outcome"
                   ? "Outcome"
                   : "Overview";
+  const visibleActionItems = currentProjectInbox.slice(0, 4);
+  const hiddenActionCount = Math.max(currentProjectInbox.length - visibleActionItems.length, 0);
+  const topUrgency = currentProjectInbox[0]?.decisionCue.decisionUrgency ?? null;
+  const bannerTone =
+    topUrgency === "immediate"
+      ? "border-slate-950 bg-slate-950 text-white"
+      : topUrgency === "active"
+        ? "border-amber-200 bg-amber-50 text-amber-950"
+        : "border-teal-200 bg-teal-50 text-teal-950";
+  const bannerLabel =
+    currentProjectInbox.length === 0
+      ? "All items up to date"
+      : topUrgency === "immediate"
+        ? currentProjectInbox[0]?.decisionCue.primaryCue ?? `${currentProjectInbox.length} items need your action`
+        : topUrgency === "active"
+          ? `${currentProjectInbox.length} item${currentProjectInbox.length === 1 ? "" : "s"} need attention`
+          : `${currentProjectInbox.length} item${currentProjectInbox.length === 1 ? "" : "s"} to monitor`;
+  const taskAlertLines = [
+    stageDetail.releaseSummary.blockingConditionLabel,
+    stageDetail.exceptionPath.hasActiveExceptionPath ? stageDetail.exceptionPath.exceptionReasonLabel : null,
+    stageDetail.evidenceSummary.blockingConditionLabel,
+    stageDetail.approvalSummary.blockingConditionLabel,
+  ].filter((line, index, array): line is string => Boolean(line) && array.indexOf(line) === index).slice(0, 2);
 
   useEffect(() => {
     if (projectStages.some((stage) => stage.id === selectedStageId)) {
@@ -341,18 +456,87 @@ export default function ShureFundDashboard({
     }
   }, [activeStageId, selectedWorkspaceCue]);
 
+  useEffect(() => {
+    setRequestDetailSheet(null);
+  }, [activeStageId, selectedStageSection]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedProjectId = params.get("project");
+    const requestedStageId = params.get("stage");
+    const requestedSection = params.get("section") as StageDetailSectionKey | null;
+    const validSections: StageDetailSectionKey[] = ["overview", "funding", "approvals", "evidence", "dispute", "variation", "release"];
+
+    if (requestedProjectId && state.projects.some((entry) => entry.id === requestedProjectId) && requestedProjectId !== selectedProjectId) {
+      setSelectedProjectId(requestedProjectId);
+    }
+
+    const scopedProjectId =
+      requestedProjectId && state.projects.some((entry) => entry.id === requestedProjectId)
+        ? requestedProjectId
+        : selectedProjectId;
+    const scopedStages = state.stages.filter((stage) => stage.projectId === scopedProjectId);
+
+    if (requestedStageId && scopedStages.some((stage) => stage.id === requestedStageId) && requestedStageId !== selectedStageId) {
+      setSelectedStageId(requestedStageId);
+      setShowStageDetail(true);
+    }
+
+    if (requestedSection && validSections.includes(requestedSection) && requestedSection !== selectedStageSection) {
+      setSelectedStageSection(requestedSection);
+    }
+  }, [state.projects, state.stages, selectedProjectId, selectedStageId, selectedStageSection]);
+
+  function syncRequestLocation(projectId: string, stageId?: string, stageSection?: StageDetailSectionKey) {
+    const params = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+    params.set("project", projectId);
+    if (stageId) {
+      params.set("stage", stageId);
+    } else {
+      params.delete("stage");
+    }
+    if (stageSection) {
+      params.set("section", stageSection);
+    } else {
+      params.delete("section");
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function openStageContext(
+    stageId: string,
+    stageSection: StageDetailSectionKey = "overview",
+    cue?: WorkspaceDecisionCue | null,
+    projectIdOverride?: string,
+  ) {
+    setSelectedStageId(stageId);
+    setSelectedStageSection(stageSection);
+    setSelectedWorkspaceCue(cue ? { stageId, cue } : null);
+    setShowStageDetail(true);
+    syncRequestLocation(projectIdOverride ?? project.id, stageId, stageSection);
+  }
+
   function handleWorkspaceItemSelect(item: (typeof currentProjectInbox)[number]) {
-    if (item.deepLinkTarget?.projectId && item.deepLinkTarget.projectId !== project.id) {
-      setSelectedProjectId(item.deepLinkTarget.projectId);
+    const nextProjectId = item.deepLinkTarget?.projectId ?? project.id;
+    if (nextProjectId !== project.id) {
+      setSelectedProjectId(nextProjectId);
     }
 
     if (item.deepLinkTarget?.stageId) {
-      setSelectedStageId(item.deepLinkTarget.stageId);
-      setSelectedWorkspaceCue(item.decisionCue ? { stageId: item.deepLinkTarget.stageId, cue: item.decisionCue } : null);
+      openStageContext(item.deepLinkTarget.stageId, item.deepLinkTarget?.section ?? "overview", item.decisionCue, nextProjectId);
+      return;
     }
 
-    setSelectedStageSection(item.deepLinkTarget?.section ?? "overview");
+    const nextSection = item.deepLinkTarget?.section ?? "overview";
+    setSelectedStageSection(nextSection);
     setShowStageDetail(true);
+    syncRequestLocation(nextProjectId, undefined, nextSection);
   }
 
   function commit(updater: (current: SystemStateRecord) => SystemStateRecord) {
@@ -403,13 +587,16 @@ export default function ShureFundDashboard({
     }
   }
 
-  function handleEvidenceUpdate(requirementId: string, status: EvidenceStatus) {
+  function handleEvidenceUpdate(requirementId: string, status: EvidenceStatus, reason?: string) {
     runStageAction(
       `evidence:${requirementId}:${status}`,
       activeStageId,
       "evidence",
-      (current) => updateEvidenceStatus(current, requirementId, status),
+      (current) => updateEvidenceStatus(current, requirementId, status, { reason }),
     );
+    if (status === "rejected" || status === "requires_more") {
+      setEvidenceReviewReasons((current) => ({ ...current, [requirementId]: "" }));
+    }
   }
 
   function handleAddEvidence() {
@@ -444,6 +631,57 @@ export default function ShureFundDashboard({
     setVariationReason("");
   }
 
+  function requiresDecisionReason(descriptor: DerivedActionDescriptor | null | undefined) {
+    if (!descriptor) return false;
+    return (
+      descriptor.actionId.endsWith("-reject") ||
+      descriptor.actionId.endsWith("-rejected") ||
+      descriptor.actionId.endsWith("-requires_more")
+    );
+  }
+
+  function getApprovalRoleFromDescriptor(descriptor: DerivedActionDescriptor) {
+    const match = descriptor.actionId.match(/^approval-(professional|commercial|treasury)-/);
+    return match?.[1] as "professional" | "commercial" | "treasury" | undefined;
+  }
+
+  function getVariationIdFromDescriptor(descriptor: DerivedActionDescriptor) {
+    return descriptor.actionId.startsWith("review-variation") ? taskDescriptorSet?.variationId : undefined;
+  }
+
+  function getEvidenceIdFromDescriptor(descriptor: DerivedActionDescriptor) {
+    return descriptor.actionId.startsWith("evidence-") ? taskDescriptorSet?.evidenceId : undefined;
+  }
+
+  function getDescriptorReasonDraft(descriptor: DerivedActionDescriptor | null | undefined) {
+    if (!descriptor) return "";
+    const approvalRole = getApprovalRoleFromDescriptor(descriptor);
+    if (approvalRole) return approvalRejectReasons[approvalRole] ?? "";
+    const evidenceId = getEvidenceIdFromDescriptor(descriptor);
+    if (evidenceId) return evidenceReviewReasons[evidenceId] ?? "";
+    const variationId = getVariationIdFromDescriptor(descriptor);
+    if (variationId) return variationRejectReasons[variationId] ?? "";
+    return "";
+  }
+
+  function setDescriptorReasonDraft(descriptor: DerivedActionDescriptor | null | undefined, value: string) {
+    if (!descriptor) return;
+    const approvalRole = getApprovalRoleFromDescriptor(descriptor);
+    if (approvalRole) {
+      setApprovalRejectReasons((current) => ({ ...current, [approvalRole]: value }));
+      return;
+    }
+    const evidenceId = getEvidenceIdFromDescriptor(descriptor);
+    if (evidenceId) {
+      setEvidenceReviewReasons((current) => ({ ...current, [evidenceId]: value }));
+      return;
+    }
+    const variationId = getVariationIdFromDescriptor(descriptor);
+    if (variationId) {
+      setVariationRejectReasons((current) => ({ ...current, [variationId]: value }));
+    }
+  }
+
   function handleFundStage() {
     runStageAction(
       "funding:allocate",
@@ -470,6 +708,24 @@ export default function ShureFundDashboard({
       (current) => applyOverride(current, stageDetail.stage.id, overrideReason),
     );
     setOverrideReason("");
+  }
+
+  function handleFundStageFor(stageId: string) {
+    runStageAction(
+      "funding:allocate",
+      stageId,
+      "funding",
+      (current) => allocateStageFunds(current, stageId),
+    );
+  }
+
+  function handleReleaseStageFor(stageId: string) {
+    runStageAction(
+      "release:execute",
+      stageId,
+      "release",
+      (current) => releaseStage(current, stageId),
+    );
   }
 
   async function handleShareDecision() {
@@ -504,10 +760,10 @@ export default function ShureFundDashboard({
         : "Executive";
   const modeSummary =
     audienceMode === "operations"
-      ? "Focus on payment hold-ups, sign-offs, supporting information, and the next step to get a work package paid."
+      ? "Focus on payment hold-ups, sign-offs, supporting information, and the next step to get a project stage paid."
       : audienceMode === "treasury"
         ? "Focus on amounts ready to pay, amounts on hold, funder sign-off, and payment conditions."
-        : "Focus on payment status, exposure, on-hold value, and concise work package updates.";
+        : "Focus on payment status, exposure, on-hold value, and concise project stage updates.";
   const selectedTask =
     currentProjectInbox.find(
       (item) =>
@@ -517,6 +773,7 @@ export default function ShureFundDashboard({
     currentProjectInbox.find((item) => item.stageId === activeStageId) ??
     currentProjectInbox[0] ??
     null;
+  const selectedTaskUpdatedLabel = formatRelativeTime(stageDetail.lastUpdatedAt);
   const primaryTaskCount = currentProjectInbox.length;
   const sectionHeading = sectionMeta[section];
   const showAudienceControls = section === "payments" || section === "packages" || section === "activity";
@@ -637,6 +894,7 @@ export default function ShureFundDashboard({
     if (descriptor.actionId === "add-evidence") return !(stageDetail.actionReadiness.addEvidence.isAvailable && evidenceTitle.trim().length > 0);
     if (descriptor.actionId === "open-dispute") return !canOpenDispute;
     if (descriptor.actionId === "create-variation") return !canCreateVariation;
+    if (requiresDecisionReason(descriptor) && getDescriptorReasonDraft(descriptor).trim().length === 0) return true;
     return descriptor.confidence === "blocked";
   };
 
@@ -666,13 +924,13 @@ export default function ShureFundDashboard({
         onApproveTask("treasury");
         return;
       case "approval-professional-reject":
-        onRejectTask("professional");
+        onRejectTask("professional", approvalRejectReasons.professional ?? "");
         return;
       case "approval-commercial-reject":
-        onRejectTask("commercial");
+        onRejectTask("commercial", approvalRejectReasons.commercial ?? "");
         return;
       case "approval-treasury-reject":
-        onRejectTask("treasury");
+        onRejectTask("treasury", approvalRejectReasons.treasury ?? "");
         return;
       case "resolve-dispute":
         if (taskDescriptorSet?.disputeId) {
@@ -704,15 +962,22 @@ export default function ShureFundDashboard({
       case "review-variation-reject":
         if (taskDescriptorSet?.variationId) {
           runStageAction(`variation:${taskDescriptorSet.variationId}:reject`, stageDetail.stage.id, "variation", (current) =>
-            reviewVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!, "rejected"),
+            reviewVariation(current, stageDetail.stage.id, taskDescriptorSet.variationId!, "rejected", {
+              reason: variationRejectReasons[taskDescriptorSet.variationId!] ?? "",
+            }),
           );
+          setVariationRejectReasons((current) => ({ ...current, [taskDescriptorSet.variationId!]: "" }));
         }
         return;
       default:
         if (descriptor.actionId.startsWith("evidence-") && taskDescriptorSet?.evidenceId) {
           if (descriptor.actionId.endsWith("-accepted")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "accepted");
-          if (descriptor.actionId.endsWith("-rejected")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "rejected");
-          if (descriptor.actionId.endsWith("-requires_more")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "requires_more");
+          if (descriptor.actionId.endsWith("-rejected")) {
+            handleEvidenceUpdate(taskDescriptorSet.evidenceId, "rejected", evidenceReviewReasons[taskDescriptorSet.evidenceId] ?? "");
+          }
+          if (descriptor.actionId.endsWith("-requires_more")) {
+            handleEvidenceUpdate(taskDescriptorSet.evidenceId, "requires_more", evidenceReviewReasons[taskDescriptorSet.evidenceId] ?? "");
+          }
           if (descriptor.actionId.endsWith("-pending")) handleEvidenceUpdate(taskDescriptorSet.evidenceId, "pending");
         }
     }
@@ -722,8 +987,9 @@ export default function ShureFundDashboard({
     runStageAction(`approval:${role}:approve`, stageDetail.stage.id, "approvals", (current) => giveApproval(current, stageDetail.stage.id, role));
   }
 
-  function onRejectTask(role: "professional" | "commercial" | "treasury") {
-    runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role));
+  function onRejectTask(role: "professional" | "commercial" | "treasury", reason: string) {
+    runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role, reason));
+    setApprovalRejectReasons((current) => ({ ...current, [role]: "" }));
   }
 
   const stageDetailSurface = (
@@ -742,6 +1008,9 @@ export default function ShureFundDashboard({
       variationTitle={variationTitle}
       variationReason={variationReason}
       variationAmount={variationAmount}
+      approvalRejectReasons={approvalRejectReasons}
+      evidenceReviewReasons={evidenceReviewReasons}
+      variationRejectReasons={variationRejectReasons}
       onOverrideReasonChange={setOverrideReason}
       onEvidenceTitleChange={setEvidenceTitle}
       onEvidenceTypeChange={setEvidenceType}
@@ -751,10 +1020,16 @@ export default function ShureFundDashboard({
       onVariationTitleChange={setVariationTitle}
       onVariationReasonChange={setVariationReason}
       onVariationAmountChange={setVariationAmount}
+      onApprovalRejectReasonChange={(role, value) => setApprovalRejectReasons((current) => ({ ...current, [role]: value }))}
+      onEvidenceReviewReasonChange={(evidenceId, value) => setEvidenceReviewReasons((current) => ({ ...current, [evidenceId]: value }))}
+      onVariationRejectReasonChange={(variationId, value) => setVariationRejectReasons((current) => ({ ...current, [variationId]: value }))}
       onAddEvidence={handleAddEvidence}
       onUpdateEvidenceStatus={handleEvidenceUpdate}
       onApprove={(role) => runStageAction(`approval:${role}:approve`, stageDetail.stage.id, "approvals", (current) => giveApproval(current, stageDetail.stage.id, role))}
-      onReject={(role) => runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role))}
+      onReject={(role, reason) => {
+        runStageAction(`approval:${role}:reject`, stageDetail.stage.id, "approvals", (current) => rejectApproval(current, stageDetail.stage.id, role, reason));
+        setApprovalRejectReasons((current) => ({ ...current, [role]: "" }));
+      }}
       onFundStage={handleFundStage}
       onApplyOverride={handleApplyOverride}
       onRelease={handleReleaseStage}
@@ -764,12 +1039,113 @@ export default function ShureFundDashboard({
       onApproveVariation={(variationId) =>
         runStageAction(`variation:${variationId}:approve`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "approved"))
       }
-      onRejectVariation={(variationId) =>
-        runStageAction(`variation:${variationId}:reject`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected"))
-      }
+      onRejectVariation={(variationId) => {
+        runStageAction(`variation:${variationId}:reject`, stageDetail.stage.id, "variation", (current) => reviewVariation(current, stageDetail.stage.id, variationId, "rejected", { reason: variationRejectReasons[variationId] ?? "" }));
+        setVariationRejectReasons((current) => ({ ...current, [variationId]: "" }));
+      }}
       onActivateVariation={(variationId) => runStageAction(`variation:${variationId}:activate`, stageDetail.stage.id, "variation", (current) => activateVariation(current, stageDetail.stage.id, variationId))}
     />
   );
+
+  const requestDetailSheetMeta =
+    requestDetailSheet === "payment"
+      ? {
+          title: "Payment position",
+          subtitle: `${project.name} · ${stageDetail.stage.name}`,
+          content: (
+            <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Ready to pay</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(stageDetail.releaseDecision.releasableAmount)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">On hold</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(stageDetail.releaseDecision.frozenAmount)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">In progress</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{currency.format(stageDetail.releaseDecision.blockedAmount)}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-medium text-slate-950">{stageDetail.releaseSummary.headline}</p>
+                <p className="mt-2 text-sm text-slate-600">{stageDetail.releaseDecision.explanation.reason}</p>
+                {stageDetail.releaseSummary.blockingConditionLabel ? (
+                  <p className="mt-3 text-sm text-slate-600">Holding payment up: {stageDetail.releaseSummary.blockingConditionLabel}</p>
+                ) : null}
+              </div>
+            </div>
+          ),
+        }
+      : requestDetailSheet === "supporting"
+        ? {
+            title: "Supporting information",
+            subtitle: `${project.name} · ${stageDetail.stage.name}`,
+            content: (
+              <div className="grid gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-medium text-slate-950">{stageDetail.evidenceSummary.sufficiencyLabel}</p>
+                  <p className="mt-2 text-sm text-slate-600">{stageDetail.evidenceSummary.reviewStatusLabel}</p>
+                  {stageDetail.evidenceSummary.blockingConditionLabel ? (
+                    <p className="mt-3 text-sm text-slate-600">{stageDetail.evidenceSummary.blockingConditionLabel}</p>
+                  ) : null}
+                </div>
+                {stageDetail.evidence.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-slate-950">{item.label}</p>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold capitalize text-slate-700">
+                        {item.record?.status ?? "missing"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-500">{item.type === "file" ? "Document" : "Information"}</p>
+                  </div>
+                ))}
+              </div>
+            ),
+          }
+        : requestDetailSheet === "approval"
+          ? {
+              title: "Approval / sign-off position",
+              subtitle: `${project.name} · ${stageDetail.stage.name}`,
+              content: (
+                <div className="grid gap-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm font-medium text-slate-950">{stageDetail.approvalSummary.approvalProgressLabel}</p>
+                    <p className="mt-2 text-sm text-slate-600">{stageDetail.approvalSummary.headline}</p>
+                  </div>
+                  {stageDetail.approvals.map((approval) => (
+                    <div key={approval.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-950">{getUserFacingRoleLabel(approval.role)}</p>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold capitalize text-slate-700">
+                          {approval.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">{approval.readiness.nextConditionLabel ?? approval.approveAction.outcomeLabel}</p>
+                    </div>
+                  ))}
+                </div>
+              ),
+            }
+          : requestDetailSheet === "history"
+            ? {
+                title: "History",
+                subtitle: `${project.name} · ${stageDetail.stage.name}`,
+                content: (
+                  <div className="grid gap-3">
+                    {stageDetail.timelineEntries.slice(0, 8).map((entry) => (
+                      <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="text-sm font-medium text-slate-950">{entry.headline}</p>
+                        <p className="mt-2 text-sm text-slate-600">{entry.detail}</p>
+                        <p className="mt-2 text-xs text-slate-500">{entry.actorLabel ?? "System"} · {entry.timestampLabel}</p>
+                      </div>
+                    ))}
+                  </div>
+                ),
+              }
+            : null;
 
   return (
     <main className="flex flex-col gap-8 text-slate-900">
@@ -852,11 +1228,11 @@ export default function ShureFundDashboard({
             </section>
 
             <section className="print-section mt-8">
-              <h2 className="text-lg font-semibold text-slate-950">Selected work package</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Selected project stage</h2>
               <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-6">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <p className="text-xs text-slate-500">Work package status</p>
+                    <p className="text-xs text-slate-500">Project stage status</p>
                     <p className="mt-1 text-sm font-medium text-slate-950">{stageDetail.operationalStatus.label}</p>
                   </div>
                   <div>
@@ -901,7 +1277,32 @@ export default function ShureFundDashboard({
           </div>
         </section>
 
-        <div className="no-print flex flex-col gap-8">
+        <div className="no-print flex flex-col gap-8 pb-28">
+          {section === "actions" ? (
+            <div className={`sticky top-24 z-10 flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3 shadow-[0_14px_32px_-26px_rgba(15,23,42,0.35)] backdrop-blur ${bannerTone}`}>
+              <div className="min-w-0">
+                <p className={`text-[11px] uppercase tracking-[0.18em] ${topUrgency === "immediate" ? "text-white/70" : "text-current/70"}`}>Attention</p>
+                <p className="truncate text-sm font-semibold">{bannerLabel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentProjectInbox[0]) {
+                    handleWorkspaceItemSelect(currentProjectInbox[0]);
+                  }
+                }}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  currentProjectInbox.length === 0
+                    ? "bg-white/80 text-teal-950"
+                    : topUrgency === "immediate"
+                      ? "bg-white text-slate-950"
+                      : "bg-white/85 text-slate-950"
+                }`}
+              >
+                {currentProjectInbox.length === 0 ? "View summary" : "Open request"}
+              </button>
+            </div>
+          ) : null}
           <section className="flex flex-col gap-4 rounded-[30px] border border-slate-200/80 bg-white/90 px-6 py-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -943,98 +1344,151 @@ export default function ShureFundDashboard({
           </section>
         {section === "actions" ? (
         <>
-        <SectionCard
-          title="Action feed"
-          subtitle={`${primaryTaskCount} item${primaryTaskCount === 1 ? "" : "s"} currently need attention in ${project.name}.`}
-        >
-          <div className="grid gap-2">
-            {currentProjectInbox.map((item) => {
-              const selected =
-                item.stageId === selectedTask?.stageId &&
-                (item.deepLinkTarget?.section ?? "overview") === (selectedTask?.deepLinkTarget?.section ?? "overview");
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleWorkspaceItemSelect(item)}
-                  className={`rounded-2xl border px-4 py-4 text-left transition ${
-                    selected ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className={`text-sm ${selected ? "text-slate-300" : "text-slate-500"}`}>{item.stageName ?? project.name}</p>
-                      <p className="mt-1 text-base font-semibold">{item.title}</p>
-                      <p className={`mt-2 text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>
-                        {item.decisionCue.primaryCue}
-                      </p>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${selected ? "bg-white/15 text-white" : urgencyTone(item.decisionCue.decisionUrgency)}`}>
-                      {urgencyLabel(item.decisionCue.decisionUrgency)}
-                    </span>
-                  </div>
-                  <div className={`mt-3 flex flex-wrap gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
-                    <span className={`rounded-full px-2.5 py-1 ${selected ? "bg-white/10" : "bg-slate-100"}`}>Who acts: {item.handoff?.toRoleLabel ?? item.ownerLabel}</span>
-                    <span className={`rounded-full px-2.5 py-1 ${selected ? "bg-white/10" : "bg-slate-100"}`}>Open in: {item.decisionCue.entryOrientationLabel ?? focusHintLabel(item.decisionCue.detailFocusHint)}</span>
-                    <span className={`rounded-full px-2.5 py-1 ${selected ? "bg-white/10" : "bg-slate-100"}`}>
-                      {item.readinessState === "actionable" ? "Your action" : "Monitor"}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-            {currentProjectInbox.length === 0 ? (
-              <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No immediate action is waiting in this project.</p>
-            ) : null}
-          </div>
-          {crossProjectAttentionCount > 0 ? (
-            <p className="mt-4 text-xs text-slate-500">
-              {crossProjectAttentionCount} additional item{crossProjectAttentionCount === 1 ? "" : "s"} need attention in other projects.
-            </p>
-          ) : null}
-        </SectionCard>
-
-        {selectedTask ? (
-          <section className="rounded-[30px] border border-slate-200/80 bg-white/96 p-6 shadow-[0_22px_52px_-40px_rgba(15,23,42,0.35)]">
-            <div className="max-w-4xl">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Current task</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-slate-950">{selectedTask.title}</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                {selectedTask.stageName ?? stageDetail.stage.name} · Updated {formatRelativeTime(stageDetail.lastUpdatedAt)}
-              </p>
-            </div>
-
-            {lastActionOutcome ? (
-              <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${
-                lastActionOutcome.result === "advanced" || lastActionOutcome.result === "released"
-                  ? "border-teal-200 bg-teal-50 text-teal-950"
-                  : lastActionOutcome.result === "exception" || lastActionOutcome.result === "blocked"
-                    ? "border-amber-200 bg-amber-50 text-amber-950"
-                    : "border-slate-200 bg-slate-50 text-slate-700"
-              }`}>
-                {lastActionOutcome.summary}
-              </div>
-            ) : null}
-
-            <div className="mt-6 grid gap-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why action is needed</p>
-                <p className="mt-2 text-sm leading-6 text-slate-900">{selectedTask.decisionCue.primaryCue}</p>
-                {selectedTask.decisionCue.secondaryCue ? (
-                  <p className="mt-2 text-sm text-slate-600">{selectedTask.decisionCue.secondaryCue}</p>
+        <div className="mx-auto grid w-full max-w-2xl gap-4">
+          <RequestStepCard
+            title="Requests"
+            subtitle={primaryTaskCount > 0 ? `${primaryTaskCount} request${primaryTaskCount === 1 ? "" : "s"} waiting in ${project.name}.` : "All requests up to date for this project."}
+          >
+            {currentProjectInbox.length > 0 ? (
+              <div className="grid gap-2">
+                {visibleActionItems.map((item) => {
+                  const selected =
+                    item.stageId === selectedTask?.stageId &&
+                    (item.deepLinkTarget?.section ?? "overview") === (selectedTask?.deepLinkTarget?.section ?? "overview");
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleWorkspaceItemSelect(item)}
+                      className={`flex items-center justify-between gap-4 rounded-[24px] border px-4 py-4 text-left transition ${
+                        selected ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className={`truncate text-base font-semibold ${selected ? "text-white" : "text-slate-950"}`}>{item.title}</p>
+                        <p className={`mt-1 truncate text-sm ${selected ? "text-slate-300" : "text-slate-600"}`}>{item.reason}</p>
+                        <div className={`mt-2 flex items-center gap-2 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
+                          <span>{project.name}</span>
+                          <span aria-hidden="true">/</span>
+                          <span>{item.stageName ?? stageDetail.stage.name}</span>
+                          <span aria-hidden="true">•</span>
+                          <span>{formatRelativeTime(getStageDetail(state, item.stageId ?? activeStageId).lastUpdatedAt)}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${selected ? "bg-white/15 text-white" : urgencyTone(item.decisionCue.decisionUrgency)}`}>
+                          {urgencyLabel(item.decisionCue.decisionUrgency)}
+                        </span>
+                        <ChevronRight size={18} className={selected ? "text-white" : "text-slate-400"} />
+                      </div>
+                    </button>
+                  );
+                })}
+                {hiddenActionCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleWorkspaceItemSelect(currentProjectInbox[visibleActionItems.length])}
+                    className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                  >
+                    +{hiddenActionCount} more request{hiddenActionCount === 1 ? "" : "s"}
+                  </button>
+                ) : null}
+                {crossProjectAttentionCount > 0 ? (
+                  <p className="px-1 text-xs text-slate-500">
+                    {crossProjectAttentionCount} additional item{crossProjectAttentionCount === 1 ? "" : "s"} need attention in other projects.
+                  </p>
                 ) : null}
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What happens next</p>
-                <p className="mt-2 text-sm leading-6 text-slate-900">{selectedTask.nextStep ?? stageDetail.operationalStatus.nextStep}</p>
-                <p className="mt-2 text-sm text-slate-600">Who needs to act: {selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}</p>
+            ) : (
+              <div className="rounded-[24px] border border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(249,250,251,1)_100%)] px-5 py-5">
+                <p className="text-base font-semibold text-teal-950">All requests up to date</p>
+                <p className="mt-2 text-sm text-teal-900">No actions are waiting in this project right now. Payment controls and governed checks remain in place.</p>
+                <button
+                  type="button"
+                  onClick={() => router.push("/summary")}
+                  className="mt-4 rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm"
+                >
+                  View summary
+                </button>
               </div>
+            )}
+          </RequestStepCard>
 
-              {taskDescriptorSet?.primary ? (
-                <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.28)]">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Primary action</p>
+        {selectedTask ? (
+          <>
+            <RequestStepCard title="Request summary">
+              <div className="grid gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-500">{project.name}</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-slate-950">{selectedTask.title}</h2>
+                    <p className="mt-2 text-sm text-slate-600">Project stage: {selectedTask.stageName ?? stageDetail.stage.name}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${urgencyTone(selectedTask.decisionCue.decisionUrgency)}`}>
+                    {urgencyLabel(selectedTask.decisionCue.decisionUrgency)}
+                  </span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Who needs to act</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Updated</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTaskUpdatedLabel}</p>
+                  </div>
+                </div>
+              </div>
+            </RequestStepCard>
+
+            <RequestStepCard title="Decision context">
+              <div className="grid gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Reason</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTask.decisionCue.primaryCue}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next step / consequence</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-950">{selectedTask.nextStep ?? stageDetail.operationalStatus.nextStep}</p>
+                </div>
+                {taskAlertLines.length > 0 ? (
+                  <div className="grid gap-2">
+                    {taskAlertLines.map((line) => (
+                      <div key={line} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </RequestStepCard>
+
+            <RequestStepCard title="Primary action area" subtitle={taskDescriptorSet?.primary ? "Take the governed action directly from this request." : "No direct action is available in this request."}>
+              <div className="grid gap-4">
+                {lastActionOutcome ? (
+                  <div className={`rounded-[24px] border px-4 py-4 ${
+                    lastActionOutcome.result === "advanced" || lastActionOutcome.result === "released"
+                      ? "border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(236,253,245,0.92)_100%)]"
+                      : lastActionOutcome.result === "exception" || lastActionOutcome.result === "blocked"
+                        ? "border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,1)_0%,rgba(254,243,199,0.62)_100%)]"
+                        : "border-slate-200 bg-slate-50"
+                  }`}>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Outcome confirmed</p>
+                    <p className="mt-2 text-base font-semibold text-slate-950">{lastActionOutcome.summary}</p>
+                  </div>
+                ) : null}
+
+                {taskDescriptorSet?.primary ? (
+                  <div className="rounded-[26px] border border-slate-200 bg-slate-50/70 p-4">
+                    <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                      isDescriptorDisabled(taskDescriptorSet.primary)
+                        ? "border-amber-200 bg-amber-50 text-amber-950"
+                        : "border-teal-200 bg-white text-slate-900"
+                    }`}>
+                      {isDescriptorDisabled(taskDescriptorSet.primary)
+                        ? `This role cannot complete the current governed action here. ${taskDescriptorSet.primary.blockerSummary ?? `Who must act: ${selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}.`}`
+                        : taskDescriptorSet.primary.sideEffects?.[0] ?? taskDescriptorSet.primary.outcomeLabel}
+                    </div>
 
                   {taskDescriptorSet.primary.actionId === "add-evidence" ? (
                     <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem]">
@@ -1114,61 +1568,120 @@ export default function ShureFundDashboard({
                     </div>
                   ) : null}
 
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      onClick={() => runDescriptorAction(taskDescriptorSet.primary)}
-                      disabled={isDescriptorDisabled(taskDescriptorSet.primary)}
-                      className={getActionButtonClass(taskDescriptorSet.primary, isDescriptorDisabled(taskDescriptorSet.primary), true)}
-                    >
-                      <span className="block text-base font-semibold">{taskDescriptorSet.primary.label}</span>
-                      <span className="mt-1 block text-sm opacity-85">
-                        {taskDescriptorSet.primary.stateTransitionPreview.fromState} → {taskDescriptorSet.primary.stateTransitionPreview.toState}
-                      </span>
-                      <span className="mt-2 block text-sm opacity-80">
-                        {isDescriptorDisabled(taskDescriptorSet.primary)
-                          ? taskDescriptorSet.primary.blockerSummary ?? stageDetail.operationalStatus.reason
-                          : taskDescriptorSet.primary.sideEffects?.[0] ?? taskDescriptorSet.primary.outcomeLabel}
-                      </span>
-                    </button>
+                  {requiresDecisionReason(taskDescriptorSet.primary) ? (
+                    <div className="mt-4">
+                      <textarea
+                        className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Reason for this decision"
+                        value={getDescriptorReasonDraft(taskDescriptorSet.primary)}
+                        onChange={(event) => setDescriptorReasonDraft(taskDescriptorSet.primary, event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-base font-semibold text-slate-950">{taskDescriptorSet.primary.label}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {taskDescriptorSet.primary.stateTransitionPreview.fromState} → {taskDescriptorSet.primary.stateTransitionPreview.toState}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      {isDescriptorDisabled(taskDescriptorSet.primary)
+                        ? taskDescriptorSet.primary.blockerSummary ?? stageDetail.operationalStatus.reason
+                        : taskDescriptorSet.primary.sideEffects?.[0] ?? taskDescriptorSet.primary.outcomeLabel}
+                    </p>
                   </div>
 
                   {taskDescriptorSet.secondary.length > 0 ? (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-4 grid gap-3">
                       {taskDescriptorSet.secondary.map((descriptor) => (
-                        <button
-                          key={descriptor.actionId}
-                          type="button"
-                          onClick={() => runDescriptorAction(descriptor)}
-                          disabled={isDescriptorDisabled(descriptor)}
-                          className={getActionButtonClass(descriptor, isDescriptorDisabled(descriptor))}
-                        >
-                          <span className="block">{descriptor.label}</span>
-                          <span className="mt-1 block text-xs opacity-80">
-                            {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
-                          </span>
-                          <span className="mt-2 block text-xs opacity-75">
-                            {isDescriptorDisabled(descriptor)
-                              ? descriptor.blockerSummary ?? descriptor.outcomeLabel
-                              : descriptor.sideEffects?.[0] ?? descriptor.outcomeLabel}
-                          </span>
-                        </button>
+                        <div key={descriptor.actionId} className="grid gap-2">
+                          {requiresDecisionReason(descriptor) ? (
+                            <textarea
+                              className="min-h-20 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                              placeholder="Reason for this decision"
+                              value={getDescriptorReasonDraft(descriptor)}
+                              onChange={(event) => setDescriptorReasonDraft(descriptor, event.target.value)}
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => runDescriptorAction(descriptor)}
+                            disabled={isDescriptorDisabled(descriptor)}
+                            className={getActionButtonClass(descriptor, isDescriptorDisabled(descriptor))}
+                          >
+                            <span className="block">{descriptor.label}</span>
+                            <span className="mt-1 block text-xs opacity-80">
+                              {descriptor.stateTransitionPreview.fromState} → {descriptor.stateTransitionPreview.toState}
+                            </span>
+                            <span className="mt-2 block text-xs opacity-75">
+                              {isDescriptorDisabled(descriptor)
+                                ? descriptor.blockerSummary ?? descriptor.outcomeLabel
+                                : descriptor.sideEffects?.[0] ?? descriptor.outcomeLabel}
+                            </span>
+                          </button>
+                        </div>
                       ))}
                     </div>
                   ) : null}
-                </div>
-              ) : null}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                    This request is informative for your role. The governed action remains assigned to {selectedTask.handoff?.toRoleLabel ?? selectedTask.ownerLabel}.
+                  </div>
+                )}
+              </div>
+            </RequestStepCard>
 
-              <ExpandableSection
-                title="View full work package details"
-                subtitle="Payment checks, supporting information, sign-offs, review items, and audit history."
-                defaultOpen={false}
-              >
-                {stageDetailSurface}
-              </ExpandableSection>
+            <div className="grid gap-3">
+              {[
+                {
+                  key: "payment" as const,
+                  title: "Payment position",
+                  summary: `${currency.format(stageDetail.releaseDecision.releasableAmount)} ready to pay · ${currency.format(stageDetail.releaseDecision.frozenAmount)} on hold`,
+                },
+                {
+                  key: "supporting" as const,
+                  title: "Supporting information",
+                  summary: stageDetail.evidenceSummary.reviewStatusLabel,
+                },
+                {
+                  key: "approval" as const,
+                  title: "Approval / sign-off position",
+                  summary: stageDetail.approvalSummary.approvalProgressLabel,
+                },
+                {
+                  key: "history" as const,
+                  title: "History",
+                  summary: stageDetail.timelineEntries[0]?.headline ?? "No recent governed events recorded.",
+                },
+              ].map((detailCard) => (
+                <RequestStepCard key={detailCard.key} title={detailCard.title}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-600">{detailCard.summary}</p>
+                    <button
+                      type="button"
+                      onClick={() => setRequestDetailSheet(detailCard.key)}
+                      className="shrink-0 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      View details
+                    </button>
+                  </div>
+                </RequestStepCard>
+              ))}
+
+              <RequestStepCard title="Full project stage detail" subtitle="All governed controls remain available in the complete stage view.">
+                <button
+                  type="button"
+                  onClick={() => openStageContext(stageDetail.stage.id, selectedStageSection)}
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Keep current stage open
+                </button>
+              </RequestStepCard>
             </div>
-          </section>
+          </>
         ) : null}
+        </div>
         </>
         ) : null}
 
@@ -1178,8 +1691,8 @@ export default function ShureFundDashboard({
           title={currentUser.role === "executive" ? "Exceptions Overview" : "What Needs Your Attention"}
           subtitle={
             currentUser.role === "executive"
-              ? "Important work package issues to understand now."
-              : "Work packages that currently need attention in this project."
+              ? "Important project stage issues to understand now."
+              : "Project stages that currently need attention in this project."
           }
         >
           <div className="grid gap-3">
@@ -1352,23 +1865,24 @@ export default function ShureFundDashboard({
           <div className="grid gap-6">
             {section === "packages" ? (
             <SectionCard
-              title="Work packages"
+              title="Project stages"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise work package payment status and key hold-ups."
-                  : "Select a work package to see payment status, supporting information, sign-offs, review items, and payment conditions."
+                  ? "Concise project stage payment status and key hold-ups."
+                  : "Select a project stage to see payment status, supporting information, sign-offs, review items, and payment conditions."
               }
             >
               <div className="grid gap-3">
                 {fundingSummary.stageSummaries.map((summary) => {
                   const detail = getStageDetail(state, summary.stageId);
+                  const stageRequest = currentProjectInbox.find((item) => item.stageId === summary.stageId) ?? null;
+                  const stageActionLabel = getStageSurfaceActionLabel(detail, Boolean(stageRequest));
                   return (
                     <button
                       key={summary.stageId}
                       type="button"
                       onClick={() => {
-                        setSelectedStageId(summary.stageId);
-                        setSelectedStageSection("overview");
+                        openStageContext(summary.stageId, stageRequest?.deepLinkTarget?.section ?? "overview", stageRequest?.decisionCue ?? null);
                       }}
                       className={`rounded-2xl border p-4 text-left transition ${
                         activeStageId === summary.stageId
@@ -1401,7 +1915,12 @@ export default function ShureFundDashboard({
                       <p className="mt-1 text-xs opacity-70">
                         {detail.treasuryReadiness.label} · Ready to pay {currency.format(detail.releaseDecision.releasableAmount)} · On hold {currency.format(detail.disputeSummary.frozenValue)}
                       </p>
-                      <p className="mt-1 text-xs opacity-60">Updated {formatRelativeTime(detail.lastUpdatedAt)}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-xs opacity-60">Updated {formatRelativeTime(detail.lastUpdatedAt)}</p>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${activeStageId === summary.stageId ? "bg-white text-slate-950" : "bg-slate-950 text-white"}`}>
+                          {stageActionLabel}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
@@ -1418,8 +1937,8 @@ export default function ShureFundDashboard({
               title="Status summary"
               subtitle={
                 audienceMode === "executive"
-                  ? "Work package counts by payment status."
-                  : "Current work package counts across payment, sign-off, review, and on-hold states."
+                  ? "Project stage counts by payment status."
+                  : "Current project stage counts across payment, sign-off, review, and on-hold states."
               }
             >
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1480,13 +1999,22 @@ export default function ShureFundDashboard({
               title="Payment conditions"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise work package payment-readiness summaries."
+                  ? "Concise project stage payment-readiness summaries."
                   : "Payment is allowed only when funding, supporting information, and sign-off are complete unless a funder override is active. On-hold value remains outside payable amount."
               }
               >
                 <div className="grid gap-3">
                 {(audienceMode === "executive" ? releaseDecisions.slice(0, 3) : releaseDecisions).map((decision) => (
                   <article key={decision.stageId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    {(() => {
+                      const detail = getStageDetail(state, decision.stageId);
+                      const stageRequest = currentProjectInbox.find((item) => item.stageId === decision.stageId) ?? null;
+                      const stageActionLabel = getStageSurfaceActionLabel(detail, Boolean(stageRequest));
+                      const canReleaseFromList = detail.actionReadiness.release.isAvailable && detail.releaseDecision.releasable;
+                      const canFundFromList = detail.actionReadiness.fundStage.isAvailable && detail.funding.gapToRequiredCover > 0;
+
+                      return (
+                        <>
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium text-slate-900">{decision.stageName}</p>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[decision.status]}`}>
@@ -1541,6 +2069,44 @@ export default function ShureFundDashboard({
                         Override active. Payment proceeds by override, not through the normal payment path.
                       </p>
                     ) : null}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (canReleaseFromList) {
+                            handleReleaseStageFor(decision.stageId);
+                            openStageContext(decision.stageId, "release");
+                            return;
+                          }
+
+                          if (canFundFromList) {
+                            handleFundStageFor(decision.stageId);
+                            openStageContext(decision.stageId, "funding");
+                            return;
+                          }
+
+                          if (stageRequest) {
+                            handleWorkspaceItemSelect(stageRequest);
+                            return;
+                          }
+
+                          openStageContext(decision.stageId, "overview");
+                        }}
+                        className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                      >
+                        {stageActionLabel}
+                      </button>
+                      {!canReleaseFromList && !canFundFromList ? (
+                        <span className="inline-flex items-center rounded-full bg-white px-3 py-2 text-xs text-slate-500">
+                          {stageRequest
+                            ? `Reason: ${stageRequest.reason}`
+                            : detail.actionDescriptorMap["release"]?.blockerSummary ?? detail.operationalStatus.reason}
+                        </span>
+                      ) : null}
+                    </div>
+                        </>
+                      );
+                    })()}
                   </article>
                 ))}
               </div>
@@ -1595,7 +2161,7 @@ export default function ShureFundDashboard({
                 fundingSummary={fundingSummary}
                 depositAmount={depositAmount}
                 fundingSource={fundingSource}
-                selectedWorkPackageName={stageDetail.stage.name}
+                selectedProjectStageName={stageDetail.stage.name}
                 onDepositAmountChange={setDepositAmount}
                 onFundingSourceChange={setFundingSource}
                 onAddFunds={handleDeposit}
@@ -1607,7 +2173,7 @@ export default function ShureFundDashboard({
           ) : null}
 
           <ExpandableSection
-            title="Selected work package"
+            title="Selected project stage"
             subtitle="Detailed payment checks, supporting information, sign-offs, review items, and payment actions."
             open={showStageDetail}
             onToggle={setShowStageDetail}
@@ -1705,6 +2271,16 @@ export default function ShureFundDashboard({
         </div>
         ) : null}
         </div>
+      {section === "actions" && requestDetailSheetMeta ? (
+        <RequestDetailSheet
+          open={Boolean(requestDetailSheetMeta)}
+          title={requestDetailSheetMeta.title}
+          subtitle={requestDetailSheetMeta.subtitle}
+          onClose={() => setRequestDetailSheet(null)}
+        >
+          {requestDetailSheetMeta.content}
+        </RequestDetailSheet>
+      ) : null}
       <style jsx global>{`
         @media print {
           @page {

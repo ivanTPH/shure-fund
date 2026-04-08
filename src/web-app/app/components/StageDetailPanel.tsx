@@ -111,7 +111,7 @@ function InlineActionConfirmation({
     outcome.result === "released"
       ? "Payment sent"
       : outcome.result === "advanced"
-        ? "Work package updated"
+        ? "Project stage updated"
         : outcome.result === "exception"
           ? "Under review"
           : outcome.result === "waiting"
@@ -202,7 +202,7 @@ function StageDecisionSummaryCard({
                 <p key={`summary-blocker-${index}`} className="text-sm text-slate-900">{blocker}</p>
               ))
             ) : (
-              <p className="text-sm text-slate-900">No active blocker is holding this work package.</p>
+              <p className="text-sm text-slate-900">No active blocker is holding this project stage.</p>
             )}
           </div>
         </div>
@@ -294,7 +294,7 @@ function StageAttentionReasonCard({
     <div className={`mb-4 rounded-2xl border p-4 ${toneClass}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why this work package needs attention</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why this project stage needs attention</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{reason.headline}</p>
           <p className="mt-1 text-sm text-slate-600">{reason.reasonLabel}</p>
         </div>
@@ -437,7 +437,7 @@ function StageRoleHandoffCard({
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next outcome</p>
-          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This moves the work package to the next payment step."}</p>
+          <p className="mt-1 text-sm text-slate-900">{handoff.unlockOutcomeLabel ?? "This moves the project stage to the next payment step."}</p>
         </div>
       </div>
     </div>
@@ -816,7 +816,7 @@ function StageTimelineCard({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Audit support</p>
-          <p className="mt-1 text-sm font-semibold text-slate-900">Recent work package changes</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">Recent project stage changes</p>
         </div>
         <p className="text-xs text-slate-500">Most recent first</p>
       </div>
@@ -850,7 +850,7 @@ function StageTimelineCard({
             </article>
           );
         })}
-        {entries.length === 0 ? <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No governed work package changes recorded yet.</p> : null}
+        {entries.length === 0 ? <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No governed project stage changes recorded yet.</p> : null}
       </div>
     </div>
   );
@@ -974,6 +974,9 @@ type StageDetailPanelProps = {
   variationTitle: string;
   variationReason: string;
   variationAmount: string;
+  approvalRejectReasons: Record<string, string>;
+  evidenceReviewReasons: Record<string, string>;
+  variationRejectReasons: Record<string, string>;
   onOverrideReasonChange: (value: string) => void;
   onEvidenceTitleChange: (value: string) => void;
   onEvidenceTypeChange: (value: EvidenceType) => void;
@@ -983,10 +986,13 @@ type StageDetailPanelProps = {
   onVariationTitleChange: (value: string) => void;
   onVariationReasonChange: (value: string) => void;
   onVariationAmountChange: (value: string) => void;
+  onApprovalRejectReasonChange: (role: ApprovalRole, value: string) => void;
+  onEvidenceReviewReasonChange: (evidenceId: string, value: string) => void;
+  onVariationRejectReasonChange: (variationId: string, value: string) => void;
   onAddEvidence: () => void;
-  onUpdateEvidenceStatus: (requirementId: string, status: EvidenceStatus) => void;
+  onUpdateEvidenceStatus: (requirementId: string, status: EvidenceStatus, reason?: string) => void;
   onApprove: (role: ApprovalRole) => void;
-  onReject: (role: ApprovalRole) => void;
+  onReject: (role: ApprovalRole, reason: string) => void;
   onFundStage: () => void;
   onApplyOverride: () => void;
   onRelease: () => void;
@@ -994,7 +1000,7 @@ type StageDetailPanelProps = {
   onResolveDispute: (disputeId: string) => void;
   onCreateVariation: () => void;
   onApproveVariation: (variationId: string) => void;
-  onRejectVariation: (variationId: string) => void;
+  onRejectVariation: (variationId: string, reason: string) => void;
   onActivateVariation: (variationId: string) => void;
 };
 
@@ -1013,6 +1019,9 @@ export default function StageDetailPanel({
   variationTitle,
   variationReason,
   variationAmount,
+  approvalRejectReasons,
+  evidenceReviewReasons,
+  variationRejectReasons,
   onOverrideReasonChange,
   onEvidenceTitleChange,
   onEvidenceTypeChange,
@@ -1022,6 +1031,9 @@ export default function StageDetailPanel({
   onVariationTitleChange,
   onVariationReasonChange,
   onVariationAmountChange,
+  onApprovalRejectReasonChange,
+  onEvidenceReviewReasonChange,
+  onVariationRejectReasonChange,
   onAddEvidence,
   onUpdateEvidenceStatus,
   onApprove,
@@ -1310,7 +1322,7 @@ export default function StageDetailPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{topModeLabel}</p>
-            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Work package payment detail"}</h2>
+            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Project stage payment detail"}</h2>
             <p className="mt-1 text-sm text-slate-600">{topSurface.topSublineLabel ?? `${detail.projectName} · ${detail.stage.name}`}</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
@@ -1417,7 +1429,7 @@ export default function StageDetailPanel({
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">WIP</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this work package.</p>
+            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this project stage.</p>
           </div>
           <div className={stageSurfaceHierarchy.secondaryCard}>
             <p className="text-sm text-slate-500">Ready to pay</p>
@@ -1445,7 +1457,7 @@ export default function StageDetailPanel({
             <p className="mt-1 text-xs text-slate-500">
               {detail.blockingRelease
                 ? "One or more current blockers are stopping payment."
-                : "This work package is not currently blocked from payment."}
+                : "This project stage is not currently blocked from payment."}
             </p>
           </div>
         </div>
@@ -1581,15 +1593,23 @@ export default function StageDetailPanel({
             detail={detail}
             evidenceTitle={evidenceTitle}
             evidenceType={evidenceType}
+            evidenceReviewReasons={evidenceReviewReasons}
             onEvidenceTitleChange={onEvidenceTitleChange}
             onEvidenceTypeChange={onEvidenceTypeChange}
+            onEvidenceReviewReasonChange={onEvidenceReviewReasonChange}
             onAddEvidence={onAddEvidence}
             onUpdateEvidenceStatus={onUpdateEvidenceStatus}
           />
         </div>
         <div ref={approvalsRef} className={`${getSectionClass("approvals")} ${getAreaHighlightClass("approvals")}`}>
           <SectionActionHeader title="Sign-offs" guidance={detail.sectionGuidance.approvals} />
-          <ApprovalPanel detail={detail} onApprove={onApprove} onReject={onReject} />
+          <ApprovalPanel
+            detail={detail}
+            approvalRejectReasons={approvalRejectReasons}
+            onApprovalRejectReasonChange={onApprovalRejectReasonChange}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
         </div>
       </div>
 
@@ -1678,7 +1698,7 @@ export default function StageDetailPanel({
               </article>
             ))}
             {detail.disputes.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this work package.</p>
+              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this project stage.</p>
             ) : null}
           </div>
         </section>
@@ -1779,12 +1799,18 @@ export default function StageDetailPanel({
                           </p>
                         </div>
                         <div className="grid gap-2">
+                          <textarea
+                            className="min-h-20 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                            placeholder="Reason for rejecting this variation"
+                            value={variationRejectReasons[variation.id] ?? ""}
+                            onChange={(event) => onVariationRejectReasonChange(variation.id, event.target.value)}
+                          />
                           <button
                             type="button"
-                            onClick={() => onRejectVariation(variation.id)}
-                            disabled={!variation.canReject}
+                            onClick={() => onRejectVariation(variation.id, variationRejectReasons[variation.id] ?? "")}
+                            disabled={!variation.canReject || !(variationRejectReasons[variation.id] ?? "").trim().length}
                             className={`disabled:cursor-not-allowed min-h-12 rounded-2xl border px-4 py-3 text-left text-sm font-medium ${
-                              variation.canReject
+                              variation.canReject && (variationRejectReasons[variation.id] ?? "").trim().length
                                 ? "border-slate-300 bg-white text-slate-900"
                                 : "border-slate-200 bg-slate-100 text-slate-400"
                             }`}
@@ -1793,9 +1819,11 @@ export default function StageDetailPanel({
                             <span className="mt-1 block text-xs opacity-80">{variation.rejectAction.outcomeLabel}</span>
                           </button>
                           <p className="text-xs text-slate-500">
-                            {variation.canReject
+                            {variation.canReject && (variationRejectReasons[variation.id] ?? "").trim().length
                               ? variation.rejectAction.outcomeLabel
-                              : variation.rejectAction.blockerSummary}
+                              : variation.canReject
+                                ? "Enter a reason before rejecting this variation."
+                                : variation.rejectAction.blockerSummary}
                           </p>
                         </div>
                       </>
@@ -1831,7 +1859,7 @@ export default function StageDetailPanel({
               </article>
             ))}
             {detail.variations.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this work package.</p>
+              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this project stage.</p>
             ) : null}
           </div>
         </section>
@@ -1847,7 +1875,7 @@ export default function StageDetailPanel({
             </article>
           ))}
           {detail.blockers.length === 0 ? (
-            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No payment blocker is recorded for this work package.</p>
+            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No payment blocker is recorded for this project stage.</p>
           ) : null}
         </div>
       </div>
