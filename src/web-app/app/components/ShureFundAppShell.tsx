@@ -86,6 +86,7 @@ export default function ShureFundAppShell({
   const [selectedWorkspaceCue, setSelectedWorkspaceCue] = useState<{ stageId: string; cue: WorkspaceDecisionCue } | null>(null);
   const pathname = usePathname();
   const activeSection = getSectionFromPath(pathname);
+  const isMobileWorkflowSurface = pathname === "/";
 
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId) ?? state.users[0];
@@ -127,9 +128,14 @@ export default function ShureFundAppShell({
 
   return (
     <ShellStateContext.Provider value={contextValue}>
-      <div className="flex h-screen overflow-hidden bg-transparent text-[var(--foreground)]">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur" style={{ borderColor: "var(--surface-border)" }}>
+      {isMobileWorkflowSurface ? (
+        <div className="min-h-screen bg-neutral-950 text-neutral-100">
+          {children}
+        </div>
+      ) : (
+        <div className="flex h-screen overflow-hidden bg-transparent text-[var(--foreground)]">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur" style={{ borderColor: "var(--surface-border)" }}>
             <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -274,48 +280,49 @@ export default function ShureFundAppShell({
                 })}
               </nav>
             </div>
-          </header>
+            </header>
 
-          <main className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-6xl px-4 py-6 pb-24 sm:px-6">{children}</div>
-          </main>
+            <main className="min-h-0 flex-1 overflow-y-auto">
+              <div className="mx-auto max-w-6xl px-4 py-6 pb-24 sm:px-6">{children}</div>
+            </main>
 
-          <nav className="sticky bottom-0 z-30 border-t border-slate-200/80 bg-white/96 px-3 py-3 backdrop-blur md:hidden">
-            <div className="mx-auto grid max-w-xl grid-cols-3 gap-2">
-              {navItems.map((item) => {
-                const active = activeSection === item.section;
-                return (
-                  <Link
-                    key={item.section}
-                    href={item.href}
-                    className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium"
-                    style={{
-                      backgroundColor: active ? "var(--brand-navy)" : "transparent",
-                      color: active ? "var(--brand-white)" : "rgba(13, 17, 68, 0.68)",
-                    }}
-                  >
-                    <div className="relative">
-                      <Image src={item.iconSrc} alt="" width={16} height={16} className="h-4 w-4" aria-hidden />
-                      {item.section === "actions" && requestCount > 0 ? (
-                        <span
-                          className="absolute -right-2 -top-2 rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none"
-                          style={{
-                            backgroundColor: active ? "var(--brand-aqua)" : "var(--brand-navy)",
-                            color: active ? "var(--brand-navy)" : "var(--brand-white)",
-                          }}
-                        >
-                          {requestCount}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span>{item.shortLabel}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </nav>
+            <nav className="sticky bottom-0 z-30 border-t border-slate-200/80 bg-white/96 px-3 py-3 backdrop-blur md:hidden">
+              <div className="mx-auto grid max-w-xl grid-cols-3 gap-2">
+                {navItems.map((item) => {
+                  const active = activeSection === item.section;
+                  return (
+                    <Link
+                      key={item.section}
+                      href={item.href}
+                      className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium"
+                      style={{
+                        backgroundColor: active ? "var(--brand-navy)" : "transparent",
+                        color: active ? "var(--brand-white)" : "rgba(13, 17, 68, 0.68)",
+                      }}
+                    >
+                      <div className="relative">
+                        <Image src={item.iconSrc} alt="" width={16} height={16} className="h-4 w-4" aria-hidden />
+                        {item.section === "actions" && requestCount > 0 ? (
+                          <span
+                            className="absolute -right-2 -top-2 rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none"
+                            style={{
+                              backgroundColor: active ? "var(--brand-aqua)" : "var(--brand-navy)",
+                              color: active ? "var(--brand-navy)" : "var(--brand-white)",
+                            }}
+                          >
+                            {requestCount}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span>{item.shortLabel}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
+          </div>
         </div>
-      </div>
+      )}
     </ShellStateContext.Provider>
   );
 }

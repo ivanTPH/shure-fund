@@ -8,6 +8,7 @@ import {
   allocateStageFunds,
   applyOverride,
   createLastActionOutcome,
+  getLastActionOutcome,
   getProjectStageCurrentSteps,
   getRoleInboxItems,
   getStageDetail,
@@ -77,6 +78,48 @@ function statusToneClass(status: string) {
   return "border-slate-200 bg-slate-50 text-slate-900";
 }
 
+const workflowSectionOrder: StageDetailSectionKey[] = [
+  "evidence",
+  "approvals",
+  "funding",
+  "release",
+  "dispute",
+  "variation",
+  "overview",
+];
+
+function getWorkflowSectionLabel(section: StageDetailSectionKey) {
+  switch (section) {
+    case "evidence":
+      return "Supporting information";
+    case "approvals":
+      return "Approval path";
+    case "funding":
+      return "Funding";
+    case "release":
+      return "Payment";
+    case "dispute":
+      return "Dispute";
+    case "variation":
+      return "Variation";
+    default:
+      return "Stage review";
+  }
+}
+
+function getPrimaryWorkflowSection(detail: ReturnType<typeof getStageDetail>): StageDetailSectionKey {
+  const actionable = workflowSectionOrder.find((section) => detail.sectionGuidance[section].state === "act_now");
+  if (actionable) return actionable;
+
+  const waiting = workflowSectionOrder.find((section) => detail.sectionGuidance[section].state === "waiting");
+  if (waiting) return waiting;
+
+  const blocked = workflowSectionOrder.find((section) => detail.sectionGuidance[section].state === "blocked");
+  if (blocked) return blocked;
+
+  return "overview";
+}
+
 export default function ProjectStageWorkflowScreen() {
   const {
     state,
@@ -95,6 +138,12 @@ export default function ProjectStageWorkflowScreen() {
   const [overrideReason, setOverrideReason] = useState("");
   const [approvalRejectReasons, setApprovalRejectReasons] = useState<Record<string, string>>({});
   const [evidenceReviewReasons, setEvidenceReviewReasons] = useState<Record<string, string>>({});
+  const [actionReceipt, setActionReceipt] = useState<{
+    headline: string;
+    detail: string;
+    nextStep: string;
+    nextOwner: string;
+  } | null>(null);
 
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId) ?? state.users[0];
@@ -103,6 +152,7 @@ export default function ProjectStageWorkflowScreen() {
     ? selectedStageId
     : projectStages[0]?.id ?? "";
   const stageDetail = useMemo(() => getStageDetail(state, activeStageId), [state, activeStageId]);
+  const lastActionOutcome = useMemo(() => getLastActionOutcome(state, activeStageId), [state, activeStageId]);
   const stageCurrentStep = useMemo(
     () => getProjectStageCurrentSteps(state, project.id).find((step) => step.stageId === activeStageId) ?? null,
     [state, project.id, activeStageId],
@@ -111,6 +161,13 @@ export default function ProjectStageWorkflowScreen() {
     () => getRoleInboxItems(state, currentUser.role, project.id).filter((item) => (item.stageId ?? item.deepLinkTarget?.stageId) === activeStageId).slice(0, 2),
     [state, currentUser.role, project.id, activeStageId],
   );
+  const workflowSection = getPrimaryWorkflowSection(stageDetail);
+  const workflowGuidance = stageDetail.sectionGuidance[workflowSection];
+  const activeApproval = stageDetail.approvals.find((approval) => approval.readiness.isAvailable) ?? stageDetail.approvals.find((approval) => approval.status !== "approved") ?? null;
+  const activeEvidence =
+    stageDetail.evidence.find((item) => item.actionDescriptors.accepted || item.actionDescriptors.requires_more || item.actionDescriptors.rejected) ??
+    stageDetail.evidence.find((item) => !item.record && item.required) ??
+    null;
 
   useEffect(() => {
     if (projectStages.some((stage) => stage.id === selectedStageId)) {
@@ -175,6 +232,14 @@ export default function ProjectStageWorkflowScreen() {
     section: StageDetailSectionKey,
     updater: (current: SystemStateRecord) => SystemStateRecord,
   ) {
+    let nextSection: StageDetailSectionKey = section;
+    let nextReceipt: {
+      headline: string;
+      detail: string;
+      nextStep: string;
+      nextOwner: string;
+    } | null = null;
+
     setState((current) => {
       const beforeDetail = getStageDetail(current, stageId);
       const next = updater(current);
@@ -188,8 +253,17 @@ export default function ProjectStageWorkflowScreen() {
       });
 
       recordLastActionOutcome(resolvedNext, stageId, outcome);
+      nextSection = getPrimaryWorkflowSection(nextDetail);
+      nextReceipt = {
+        headline: outcome.summary,
+        detail: nextDetail.operationalStatus.reason,
+        nextStep: nextDetail.sectionGuidance[nextSection].nextStep,
+        nextOwner: nextDetail.sectionGuidance[nextSection].ownerLabel,
+      };
       return resolvedNext;
     });
+    setSelectedStageSection(nextSection);
+    setActionReceipt(nextReceipt);
   }
 
   function handleAddEvidence() {
@@ -330,6 +404,258 @@ export default function ProjectStageWorkflowScreen() {
         </div>
       </WorkflowSection>
 
+      <WorkflowSection title="Current requirement">
+        <div className={`rounded-[24px] border p-5 ${workflowGuidance.state === "act_now" ? "border-teal-200 bg-teal-50" : workflowGuidance.state === "waiting" ? "border-slate-200 bg-slate-50" : workflowGuidance.state === "blocked" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{getWorkflowSectionLabel(workflowSection)}</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">{workflowGuidance.summary}</h2>
+              <p className="mt-2 text-sm text-slate-700">{stageDetail.attentionReason.reasonLabel}</p>
+            </div>
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${workflowGuidance.state === "act_now" ? "border-teal-200 bg-white text-teal-950" : workflowGuidance.state === "waiting" ? "border-slate-200 bg-white text-slate-900" : workflowGuidance.state === "blocked" ? "border-amber-200 bg-white text-amber-950" : "border-slate-200 bg-white text-slate-900"}`}>
+              {workflowGuidance.status}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-white/80 p-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Current requirement</p>
+              <p className="mt-2 text-sm font-medium text-slate-950">{workflowGuidance.recommendedAction}</p>
+            </div>
+            <div className="rounded-2xl bg-white/80 p-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Who acts next</p>
+              <p className="mt-2 text-sm font-medium text-slate-950">{workflowGuidance.ownerLabel}</p>
+            </div>
+          </div>
+        </div>
+      </WorkflowSection>
+
+      <WorkflowSection title="Do this now">
+        <div className="grid gap-4">
+          {workflowSection === "evidence" ? (
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <p className="text-sm font-medium text-slate-900">{workflowGuidance.recommendedAction}</p>
+              <p className="mt-2 text-sm text-slate-600">{workflowGuidance.nextStep}</p>
+              {stageDetail.actionReadiness.addEvidence.isAvailable ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
+                  <input
+                    className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Evidence title"
+                    value={evidenceTitle}
+                    onChange={(event) => setEvidenceTitle(event.target.value)}
+                  />
+                  <select
+                    className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    value={evidenceType}
+                    onChange={(event) => setEvidenceType(event.target.value as EvidenceType)}
+                  >
+                    <option value="file">File</option>
+                    <option value="form">Form</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddEvidence}
+                    disabled={!canAddEvidence}
+                    className="min-h-12 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    Add supporting information
+                  </button>
+                </div>
+              ) : activeEvidence?.record ? (
+                <>
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-950">{activeEvidence.label}</p>
+                    <p className="mt-1 text-sm text-slate-600">{activeEvidence.record.name}</p>
+                  </div>
+                  {(activeEvidence.actionDescriptors.requires_more || activeEvidence.actionDescriptors.rejected) ? (
+                    <textarea
+                      className="mt-4 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                      placeholder="Reason if asking for more or rejecting"
+                      value={evidenceReviewReasons[activeEvidence.id] ?? ""}
+                      onChange={(event) => setEvidenceReviewReasons((current) => ({ ...current, [activeEvidence.id]: event.target.value }))}
+                    />
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {activeEvidence.actionDescriptors.accepted ? (
+                      <button
+                        type="button"
+                        onClick={() => handleEvidenceUpdate(activeEvidence.id, "accepted")}
+                        className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                      >
+                        {activeEvidence.actionDescriptors.accepted.label}
+                      </button>
+                    ) : null}
+                    {activeEvidence.actionDescriptors.requires_more ? (
+                      <button
+                        type="button"
+                        onClick={() => handleEvidenceUpdate(activeEvidence.id, "requires_more", evidenceReviewReasons[activeEvidence.id] ?? "")}
+                        disabled={!(evidenceReviewReasons[activeEvidence.id] ?? "").trim().length}
+                        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        {activeEvidence.actionDescriptors.requires_more.label}
+                      </button>
+                    ) : null}
+                    {activeEvidence.actionDescriptors.rejected ? (
+                      <button
+                        type="button"
+                        onClick={() => handleEvidenceUpdate(activeEvidence.id, "rejected", evidenceReviewReasons[activeEvidence.id] ?? "")}
+                        disabled={!(evidenceReviewReasons[activeEvidence.id] ?? "").trim().length}
+                        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        {activeEvidence.actionDescriptors.rejected.label}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  No evidence action is available right now. The next responsible user is {workflowGuidance.ownerLabel}.
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {workflowSection === "approvals" ? (
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <p className="text-sm font-medium text-slate-900">{workflowGuidance.recommendedAction}</p>
+              <p className="mt-2 text-sm text-slate-600">{workflowGuidance.nextStep}</p>
+              {activeApproval ? (
+                <>
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-950">{getUserFacingRoleLabel(activeApproval.role)}</p>
+                    <p className="mt-1 text-sm text-slate-600">{activeApproval.readiness.reasonLabel}</p>
+                  </div>
+                  <textarea
+                    className="mt-4 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Reason if rejecting"
+                    value={approvalRejectReasons[activeApproval.role] ?? ""}
+                    onChange={(event) => setApprovalRejectReasons((current) => ({ ...current, [activeApproval.role]: event.target.value }))}
+                  />
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(activeApproval.role)}
+                      disabled={!activeApproval.canAct}
+                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {activeApproval.approveAction.label}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReject(activeApproval.role)}
+                      disabled={!activeApproval.canAct || !(approvalRejectReasons[activeApproval.role] ?? "").trim().length}
+                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      {activeApproval.rejectAction.label}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  No approval action is available right now. The next responsible user is {workflowGuidance.ownerLabel}.
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {workflowSection === "funding" ? (
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <p className="text-sm font-medium text-slate-900">{workflowGuidance.recommendedAction}</p>
+              <p className="mt-2 text-sm text-slate-600">{workflowGuidance.nextStep}</p>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">Funding still needed</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageDetail.funding.gapToRequiredCover)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleFundStage}
+                disabled={!canFundStage}
+                className="mt-4 min-h-12 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                Allocate funding now
+              </button>
+            </div>
+          ) : null}
+
+          {workflowSection === "release" ? (
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <p className="text-sm font-medium text-slate-900">{workflowGuidance.recommendedAction}</p>
+              <p className="mt-2 text-sm text-slate-600">{workflowGuidance.nextStep}</p>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">Ready to pay now</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageDetail.releaseDecision.releasableAmount)}</p>
+              </div>
+              <div className="mt-4 grid gap-3">
+                <button
+                  type="button"
+                  onClick={handleReleaseStage}
+                  disabled={!canReleaseStage}
+                  className="min-h-12 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  Send payment
+                </button>
+                {stageDetail.actionDescriptorMap["apply-override"] ? (
+                  <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+                    <p className="text-sm font-medium text-teal-950">Override if the normal path cannot proceed</p>
+                    <textarea
+                      className="mt-3 min-h-24 w-full rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm"
+                      placeholder="Override reason"
+                      value={overrideReason}
+                      onChange={(event) => setOverrideReason(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyOverride}
+                      disabled={!canApplyOverride}
+                      className="mt-3 min-h-12 rounded-2xl border border-teal-300 bg-white px-4 py-3 text-sm font-medium text-teal-950 disabled:cursor-not-allowed disabled:border-teal-200 disabled:bg-teal-100 disabled:text-teal-700"
+                    >
+                      Apply override
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {workflowSection === "dispute" || workflowSection === "variation" || workflowSection === "overview" ? (
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <p className="text-sm font-medium text-slate-900">{workflowGuidance.recommendedAction}</p>
+              <p className="mt-2 text-sm text-slate-600">{workflowGuidance.nextStep}</p>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                {workflowGuidance.ownerLabel} needs to take the next governed step for this stage.
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </WorkflowSection>
+
+      <WorkflowSection title="Recorded outcome">
+        <div className={`rounded-[24px] border px-4 py-4 ${(actionReceipt || lastActionOutcome) ? "border-teal-200 bg-teal-50" : "border-slate-200 bg-slate-50"}`}>
+          {(actionReceipt || lastActionOutcome) ? (
+            <>
+              <p className="text-lg font-semibold text-slate-950">{actionReceipt?.headline ?? lastActionOutcome?.summary}</p>
+              <p className="mt-2 text-sm text-slate-600">{actionReceipt?.detail ?? "Outcome recorded in the stage history."}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-semibold text-slate-950">No new outcome recorded</p>
+              <p className="mt-2 text-sm text-slate-600">When you complete the current governed action, the recorded outcome appears here straight away.</p>
+            </>
+          )}
+        </div>
+      </WorkflowSection>
+
+      <WorkflowSection title="What happens next">
+        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+          <p className="text-lg font-semibold text-slate-950">{actionReceipt?.nextStep ?? workflowGuidance.nextStep}</p>
+          <p className="mt-2 text-sm text-slate-700">
+            Next responsible user: {actionReceipt?.nextOwner ?? workflowGuidance.ownerLabel}
+          </p>
+          <p className="mt-2 text-sm text-slate-600">
+            {stageCurrentStep?.supportingSentence ?? stageDetail.operationalStatus.nextStep}
+          </p>
+        </div>
+      </WorkflowSection>
+
       <WorkflowSection title="Assigned role sign-off">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -369,89 +695,8 @@ export default function ProjectStageWorkflowScreen() {
                   {item.record?.status ?? (item.required ? "required" : "optional")}
                 </span>
               </div>
-              {item.record ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {item.actionDescriptors.accepted ? (
-                    <button
-                      type="button"
-                      onClick={() => handleEvidenceUpdate(item.id, "accepted")}
-                      disabled={!item.actionDescriptors.accepted || !stageDetail.actionReadiness.reviewEvidence.isAvailable}
-                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      {item.actionDescriptors.accepted.label}
-                    </button>
-                  ) : null}
-                  {item.actionDescriptors.requires_more ? (
-                    <button
-                      type="button"
-                      onClick={() => handleEvidenceUpdate(item.id, "requires_more", evidenceReviewReasons[item.id] ?? "")}
-                      disabled={!(evidenceReviewReasons[item.id] ?? "").trim().length}
-                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      {item.actionDescriptors.requires_more.label}
-                    </button>
-                  ) : null}
-                  {item.actionDescriptors.rejected ? (
-                    <button
-                      type="button"
-                      onClick={() => handleEvidenceUpdate(item.id, "rejected", evidenceReviewReasons[item.id] ?? "")}
-                      disabled={!(evidenceReviewReasons[item.id] ?? "").trim().length}
-                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      {item.actionDescriptors.rejected.label}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-              {(item.actionDescriptors.requires_more || item.actionDescriptors.rejected) ? (
-                <textarea
-                  className="mt-3 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                  placeholder="Reason if asking for more or rejecting"
-                  value={evidenceReviewReasons[item.id] ?? ""}
-                  onChange={(event) => setEvidenceReviewReasons((current) => ({ ...current, [item.id]: event.target.value }))}
-                />
-              ) : null}
             </article>
           ))}
-        </div>
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-sm font-medium text-slate-900">Add evidence</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
-            <input
-              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Evidence title"
-              value={evidenceTitle}
-              onChange={(event) => setEvidenceTitle(event.target.value)}
-              disabled={!stageDetail.availableActions.addEvidence}
-            />
-            <select
-              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              value={evidenceType}
-              onChange={(event) => setEvidenceType(event.target.value as EvidenceType)}
-              disabled={!stageDetail.availableActions.addEvidence}
-            >
-              <option value="file">File</option>
-              <option value="form">Form</option>
-            </select>
-            <button
-              type="button"
-              onClick={handleAddEvidence}
-              disabled={!canAddEvidence}
-              className="min-h-12 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              Add evidence
-            </button>
-          </div>
-        </div>
-      </WorkflowSection>
-
-      <WorkflowSection title="What happens next">
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-          <p className="text-lg font-semibold text-slate-950">{stageCurrentStep?.stepLabel ?? stageDetail.operationalStatus.label}</p>
-          <p className="mt-1 text-sm font-medium text-slate-700">{stageCurrentStep?.assuranceLine ?? stageDetail.operationalStatus.reason}</p>
-          <p className="mt-2 text-sm text-slate-600">
-            {stageCurrentStep?.supportingSentence ?? stageDetail.sectionGuidance[selectedStageSection].nextStep}
-          </p>
         </div>
       </WorkflowSection>
 
@@ -468,30 +713,6 @@ export default function ProjectStageWorkflowScreen() {
                   {approval.status}
                 </span>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleApprove(approval.role)}
-                  disabled={!approval.canAct || !approval.approveAction}
-                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {approval.approveAction.label}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReject(approval.role)}
-                  disabled={!approval.canAct || !(approvalRejectReasons[approval.role] ?? "").trim().length}
-                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  {approval.rejectAction.label}
-                </button>
-              </div>
-              <textarea
-                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                placeholder="Reason if rejecting"
-                value={approvalRejectReasons[approval.role] ?? ""}
-                onChange={(event) => setApprovalRejectReasons((current) => ({ ...current, [approval.role]: event.target.value }))}
-              />
             </article>
           ))}
         </div>

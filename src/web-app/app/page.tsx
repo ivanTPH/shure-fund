@@ -1,5 +1,5 @@
-import ProjectStageWorkflowScreen from "./components/ProjectStageWorkflowScreen";
+import ProjectStageMobileShell from "./components/ProjectStageMobileShell";
 
 export default function HomePage() {
-  return <ProjectStageWorkflowScreen />;
+  return <ProjectStageMobileShell />;
 }
