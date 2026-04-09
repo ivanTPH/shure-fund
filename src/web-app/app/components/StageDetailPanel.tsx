@@ -959,6 +959,35 @@ function ActionControlCard({
   );
 }
 
+function SupportingDetailsDisclosure({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  summary: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="rounded-[24px] border border-slate-200 bg-white/90 p-4">
+      <summary className="cursor-pointer list-none">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-slate-900">{title}</p>
+            <p className="mt-1 text-sm text-slate-600">{summary}</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+            Supporting detail
+          </span>
+        </div>
+      </summary>
+      <div className="mt-4">{children}</div>
+    </details>
+  );
+}
+
 type StageDetailPanelProps = {
   detail: StageDetailModel;
   focusedSection: "overview" | "funding" | "approvals" | "evidence" | "dispute" | "variation" | "release";
@@ -1053,8 +1082,8 @@ export default function StageDetailPanel({
   const releaseRef = useRef<HTMLDivElement | null>(null);
   const evidenceRef = useRef<HTMLDivElement | null>(null);
   const approvalsRef = useRef<HTMLDivElement | null>(null);
-  const disputeRef = useRef<HTMLElement | null>(null);
-  const variationRef = useRef<HTMLElement | null>(null);
+  const disputeRef = useRef<HTMLDivElement | null>(null);
+  const variationRef = useRef<HTMLDivElement | null>(null);
   const [visibleOutcomeTimestamp, setVisibleOutcomeTimestamp] = useState<number | null>(null);
   const [highlightTimestamp, setHighlightTimestamp] = useState<number | null>(null);
   const stageWipTotal = detail.releaseDecision.releasableAmount + detail.releaseDecision.frozenAmount + detail.releaseDecision.blockedAmount;
@@ -1136,6 +1165,22 @@ export default function StageDetailPanel({
             : topSurface.primaryMode === "outcome"
               ? "Current outcome"
               : "Overview";
+  const focusedGuidance = detail.sectionGuidance[focusedSection];
+  const focusLabel =
+    focusedSection === "funding"
+      ? "Funding status"
+      : focusedSection === "release"
+        ? "Payment"
+        : focusedSection === "evidence"
+          ? "Supporting information"
+          : focusedSection === "approvals"
+            ? "Approval path"
+            : focusedSection === "dispute"
+              ? "Dispute"
+              : focusedSection === "variation"
+                ? "Variation"
+                : "Stage overview";
+  const shouldOpenSupport = (...sections: typeof focusedSection[]) => sections.includes(focusedSection);
 
   useEffect(() => {
     const refMap = {
@@ -1318,566 +1363,485 @@ export default function StageDetailPanel({
 
   return (
     <section ref={overviewRef} className={`rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] ${getSectionClass("overview")}`}>
-      <div className={`mb-6 ${stageSurfaceHierarchy.primary}`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{topModeLabel}</p>
-            <h2 className="mt-2 text-lg font-semibold text-slate-900">{topSurface.topHeadlineLabel ?? "Project stage payment detail"}</h2>
-            <p className="mt-1 text-sm text-slate-600">{topSurface.topSublineLabel ?? `${detail.projectName} · ${detail.stage.name}`}</p>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">{detail.actingRole.label}</span>
-            <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">{detail.roleViewGuidance.primaryWorkspaceLabel}</span>
-            {entryCue.entryOrientationLabel ? (
-              <span className={`rounded-full px-2 py-1 font-semibold ${entryCueTone}`}>{entryCue.entryOrientationLabel}</span>
-            ) : null}
-            {detail.notificationCue ? (
-              <span
-                className={`rounded-full px-2 py-1 font-semibold ${
-                  detail.notificationCue.tone === "positive"
-                    ? "bg-teal-50 text-teal-900"
-                    : detail.notificationCue.tone === "warning"
-                      ? "bg-amber-50 text-amber-900"
-                      : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                {detail.notificationCue.label}
-              </span>
-            ) : null}
-            <span>Updated {formatRelativeTime(detail.lastUpdatedAt)}</span>
-          </div>
-        </div>
-
-        <div className={getAreaHighlightClass("stage_state")}>
-          <StageHealthStrip health={detail.healthDescriptor} />
-        </div>
-
-        {visibleOutcome ? (
-          <InlineActionConfirmation
-            outcome={visibleOutcome}
-            stateNowLabel={detail.decisionSummary.statusLabel}
-            stateNowReason={detail.healthDescriptor.primaryReason}
-          />
-        ) : null}
-
-        <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="grid gap-3">
-            {primarySignals.map((signal) => (
-              <div key={`primary-signal-${signal}`}>{renderTopSignalCard(signal)}</div>
-            ))}
-          </div>
-          <div className="grid gap-3 content-start">
-            {secondarySignals.map((signal) => (
-              <div key={`secondary-signal-${signal}`}>
-                {topSurface.shouldCompactSecondarySignals ? renderCompactSignal(signal) : renderTopSignalCard(signal)}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {contextualSignals.length > 0 ? (
-          <div className="mt-5 border-t border-slate-200 pt-4">
-            <div className="grid gap-3">
-              {contextualSignals.map((signal) => (
-                <div key={`contextual-signal-${signal}`}>{renderCompactSignal(signal)}</div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className={`grid gap-3 sm:grid-cols-2 xl:grid-cols-4 ${stageSurfaceHierarchy.secondaryBand} ${getAreaHighlightClass("funding")}`}>
-        <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">WIP</p>
-          <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
-        </div>
-        <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">Ready to pay</p>
-          <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.releasableAmount)}</p>
-        </div>
-        <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">On hold</p>
-          <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
-        </div>
-        <div className={stageSurfaceHierarchy.secondaryCard}>
-          <p className="text-sm text-slate-500">Payment status</p>
-          <p className="mt-2 text-lg font-semibold text-slate-950">{detail.operationalStatus.label}</p>
-          <p className="mt-1 text-xs text-slate-500">{detail.operationalStatus.reason}</p>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className={stageSurfaceHierarchy.mutedBlock}>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Next step</p>
-          <p className="mt-2 text-sm font-medium text-slate-950">{detail.operationalStatus.nextStep}</p>
-        </div>
-        <div className={stageSurfaceHierarchy.mutedBlock}>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payment position</p>
-          <p className="mt-2 text-sm font-medium text-slate-950">{detail.releaseSummary.decisionLabel ?? detail.releaseDecision.explanation.label}</p>
-          <p className="mt-1 text-xs text-slate-500">{detail.releaseSummary.eligibleAmountLabel} · {detail.releaseSummary.remainingHeldLabel}</p>
-        </div>
-      </div>
-
-      <div ref={fundingRef} className={`mt-8 ${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("funding")}`}>
-        <SectionActionHeader title="Funding status" guidance={detail.sectionGuidance.funding} />
-      </div>
-
-      <div className={`mt-6 ${stageSurfaceHierarchy.tertiaryPanel}`}>
-        <SectionActionHeader title="Funding status" guidance={detail.sectionGuidance.funding} />
-        <h3 className="text-sm font-medium text-slate-900">Amount status</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">WIP</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500">Committed work still sitting in this project stage.</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">Ready to pay</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.releasableAmount)}</p>
-            <p className="mt-1 text-xs text-slate-500">Approved value within WIP.</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">On hold</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
-            <p className="mt-1 text-xs text-slate-500">Disputed value within WIP.</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">In progress</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.blockedAmount)}</p>
-            <p className="mt-1 text-xs text-slate-500">Committed work not yet approved for payment.</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">Balance position</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{detail.fundingStatusLabel}</p>
-            <p className="mt-1 text-xs text-slate-500">Based on total project balance against current WIP.</p>
-          </div>
-          <div className={stageSurfaceHierarchy.secondaryCard}>
-            <p className="text-sm text-slate-500">Payment blocked</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{detail.blockingRelease ? "Yes" : "No"}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              {detail.blockingRelease
-                ? "One or more current blockers are stopping payment."
-                : "This project stage is not currently blocked from payment."}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className={stageSurfaceHierarchy.mutedPanel}>
-            <p className="text-sm font-medium text-slate-900">Dispute review</p>
-            <p className="mt-2 text-sm text-slate-600">{detail.disputeSummary.reason}</p>
-            <div className="mt-3 grid gap-2 text-sm text-slate-700">
-              <p>Disputed value: {currency.format(detail.disputeSummary.disputedValue)}</p>
-              <p>On-hold value: {currency.format(detail.disputeSummary.frozenValue)}</p>
-              <p>Undisputed value: {currency.format(detail.disputeSummary.undisputedValue)}</p>
-              <p>Ready-to-pay value: {currency.format(detail.disputeSummary.releasableValue)}</p>
-            </div>
-          </div>
-          <div className={stageSurfaceHierarchy.mutedPanel}>
-            <p className="text-sm font-medium text-slate-900">Variation review</p>
-            <p className="mt-2 text-sm font-medium text-slate-950">{detail.variationSummary.status}</p>
-            <p className="mt-1 text-sm text-slate-600">{detail.variationSummary.reason}</p>
-          </div>
-        </div>
-
-        {!detail.actingRole.readOnly ? (
-          <div className="mt-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Funding action</p>
-            {fundDescriptor ? (
-              <ActionControlCard
-                descriptor={fundDescriptor}
-                owner="Funder"
-                disabled={!canFundStage}
-                onClick={onFundStage}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        {detail.blockingRelease ? (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-950">Current blockers</p>
-            <div className="mt-2 grid gap-2">
-              {detail.releaseDecision.reasons.map((reason, index) => (
-                <p key={`release-blocker-${reason.type}-${index}`} className="text-sm text-amber-900">
-                  {reason.message}
-                </p>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {contextualSignals.map((signal) => (
-        <div key={`contextual-signal-${signal}`} className="mt-4">
-          {renderTopSignalCard(signal)}
-        </div>
-      ))}
-
-      <div ref={releaseRef} className={`mt-8 ${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("release")}`}>
-        <SectionActionHeader title="Payment" guidance={detail.sectionGuidance.release} />
-        <p className="text-sm font-medium text-slate-900">Payment conditions</p>
-        <div className="mt-2 grid gap-2">
-          <p className="text-sm text-slate-600">{detail.releaseSummary.headline}</p>
-          <p className="text-sm text-slate-600">
-            {detail.releaseSummary.eligibleAmountLabel}. {detail.releaseSummary.releasedAmountLabel}. {detail.releaseSummary.remainingHeldLabel}.
-          </p>
-          <p className="text-sm text-slate-600">Payment basis: {detail.releaseDecision.explanation.decisionBasis}</p>
-          {detail.releaseSummary.blockingConditionLabel ? (
-            <p className="text-sm text-slate-600">What is holding payment up: {detail.releaseSummary.blockingConditionLabel}</p>
-          ) : null}
-          {detail.releaseSummary.exceptionInteractionLabel ? (
-            <p className="text-sm text-slate-600">Under review: {detail.releaseSummary.exceptionInteractionLabel}</p>
-          ) : null}
-          {detail.releaseDecision.overridden ? (
-            <p className="rounded-2xl bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900">
-              Funder override is active and clearly flagged. Payment proceeds by override, not through the normal payment path.
-            </p>
-          ) : null}
-          {detail.releaseDecision.reasons.map((reason, index) => (
-            <p key={`${reason.type}-${index}`} className="text-sm text-slate-600">
-              <span className="font-medium capitalize text-slate-800">{reason.type.replaceAll("_", " ")}:</span> {reason.message}
-            </p>
-          ))}
-        </div>
-        {!detail.actingRole.readOnly ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="sm:col-span-2 xl:col-span-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Payment actions</p>
-            </div>
-            {releaseDescriptor ? (
-              <ActionControlCard
-                descriptor={releaseDescriptor}
-                owner="Funder"
-                disabled={!canReleaseStage}
-                onClick={onRelease}
-              />
-            ) : null}
-            {overrideDescriptor ? (
-              <ActionControlCard
-                descriptor={overrideDescriptor}
-                owner="Funder"
-                disabled={!canApplyOverride}
-                formRequirementLabel={
-                  detail.actionReadiness.applyOverride.isAvailable && overrideReason.trim().length === 0
-                    ? "Enter an override reason."
-                    : undefined
-                }
-                onClick={onApplyOverride}
-              />
-            ) : null}
-          </div>
-        ) : (
-          <div className="sm:col-span-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            {detail.actingRole.label} view is read-only. Funder and payment actions remain visible through the status and audit summaries only.
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-dashed border-teal-200 bg-teal-50/80 p-4">
-        <p className="text-sm font-medium text-teal-950">Funder override</p>
-        <p className="mt-1 text-xs text-teal-900">Funding source in view: {fundingSource || "not selected"}</p>
-        <textarea
-          className="mt-3 min-h-24 w-full rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm"
-          placeholder="Override reason"
-          value={overrideReason}
-          disabled={!detail.availableActions.applyOverride}
-          onChange={(event) => onOverrideReasonChange(event.target.value)}
-        />
-      </div>
-
-      <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <div ref={evidenceRef} className={`${getSectionClass("evidence")} ${getAreaHighlightClass("evidence")}`}>
-          <SectionActionHeader title="Supporting information" guidance={detail.sectionGuidance.evidence} />
-          <EvidencePanel
-            detail={detail}
-            evidenceTitle={evidenceTitle}
-            evidenceType={evidenceType}
-            evidenceReviewReasons={evidenceReviewReasons}
-            onEvidenceTitleChange={onEvidenceTitleChange}
-            onEvidenceTypeChange={onEvidenceTypeChange}
-            onEvidenceReviewReasonChange={onEvidenceReviewReasonChange}
-            onAddEvidence={onAddEvidence}
-            onUpdateEvidenceStatus={onUpdateEvidenceStatus}
-          />
-        </div>
-        <div ref={approvalsRef} className={`${getSectionClass("approvals")} ${getAreaHighlightClass("approvals")}`}>
-          <SectionActionHeader title="Approval path" guidance={detail.sectionGuidance.approvals} />
-          <ApprovalPanel
-            detail={detail}
-            approvalRejectReasons={approvalRejectReasons}
-            onApprovalRejectReasonChange={onApprovalRejectReasonChange}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-        </div>
-      </div>
-
-      <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <section ref={disputeRef} className={`${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("dispute")}`}>
-          <SectionActionHeader title="Dispute" guidance={detail.sectionGuidance.dispute} />
-          <div>
-            <h3 className="text-sm font-medium text-slate-900">Disputes</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {detail.casePathSummary.activePathLabel === "Dispute path"
-                ? detail.casePathSummary.headline
-                : "Only the affected value is placed on hold while undisputed value can continue through payment checks."}
-            </p>
-            {detail.casePathSummary.activePathLabel === "Dispute path" ? (
-              <p className="mt-2 text-sm text-slate-600">{detail.casePathSummary.returnToProgressionLabel}</p>
-            ) : null}
-          </div>
-          <div className="mt-3 grid gap-3">
-            <input
-              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Dispute title"
-              value={disputeTitle}
-              disabled={!detail.availableActions.openDispute}
-              onChange={(event) => onDisputeTitleChange(event.target.value)}
-            />
-            <textarea
-              className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Reason for dispute"
-              value={disputeReason}
-              disabled={!detail.availableActions.openDispute}
-              onChange={(event) => onDisputeReasonChange(event.target.value)}
-            />
-            <input
-              inputMode="numeric"
-              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="On-hold amount"
-              value={disputeAmount}
-              disabled={!detail.availableActions.openDispute}
-              onChange={(event) => onDisputeAmountChange(event.target.value)}
-            />
+      <div className="grid gap-6">
+        <section className={stageSurfaceHierarchy.primary}>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Project / stage header</p>
+          <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dispute action</p>
-              {openDisputeDescriptor ? (
+              <h2 className="text-lg font-semibold text-slate-900">{detail.projectName} · {detail.stage.name}</h2>
+              <p className="mt-1 text-sm text-slate-600">{detail.operationalStatus.label} · {detail.releaseDecision.explanation.label}</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+              <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">{detail.actingRole.label}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">{detail.roleViewGuidance.primaryWorkspaceLabel}</span>
+              {entryCue.entryOrientationLabel ? (
+                <span className={`rounded-full px-2 py-1 font-semibold ${entryCueTone}`}>{entryCue.entryOrientationLabel}</span>
+              ) : null}
+              {detail.notificationCue ? (
+                <span
+                  className={`rounded-full px-2 py-1 font-semibold ${
+                    detail.notificationCue.tone === "positive"
+                      ? "bg-teal-50 text-teal-900"
+                      : detail.notificationCue.tone === "warning"
+                        ? "bg-amber-50 text-amber-900"
+                        : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {detail.notificationCue.label}
+                </span>
+              ) : null}
+              <span>Updated {formatRelativeTime(detail.lastUpdatedAt)}</span>
+            </div>
+          </div>
+
+          <div className={`mt-4 ${getAreaHighlightClass("stage_state")}`}>
+            <StageHealthStrip health={detail.healthDescriptor} />
+          </div>
+
+          {visibleOutcome ? (
+            <InlineActionConfirmation
+              outcome={visibleOutcome}
+              stateNowLabel={detail.decisionSummary.statusLabel}
+              stateNowReason={detail.healthDescriptor.primaryReason}
+            />
+          ) : null}
+        </section>
+
+        <section className={stageSurfaceHierarchy.tertiaryPanel}>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What happens next</p>
+          <h3 className="mt-2 text-lg font-semibold text-slate-900">{focusedGuidance.nextStep}</h3>
+          <p className="mt-2 text-sm text-slate-600">{focusedGuidance.recommendedAction}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className={stageSurfaceHierarchy.secondaryCard}>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Decision focus</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{focusLabel}</p>
+              <p className="mt-1 text-xs text-slate-500">{focusedGuidance.summary}</p>
+            </div>
+            <div className={stageSurfaceHierarchy.secondaryCard}>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Owner</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{focusedGuidance.ownerLabel}</p>
+              <p className="mt-1 text-xs text-slate-500">{focusedGuidance.status}</p>
+            </div>
+            <div className={stageSurfaceHierarchy.secondaryCard}>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Current payment position</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{detail.releaseSummary.decisionLabel ?? detail.releaseDecision.explanation.label}</p>
+              <p className="mt-1 text-xs text-slate-500">{detail.releaseSummary.blockingConditionLabel ?? detail.releaseSummary.nextReleaseStepLabel ?? detail.releaseSummary.eligibleAmountLabel}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className={stageSurfaceHierarchy.tertiaryPanel}>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Why this is required</p>
+          <h3 className="mt-2 text-lg font-semibold text-slate-900">{detail.attentionReason.headline}</h3>
+          <p className="mt-2 text-sm text-slate-600">{detail.attentionReason.reasonLabel}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className={stageSurfaceHierarchy.secondaryCard}>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Governance condition</p>
+              <p className="mt-1 text-sm text-slate-900">{detail.attentionReason.reasonCategory}</p>
+              <p className="mt-1 text-xs text-slate-500">{detail.attentionReason.driverLabel}</p>
+            </div>
+            <div className={stageSurfaceHierarchy.secondaryCard}>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">What is holding progress</p>
+              <p className="mt-1 text-sm text-slate-900">{detail.attentionReason.supportingDetails[0] ?? detail.healthDescriptor.primaryReason}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {detail.releaseSummary.blockingConditionLabel ?? detail.fundingExplanation.blockingConditionLabel ?? "No extra blocker detail is recorded."}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {detail.releaseDecision.reasons.slice(0, 3).map((reason, index) => (
+              <p key={`${reason.type}-${index}`} className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">{reason.type.replaceAll("_", " ")}:</span> {reason.message}
+              </p>
+            ))}
+            {detail.blockers.slice(0, 3).map((blocker) => (
+              <p key={blocker.code} className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">{blocker.label}:</span> {blocker.priority}
+              </p>
+            ))}
+          </div>
+        </section>
+
+        <section className={`${stageSurfaceHierarchy.tertiaryPanel} ${getAreaHighlightClass("funding")} ${getAreaHighlightClass("release")} ${getAreaHighlightClass("evidence")} ${getAreaHighlightClass("approvals")}`}>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Do this now</p>
+          <h3 className="mt-2 text-lg font-semibold text-slate-900">{focusedGuidance.recommendedAction}</h3>
+          <p className="mt-2 text-sm text-slate-600">{focusedGuidance.summary}</p>
+
+          {!detail.actingRole.readOnly ? (
+            <div className="mt-4 grid gap-3">
+              {releaseDescriptor ? (
                 <ActionControlCard
-                  descriptor={openDisputeDescriptor}
-                  owner={detail.sectionGuidance.dispute.ownerLabel}
-                  disabled={!canOpenDispute}
+                  descriptor={releaseDescriptor}
+                  owner="Funder"
+                  disabled={!canReleaseStage}
+                  onClick={onRelease}
+                />
+              ) : null}
+              {fundDescriptor ? (
+                <ActionControlCard
+                  descriptor={fundDescriptor}
+                  owner="Funder"
+                  disabled={!canFundStage}
+                  onClick={onFundStage}
+                />
+              ) : null}
+              {overrideDescriptor ? (
+                <ActionControlCard
+                  descriptor={overrideDescriptor}
+                  owner="Funder"
+                  disabled={!canApplyOverride}
                   formRequirementLabel={
-                    detail.actionReadiness.openDispute.isAvailable &&
-                    (!disputeTitle.trim().length ||
-                      !disputeReason.trim().length ||
-                      !Number.isFinite(parsedDisputeAmount) ||
-                      parsedDisputeAmount <= 0)
-                      ? "Enter dispute title, reason, and frozen value."
+                    detail.actionReadiness.applyOverride.isAvailable && overrideReason.trim().length === 0
+                      ? "Enter an override reason in the supporting details below."
                       : undefined
                   }
-                  onClick={onOpenDispute}
+                  onClick={onApplyOverride}
                 />
               ) : null}
             </div>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {detail.disputes.map((dispute) => (
-              <article key={dispute.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-slate-900">{dispute.title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{dispute.reason}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Disputed {currency.format(dispute.disputedAmount)} · {dispute.status}
-                    </p>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              {detail.actingRole.label} view is read-only. The current decision focus is visible here, while controlled actions remain in the supporting details and activity record.
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-4">
+            <div ref={fundingRef} className={getSectionClass("funding")}>
+              <SupportingDetailsDisclosure
+                title="Funding and payment detail"
+                summary={`${detail.fundingExplanation.headline} ${detail.releaseSummary.blockingConditionLabel ?? detail.releaseSummary.nextReleaseStepLabel ?? ""}`.trim()}
+                defaultOpen={shouldOpenSupport("funding", "release")}
+              >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={stageSurfaceHierarchy.secondaryCard}>
+                    <p className="text-sm text-slate-500">WIP</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(stageWipTotal)}</p>
                   </div>
-                  {dispute.status === "open" ? (
-                    <div className="grid gap-2 min-w-[15rem]">
-                      {dispute.resolveAction ? (
-                        <ActionControlCard
-                          descriptor={dispute.resolveAction}
-                          owner="Commercial"
-                          disabled={!dispute.canResolve}
-                          onClick={() => onResolveDispute(dispute.id)}
-                        />
-                      ) : null}
+                  <div className={stageSurfaceHierarchy.secondaryCard}>
+                    <p className="text-sm text-slate-500">Ready to pay</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.releasableAmount)}</p>
+                  </div>
+                  <div className={stageSurfaceHierarchy.secondaryCard}>
+                    <p className="text-sm text-slate-500">On hold</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.disputeSummary.frozenValue)}</p>
+                  </div>
+                  <div className={stageSurfaceHierarchy.secondaryCard}>
+                    <p className="text-sm text-slate-500">Blocked</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">{currency.format(detail.releaseDecision.blockedAmount)}</p>
+                  </div>
+                </div>
+                <div ref={releaseRef} className="mt-4 grid gap-2 text-sm text-slate-600">
+                  <p>{detail.releaseSummary.headline}</p>
+                  <p>{detail.releaseSummary.eligibleAmountLabel}. {detail.releaseSummary.releasedAmountLabel}. {detail.releaseSummary.remainingHeldLabel}.</p>
+                  <p>Payment basis: {detail.releaseDecision.explanation.decisionBasis}</p>
+                  {detail.releaseDecision.overridden ? (
+                    <p className="rounded-2xl bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900">
+                      Funder override is active and clearly flagged. Payment proceeds by override, not through the normal payment path.
+                    </p>
+                  ) : null}
+                  {detail.blockingRelease ? (
+                    <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-semibold text-amber-950">Current blockers</p>
+                      <div className="mt-2 grid gap-2">
+                        {detail.releaseDecision.reasons.map((reason, index) => (
+                          <p key={`release-blocker-${reason.type}-${index}`} className="text-sm text-amber-900">
+                            {reason.message}
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                 </div>
-              </article>
-            ))}
-            {detail.disputes.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this project stage.</p>
-            ) : null}
-          </div>
-        </section>
-
-        <section ref={variationRef} className={`${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("variation")}`}>
-          <SectionActionHeader title="Variation" guidance={detail.sectionGuidance.variation} />
-          <div>
-            <h3 className="text-sm font-medium text-slate-900">Variations</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {detail.casePathSummary.activePathLabel === "Variation path"
-                ? detail.casePathSummary.headline
-                : "Variations must be reviewed and funding-confirmed before activation."}
-            </p>
-            {detail.casePathSummary.activePathLabel === "Variation path" ? (
-              <p className="mt-2 text-sm text-slate-600">{detail.casePathSummary.returnToProgressionLabel}</p>
-            ) : null}
-          </div>
-          <div className="mt-3 grid gap-3">
-            <input
-              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Variation title"
-              value={variationTitle}
-              disabled={!detail.availableActions.createVariation}
-              onChange={(event) => onVariationTitleChange(event.target.value)}
-            />
-            <textarea
-              className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Reason for variation"
-              value={variationReason}
-              disabled={!detail.availableActions.createVariation}
-              onChange={(event) => onVariationReasonChange(event.target.value)}
-            />
-            <input
-              inputMode="numeric"
-              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-              placeholder="Variation amount delta"
-              value={variationAmount}
-              disabled={!detail.availableActions.createVariation}
-              onChange={(event) => onVariationAmountChange(event.target.value)}
-            />
-            <div>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variation action</p>
-              {createVariationDescriptor ? (
-                <ActionControlCard
-                  descriptor={createVariationDescriptor}
-                  owner={detail.sectionGuidance.variation.ownerLabel}
-                  disabled={!canCreateVariation}
-                  formRequirementLabel={
-                    detail.actionReadiness.createVariation.isAvailable &&
-                    (!variationTitle.trim().length ||
-                      !variationReason.trim().length ||
-                      !Number.isFinite(parsedVariationAmount) ||
-                      parsedVariationAmount === 0)
-                      ? "Enter variation title, reason, and delta."
-                      : undefined
-                  }
-                  onClick={onCreateVariation}
-                />
-              ) : null}
+                <div className="mt-4 rounded-2xl border border-dashed border-teal-200 bg-teal-50/80 p-4">
+                  <p className="text-sm font-medium text-teal-950">Funder override</p>
+                  <p className="mt-1 text-xs text-teal-900">Funding source in view: {fundingSource || "not selected"}</p>
+                  <textarea
+                    className="mt-3 min-h-24 w-full rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm"
+                    placeholder="Override reason"
+                    value={overrideReason}
+                    disabled={!detail.availableActions.applyOverride}
+                    onChange={(event) => onOverrideReasonChange(event.target.value)}
+                  />
+                </div>
+              </SupportingDetailsDisclosure>
             </div>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {detail.variations.map((variation) => (
-              <article key={variation.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-slate-900">{variation.title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{variation.reason}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Delta {currency.format(variation.amountDelta)} · {variation.operationalStatusLabel}
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:flex">
-                    {variation.status === "pending" ? (
-                      <>
-                        <div className="grid gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onApproveVariation(variation.id)}
-                            disabled={!variation.canApprove}
-                            className={`disabled:cursor-not-allowed min-h-12 rounded-2xl px-4 py-3 text-left text-sm font-medium ${
-                              variation.approveAction.isPrimary && variation.approveAction.confidence === "high"
-                                ? variation.canApprove
-                                  ? "bg-slate-900 text-white"
-                                  : "bg-slate-300 text-white"
-                                : variation.canApprove
-                                  ? "border border-slate-300 bg-white text-slate-900"
-                                  : "border border-slate-200 bg-slate-100 text-slate-400"
-                            }`}
-                          >
-                            <span className="block">{variation.approveAction.label}</span>
-                            <span className="mt-1 block text-xs opacity-80">{variation.approveAction.outcomeLabel}</span>
-                          </button>
-                          <p className="text-xs text-slate-500">
-                            {variation.canApprove
-                              ? variation.approveAction.impactSummary ?? variation.approveAction.outcomeLabel
-                              : variation.approveAction.blockerSummary}
-                          </p>
+
+            <div ref={evidenceRef} className={getSectionClass("evidence")}>
+              <SupportingDetailsDisclosure
+                title="Supporting information"
+                summary={detail.evidenceSummary.blockingConditionLabel ?? detail.evidenceSummary.nextEvidenceStepLabel ?? detail.evidenceSummary.headline}
+                defaultOpen={shouldOpenSupport("evidence")}
+              >
+                <EvidencePanel
+                  detail={detail}
+                  evidenceTitle={evidenceTitle}
+                  evidenceType={evidenceType}
+                  evidenceReviewReasons={evidenceReviewReasons}
+                  onEvidenceTitleChange={onEvidenceTitleChange}
+                  onEvidenceTypeChange={onEvidenceTypeChange}
+                  onEvidenceReviewReasonChange={onEvidenceReviewReasonChange}
+                  onAddEvidence={onAddEvidence}
+                  onUpdateEvidenceStatus={onUpdateEvidenceStatus}
+                />
+              </SupportingDetailsDisclosure>
+            </div>
+
+            <div ref={approvalsRef} className={getSectionClass("approvals")}>
+              <SupportingDetailsDisclosure
+                title="Approval path"
+                summary={detail.approvalSummary.blockingConditionLabel ?? detail.approvalSummary.nextApprovalStepLabel ?? detail.approvalSummary.headline}
+                defaultOpen={shouldOpenSupport("approvals")}
+              >
+                <ApprovalPanel
+                  detail={detail}
+                  approvalRejectReasons={approvalRejectReasons}
+                  onApprovalRejectReasonChange={onApprovalRejectReasonChange}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                />
+              </SupportingDetailsDisclosure>
+            </div>
+
+            <div ref={disputeRef} className={getSectionClass("dispute")}>
+              <SupportingDetailsDisclosure
+                title="Dispute detail"
+                summary={detail.casePathSummary.activePathLabel === "Dispute path" ? detail.casePathSummary.headline : detail.disputeSummary.reason}
+                defaultOpen={shouldOpenSupport("dispute")}
+              >
+                <div className="grid gap-3">
+                  <input
+                    className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Dispute title"
+                    value={disputeTitle}
+                    disabled={!detail.availableActions.openDispute}
+                    onChange={(event) => onDisputeTitleChange(event.target.value)}
+                  />
+                  <textarea
+                    className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Reason for dispute"
+                    value={disputeReason}
+                    disabled={!detail.availableActions.openDispute}
+                    onChange={(event) => onDisputeReasonChange(event.target.value)}
+                  />
+                  <input
+                    inputMode="numeric"
+                    className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="On-hold amount"
+                    value={disputeAmount}
+                    disabled={!detail.availableActions.openDispute}
+                    onChange={(event) => onDisputeAmountChange(event.target.value)}
+                  />
+                  {openDisputeDescriptor ? (
+                    <ActionControlCard
+                      descriptor={openDisputeDescriptor}
+                      owner={detail.sectionGuidance.dispute.ownerLabel}
+                      disabled={!canOpenDispute}
+                      formRequirementLabel={
+                        detail.actionReadiness.openDispute.isAvailable &&
+                        (!disputeTitle.trim().length ||
+                          !disputeReason.trim().length ||
+                          !Number.isFinite(parsedDisputeAmount) ||
+                          parsedDisputeAmount <= 0)
+                          ? "Enter dispute title, reason, and frozen value."
+                          : undefined
+                      }
+                      onClick={onOpenDispute}
+                    />
+                  ) : null}
+                  <div className="grid gap-3">
+                    {detail.disputes.map((dispute) => (
+                      <article key={dispute.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-slate-900">{dispute.title}</p>
+                            <p className="mt-1 text-sm text-slate-500">{dispute.reason}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Disputed {currency.format(dispute.disputedAmount)} · {dispute.status}
+                            </p>
+                          </div>
+                          {dispute.status === "open" ? (
+                            <div className="grid min-w-[15rem] gap-2">
+                              {dispute.resolveAction ? (
+                                <ActionControlCard
+                                  descriptor={dispute.resolveAction}
+                                  owner="Commercial"
+                                  disabled={!dispute.canResolve}
+                                  onClick={() => onResolveDispute(dispute.id)}
+                                />
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
-                        <div className="grid gap-2">
-                          <textarea
-                            className="min-h-20 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
-                            placeholder="Reason for rejecting this variation"
-                            value={variationRejectReasons[variation.id] ?? ""}
-                            onChange={(event) => onVariationRejectReasonChange(variation.id, event.target.value)}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => onRejectVariation(variation.id, variationRejectReasons[variation.id] ?? "")}
-                            disabled={!variation.canReject || !(variationRejectReasons[variation.id] ?? "").trim().length}
-                            className={`disabled:cursor-not-allowed min-h-12 rounded-2xl border px-4 py-3 text-left text-sm font-medium ${
-                              variation.canReject && (variationRejectReasons[variation.id] ?? "").trim().length
-                                ? "border-slate-300 bg-white text-slate-900"
-                                : "border-slate-200 bg-slate-100 text-slate-400"
-                            }`}
-                          >
-                            <span className="block">{variation.rejectAction.label}</span>
-                            <span className="mt-1 block text-xs opacity-80">{variation.rejectAction.outcomeLabel}</span>
-                          </button>
-                          <p className="text-xs text-slate-500">
-                            {variation.canReject && (variationRejectReasons[variation.id] ?? "").trim().length
-                              ? variation.rejectAction.outcomeLabel
-                              : variation.canReject
-                                ? "Enter a reason before rejecting this variation."
-                                : variation.rejectAction.blockerSummary}
-                          </p>
-                        </div>
-                      </>
-                    ) : null}
-                    {variation.status === "approved" ? (
-                      <div className="grid gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onActivateVariation(variation.id)}
-                          disabled={!variation.canActivate}
-                          className={`disabled:cursor-not-allowed min-h-12 rounded-2xl px-4 py-3 text-left text-sm font-medium ${
-                            variation.activateAction.isPrimary && variation.activateAction.confidence === "high"
-                              ? variation.canActivate
-                                ? "bg-slate-900 text-white"
-                                : "bg-slate-300 text-white"
-                              : variation.canActivate
-                                ? "border border-slate-300 bg-white text-slate-900"
-                                : "border border-slate-200 bg-slate-100 text-slate-400"
-                          }`}
-                        >
-                          <span className="block">{variation.activateAction.label}</span>
-                          <span className="mt-1 block text-xs opacity-80">{variation.activateAction.outcomeLabel}</span>
-                        </button>
-                        <p className="text-xs text-slate-500">
-                          {variation.canActivate
-                            ? variation.activateAction.impactSummary ?? variation.activateAction.outcomeLabel
-                            : variation.activateAction.blockerSummary}
-                        </p>
-                      </div>
+                      </article>
+                    ))}
+                    {detail.disputes.length === 0 ? (
+                      <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No dispute items recorded for this project stage.</p>
                     ) : null}
                   </div>
                 </div>
-              </article>
-            ))}
-            {detail.variations.length === 0 ? (
-              <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this project stage.</p>
-            ) : null}
+              </SupportingDetailsDisclosure>
+            </div>
+
+            <div ref={variationRef} className={getSectionClass("variation")}>
+              <SupportingDetailsDisclosure
+                title="Variation detail"
+                summary={detail.casePathSummary.activePathLabel === "Variation path" ? detail.casePathSummary.headline : detail.variationSummary.reason}
+                defaultOpen={shouldOpenSupport("variation")}
+              >
+                <div className="grid gap-3">
+                  <input
+                    className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Variation title"
+                    value={variationTitle}
+                    disabled={!detail.availableActions.createVariation}
+                    onChange={(event) => onVariationTitleChange(event.target.value)}
+                  />
+                  <textarea
+                    className="min-h-24 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Reason for variation"
+                    value={variationReason}
+                    disabled={!detail.availableActions.createVariation}
+                    onChange={(event) => onVariationReasonChange(event.target.value)}
+                  />
+                  <input
+                    inputMode="numeric"
+                    className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                    placeholder="Variation amount delta"
+                    value={variationAmount}
+                    disabled={!detail.availableActions.createVariation}
+                    onChange={(event) => onVariationAmountChange(event.target.value)}
+                  />
+                  {createVariationDescriptor ? (
+                    <ActionControlCard
+                      descriptor={createVariationDescriptor}
+                      owner={detail.sectionGuidance.variation.ownerLabel}
+                      disabled={!canCreateVariation}
+                      formRequirementLabel={
+                        detail.actionReadiness.createVariation.isAvailable &&
+                        (!variationTitle.trim().length ||
+                          !variationReason.trim().length ||
+                          !Number.isFinite(parsedVariationAmount) ||
+                          parsedVariationAmount === 0)
+                          ? "Enter variation title, reason, and delta."
+                          : undefined
+                      }
+                      onClick={onCreateVariation}
+                    />
+                  ) : null}
+                  <div className="grid gap-3">
+                    {detail.variations.map((variation) => (
+                      <article key={variation.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-slate-900">{variation.title}</p>
+                            <p className="mt-1 text-sm text-slate-500">{variation.reason}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Delta {currency.format(variation.amountDelta)} · {variation.operationalStatusLabel}
+                            </p>
+                          </div>
+                          <div className="grid gap-2 sm:flex">
+                            {variation.status === "pending" ? (
+                              <>
+                                <div className="grid gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => onApproveVariation(variation.id)}
+                                    disabled={!variation.canApprove}
+                                    className={`disabled:cursor-not-allowed min-h-12 rounded-2xl px-4 py-3 text-left text-sm font-medium ${
+                                      variation.approveAction.isPrimary && variation.approveAction.confidence === "high"
+                                        ? variation.canApprove
+                                          ? "bg-slate-900 text-white"
+                                          : "bg-slate-300 text-white"
+                                        : variation.canApprove
+                                          ? "border border-slate-300 bg-white text-slate-900"
+                                          : "border border-slate-200 bg-slate-100 text-slate-400"
+                                    }`}
+                                  >
+                                    <span className="block">{variation.approveAction.label}</span>
+                                    <span className="mt-1 block text-xs opacity-80">{variation.approveAction.outcomeLabel}</span>
+                                  </button>
+                                  <p className="text-xs text-slate-500">
+                                    {variation.canApprove
+                                      ? variation.approveAction.impactSummary ?? variation.approveAction.outcomeLabel
+                                      : variation.approveAction.blockerSummary}
+                                  </p>
+                                </div>
+                                <div className="grid gap-2">
+                                  <textarea
+                                    className="min-h-20 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                                    placeholder="Reason for rejecting this variation"
+                                    value={variationRejectReasons[variation.id] ?? ""}
+                                    onChange={(event) => onVariationRejectReasonChange(variation.id, event.target.value)}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => onRejectVariation(variation.id, variationRejectReasons[variation.id] ?? "")}
+                                    disabled={!variation.canReject || !(variationRejectReasons[variation.id] ?? "").trim().length}
+                                    className={`disabled:cursor-not-allowed min-h-12 rounded-2xl border px-4 py-3 text-left text-sm font-medium ${
+                                      variation.canReject && (variationRejectReasons[variation.id] ?? "").trim().length
+                                        ? "border-slate-300 bg-white text-slate-900"
+                                        : "border-slate-200 bg-slate-100 text-slate-400"
+                                    }`}
+                                  >
+                                    <span className="block">{variation.rejectAction.label}</span>
+                                    <span className="mt-1 block text-xs opacity-80">{variation.rejectAction.outcomeLabel}</span>
+                                  </button>
+                                  <p className="text-xs text-slate-500">
+                                    {variation.canReject && (variationRejectReasons[variation.id] ?? "").trim().length
+                                      ? variation.rejectAction.outcomeLabel
+                                      : variation.canReject
+                                        ? "Enter a reason before rejecting this variation."
+                                        : variation.rejectAction.blockerSummary}
+                                  </p>
+                                </div>
+                              </>
+                            ) : null}
+                            {variation.status === "approved" ? (
+                              <div className="grid gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onActivateVariation(variation.id)}
+                                  disabled={!variation.canActivate}
+                                  className={`disabled:cursor-not-allowed min-h-12 rounded-2xl px-4 py-3 text-left text-sm font-medium ${
+                                    variation.activateAction.isPrimary && variation.activateAction.confidence === "high"
+                                      ? variation.canActivate
+                                        ? "bg-slate-900 text-white"
+                                        : "bg-slate-300 text-white"
+                                      : variation.canActivate
+                                        ? "border border-slate-300 bg-white text-slate-900"
+                                        : "border border-slate-200 bg-slate-100 text-slate-400"
+                                  }`}
+                                >
+                                  <span className="block">{variation.activateAction.label}</span>
+                                  <span className="mt-1 block text-xs opacity-80">{variation.activateAction.outcomeLabel}</span>
+                                </button>
+                                <p className="text-xs text-slate-500">
+                                  {variation.canActivate
+                                    ? variation.activateAction.impactSummary ?? variation.activateAction.outcomeLabel
+                                    : variation.activateAction.blockerSummary}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                    {detail.variations.length === 0 ? (
+                      <p className="rounded-2xl bg-white p-4 text-sm text-slate-500">No variations recorded for this project stage.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </SupportingDetailsDisclosure>
+            </div>
           </div>
         </section>
-      </div>
 
-      <div className="mt-8">
-        <h3 className="text-sm font-medium text-slate-900">Blockers</h3>
-        <div className="mt-3 grid gap-3">
-          {detail.blockers.map((blocker) => (
-            <article key={blocker.code} className={stageSurfaceHierarchy.mutedBlock}>
-              <p className="font-medium text-slate-900">{blocker.label}</p>
-              <p className="mt-1 text-sm text-slate-500">{blocker.priority}</p>
-            </article>
-          ))}
-          {detail.blockers.length === 0 ? (
-            <p className="rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">No payment blocker is recorded for this project stage.</p>
-          ) : null}
-        </div>
+        <section className={stageSurfaceHierarchy.tertiaryPanel}>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recorded activity</p>
+          <div className="mt-4">
+            <StageTimelineCard entries={detail.timelineEntries} />
+          </div>
+        </section>
       </div>
     </section>
   );

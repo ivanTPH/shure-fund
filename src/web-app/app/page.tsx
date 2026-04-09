@@ -1,5 +1,5 @@
-import ShureFundDashboard from "./components/ShureFundDashboard";
+import ProjectStageWorkflowScreen from "./components/ProjectStageWorkflowScreen";
 
 export default function HomePage() {
-  return <ShureFundDashboard section="packages" />;
+  return <ProjectStageWorkflowScreen />;
 }
