@@ -57,6 +57,7 @@ import type { WorkspaceDecisionCue } from "@/lib/systemState";
 import JourneySummaryCard from "./JourneySummaryCard";
 import LedgerSummaryCard from "./LedgerSummaryCard";
 import LedgerTransactionsList from "./LedgerTransactionsList";
+import StageDetailPanel from "./StageDetailPanel";
 import { useShureFundShellState, type AppSection } from "./ShureFundAppShell";
 import { activeControl, disabledControl, hiddenControl, isControlActive, shouldShowControl, uiControlChecklist } from "./uiCapability";
 
