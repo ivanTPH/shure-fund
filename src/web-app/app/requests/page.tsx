@@ -1,5 +1,5 @@
 import ShureFundDashboard from "../components/ShureFundDashboard";
 
-export default function ProjectsPage() {
+export default function RequestsPage() {
   return <ShureFundDashboard section="packages" />;
 }

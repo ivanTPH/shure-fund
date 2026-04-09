@@ -42,12 +42,13 @@ type ShellState = {
 const ShellStateContext = createContext<ShellState | null>(null);
 
 function getSectionFromPath(pathname: string): AppSection {
+  if (pathname === "/requests") return "packages";
   if (pathname === "/summary") return "summary";
   if (pathname === "/payments") return "payments";
-  if (pathname === "/packages") return "packages";
+  if (pathname === "/packages" || pathname === "/projects" || pathname === "/") return "packages";
   if (pathname === "/activity" || pathname === "/audit-log") return "activity";
   if (pathname === "/settings") return "settings";
-  return "actions";
+  return "packages";
 }
 
 const navItems: Array<{
@@ -56,7 +57,11 @@ const navItems: Array<{
   shortLabel: string;
   href: string;
   iconSrc: string;
-}> = [{ section: "actions", label: "Requests", shortLabel: "Requests", href: "/", iconSrc: "/brand/icons/Notifications.svg" }];
+}> = [
+  { section: "packages", label: "Projects", shortLabel: "Projects", href: "/", iconSrc: "/brand/icons/Contracts.svg" },
+  { section: "payments", label: "Payments", shortLabel: "Payments", href: "/payments", iconSrc: "/brand/icons/Funds.svg" },
+  { section: "settings", label: "Account", shortLabel: "Account", href: "/settings", iconSrc: "/brand/icons/Account.svg" },
+];
 
 export function useShureFundShellState() {
   const context = useContext(ShellStateContext);
@@ -86,7 +91,7 @@ export default function ShureFundAppShell({
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId) ?? state.users[0];
   const roleSwitchUsers = state.users.filter((entry) => ["contractor", "commercial", "professional", "treasury", "executive"].includes(entry.role));
   const requestCount = useMemo(() => getRoleInboxItems(state, currentUser.role).length, [state, currentUser.role]);
-  const projectSelectorControl = activeControl("Switches the project context and the requests shown for it.");
+  const projectSelectorControl = activeControl("Switches the project context and the stage notifications shown for it.");
   const roleSelectorControl = activeControl("Switches the prototype role within the selected project context.");
 
   const contextValue = useMemo<ShellState>(
@@ -122,7 +127,7 @@ export default function ShureFundAppShell({
 
   return (
     <ShellStateContext.Provider value={contextValue}>
-      <div className="flex h-screen bg-transparent text-[var(--foreground)]">
+      <div className="flex h-screen overflow-hidden bg-transparent text-[var(--foreground)]">
         <div className="flex min-h-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur" style={{ borderColor: "var(--surface-border)" }}>
             <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6">
@@ -142,7 +147,7 @@ export default function ShureFundAppShell({
                         SHURE.FUND
                       </p>
                       <p className="text-[11px] uppercase tracking-[0.24em]" style={{ color: "rgba(13, 17, 68, 0.62)" }}>
-                        {activeSection === "actions" ? "Requests are your working inbox" : "Financial operations"}
+                        {requestCount > 0 ? "Project controls with live notifications" : "Project controls through funding to payment"}
                       </p>
                     </div>
                   </div>
@@ -158,7 +163,7 @@ export default function ShureFundAppShell({
 
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
-                    href="/"
+                    href="/requests"
                     className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold"
                     style={{
                       backgroundColor: requestCount > 0 ? "var(--brand-navy)" : "rgba(13, 17, 68, 0.08)",
@@ -166,7 +171,7 @@ export default function ShureFundAppShell({
                     }}
                   >
                     <Image src="/brand/icons/Notifications.svg" alt="" width={18} height={18} className="h-[18px] w-[18px]" aria-hidden />
-                    Requests{requestCount > 0 ? ` (${requestCount})` : ""}
+                    Notifications{requestCount > 0 ? ` (${requestCount})` : ""}
                   </Link>
                   <Link
                     href="/settings"
@@ -276,7 +281,7 @@ export default function ShureFundAppShell({
           </main>
 
           <nav className="sticky bottom-0 z-30 border-t border-slate-200/80 bg-white/96 px-3 py-3 backdrop-blur md:hidden">
-            <div className="mx-auto grid max-w-xl grid-cols-5 gap-2">
+            <div className="mx-auto grid max-w-xl grid-cols-3 gap-2">
               {navItems.map((item) => {
                 const active = activeSection === item.section;
                 return (

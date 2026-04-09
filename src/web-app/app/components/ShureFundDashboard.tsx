@@ -58,7 +58,6 @@ import JourneySummaryCard from "./JourneySummaryCard";
 import LedgerSummaryCard from "./LedgerSummaryCard";
 import LedgerTransactionsList from "./LedgerTransactionsList";
 import { useShureFundShellState, type AppSection } from "./ShureFundAppShell";
-import StageDetailPanel from "./StageDetailPanel";
 import { activeControl, disabledControl, hiddenControl, isControlActive, shouldShowControl, uiControlChecklist } from "./uiCapability";
 
 const currency = new Intl.NumberFormat("en-GB", {
@@ -107,20 +106,20 @@ function SectionCard({
 
 const sectionMeta: Record<AppSection, { title: string; subtitle: string }> = {
   actions: {
-    title: "Requests",
-    subtitle: "Open the next request, inspect only what matters, and complete the governed step without working through a dashboard first.",
+    title: "Notifications",
+    subtitle: "Background notifications open the relevant project stage and take you straight to the next governed step.",
   },
   summary: {
-    title: "Overview",
-    subtitle: "Current payment position, the next hold-up to clear, and the project stages that need attention now.",
+    title: "Project summary",
+    subtitle: "Current project position, the next control to clear, and the project stages that need attention now.",
   },
   payments: {
     title: "Payments",
-    subtitle: "Funding position, payment readiness, and value that is ready to pay or on hold.",
+    subtitle: "Funding status, payment readiness, and value ready for payment or held back by live controls.",
   },
   packages: {
     title: "Projects",
-    subtitle: "Selectable payment stages within the current project, with live payment detail for the active project stage.",
+    subtitle: "Follow the live commercial journey for the current project: Project, Project stage, Assigned roles, Funding status, Supporting information, Approval path, and Payment.",
   },
   activity: {
     title: "Activity",
@@ -239,7 +238,7 @@ function getStageSurfaceActionLabel(detail: StageDetailModel, hasRequest: boolea
   }
 
   if (hasRequest) {
-    return "Open request";
+    return "Open stage";
   }
 
   return "Open project stage";
@@ -975,8 +974,8 @@ export default function ShureFundDashboard({
         (item.deepLinkTarget?.section ?? "overview") === selectedStageSection,
     ) ??
     currentProjectInbox.find((item) => item.stageId === activeStageId) ??
-    currentProjectInbox[0] ??
     null;
+  const stageCurrentStep = projectStageCurrentSteps.find((step) => step.stageId === activeStageId) ?? null;
   const lockedRequestActive = Boolean(lockedRequestReceipt && lockedRequestReceipt.requestId === activeRequestId && !selectedTask);
   const activeRequestState = selectedTask ? getRequestDecisionState(state, selectedTask.id) : null;
   const selectedTaskUpdatedLabel = formatRelativeTime(activeRequestState?.detail.lastUpdatedAt ?? stageDetail.lastUpdatedAt);
@@ -1008,9 +1007,13 @@ export default function ShureFundDashboard({
       reason: approval.unavailableReason,
     };
   });
+  const approvalOutcomeLine =
+    stageDetail.approvalSummary.approvalState === "approved" && stageDetail.releaseDecision.releasableAmount > 0
+      ? `On final approval: ${currency.format(stageDetail.releaseDecision.releasableAmount)} will be released for this stage.`
+      : "Payment blocked until all approvals complete.";
 
   useEffect(() => {
-    if (section !== "actions" || currentProjectInbox.length === 0) {
+    if (pathname !== "/requests" || currentProjectInbox.length === 0) {
       return;
     }
 
@@ -1024,7 +1027,7 @@ export default function ShureFundDashboard({
     }
 
     handleWorkspaceItemSelect(currentProjectInbox[0]);
-  }, [section, currentProjectInbox, activeRequestId, lockedRequestReceipt]);
+  }, [pathname, currentProjectInbox, activeRequestId, lockedRequestReceipt]);
 
   const getTaskDescriptorSet = (
     detail: StageDetailModel,
@@ -1119,6 +1122,14 @@ export default function ShureFundDashboard({
   };
 
   const taskDescriptorSet = selectedTask ? getTaskDescriptorSet(stageDetail, selectedTask) : null;
+  const stageActionDescriptors = [
+    taskDescriptorSet?.primary,
+    ...(taskDescriptorSet?.secondary ?? []),
+  ].filter(Boolean) as DerivedActionDescriptor[];
+  const activeStageComposerDescriptor =
+    activeDecisionComposerId && activeDecisionComposerId !== "reject" && activeDecisionComposerId !== "request-info"
+      ? stageActionDescriptors.find((descriptor) => descriptor.actionId === activeDecisionComposerId) ?? null
+      : null;
 
   const isDescriptorDisabled = (descriptor: DerivedActionDescriptor | null | undefined) => {
     if (!descriptor) return true;
@@ -1462,7 +1473,7 @@ export default function ShureFundDashboard({
 
         <div className="no-print flex flex-col gap-8 pb-28">
           {section === "actions" && currentProjectInbox.length > 0 ? (
-            <div className={`sticky top-24 z-10 mx-auto flex w-full max-w-3xl items-center justify-between gap-3 rounded-[22px] border px-4 py-3 shadow-[0_14px_32px_-26px_rgba(15,23,42,0.35)] backdrop-blur ${bannerTone}`}>
+            <div className={`mx-auto flex w-full max-w-3xl items-center justify-between gap-3 rounded-[22px] border px-4 py-3 shadow-[0_14px_32px_-26px_rgba(15,23,42,0.35)] ${bannerTone}`}>
               <div className="min-w-0">
                 <p className={`text-[11px] uppercase tracking-[0.18em] ${topUrgency === "immediate" ? "text-white/70" : "text-current/70"}`}>Requests inbox</p>
                 <p className="truncate text-sm font-semibold">{bannerLabel}</p>
@@ -1471,6 +1482,7 @@ export default function ShureFundDashboard({
                 type="button"
                 onClick={() => {
                   if (currentProjectInbox[0]) {
+                    setActiveRequestId(currentProjectInbox[0].id);
                     handleWorkspaceItemSelect(currentProjectInbox[0]);
                   }
                 }}
@@ -1561,6 +1573,7 @@ export default function ShureFundDashboard({
                     onClick={() => {
                       const matchingRequest = currentProjectInbox.find((item) => item.id === nextRequiredAction.requestId);
                       if (matchingRequest) {
+                        setActiveRequestId(matchingRequest.id);
                         handleWorkspaceItemSelect(matchingRequest);
                       }
                     }}
@@ -1584,7 +1597,10 @@ export default function ShureFundDashboard({
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => handleWorkspaceItemSelect(item)}
+                      onClick={() => {
+                        setActiveRequestId(item.id);
+                        handleWorkspaceItemSelect(item);
+                      }}
                       className={`flex items-center justify-between gap-4 rounded-[24px] border px-4 py-4 text-left transition ${
                         selected ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                       }`}
@@ -1609,7 +1625,12 @@ export default function ShureFundDashboard({
                 {hiddenActionCount > 0 ? (
                   <button
                     type="button"
-                    onClick={() => handleWorkspaceItemSelect(currentProjectInbox[visibleActionItems.length])}
+                    onClick={() => {
+                      const nextItem = currentProjectInbox[visibleActionItems.length];
+                      if (!nextItem) return;
+                      setActiveRequestId(nextItem.id);
+                      handleWorkspaceItemSelect(nextItem);
+                    }}
                     className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-white"
                   >
                     +{hiddenActionCount} more request{hiddenActionCount === 1 ? "" : "s"}
@@ -1774,6 +1795,7 @@ export default function ShureFundDashboard({
                       </div>
                     ))}
                   </div>
+                  <p className="mt-4 text-sm font-medium text-slate-700">{approvalOutcomeLine}</p>
                 </div>
                 {selectedTask ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1836,10 +1858,10 @@ export default function ShureFundDashboard({
                             onClick={() => {
                               if (!selectedTask?.id) return;
                               if (activeDecisionComposerId === "reject") {
-                                runRequestMutation(`request:${selectedTask.id}:reject`, (current) => rejectRequest(current, selectedTask.id, requestDecisionNote));
+                                runRequestMutation(`request:${selectedTask?.id}:reject`, (current) => rejectRequest(current, selectedTask!.id, requestDecisionNote));
                                 return;
                               }
-                              runRequestMutation(`request:${selectedTask.id}:request_info`, (current) => requestInfo(current, selectedTask.id, requestDecisionNote));
+                              runRequestMutation(`request:${selectedTask?.id}:request_info`, (current) => requestInfo(current, selectedTask!.id, requestDecisionNote));
                             }}
                             disabled={requestDecisionNote.trim().length === 0 || pendingActionId !== null}
                             className={getActionButtonClass({ actionId: activeDecisionComposerId, label: "Confirm", outcomeLabel: "", stateTransitionPreview: { fromState: "", toState: "" }, confidence: "high", isPrimary: false }, requestDecisionNote.trim().length === 0 || pendingActionId !== null)}
@@ -1873,7 +1895,7 @@ export default function ShureFundDashboard({
                             type="button"
                             onClick={() => {
                               if (!selectedTask?.id) return;
-                              runRequestMutation(`request:${selectedTask.id}:approve`, (current) => approveRequest(current, selectedTask.id));
+                              runRequestMutation(`request:${selectedTask?.id}:approve`, (current) => approveRequest(current, selectedTask!.id));
                             }}
                             disabled={pendingActionId === `request:${selectedTask?.id}:approve`}
                             className={getActionButtonClass(
@@ -1911,22 +1933,22 @@ export default function ShureFundDashboard({
                             type="button"
                             aria-label={uiControlChecklist.requestPrimaryAction.label}
                             onClick={() => setRequestFinalConfirmation({ action: "approve", consequence: getRequestConsequenceLine("approve") })}
-                            disabled={pendingActionId === `request:${selectedTask.id}:approve` || requestFinalConfirmation !== null}
+                            disabled={pendingActionId === `request:${selectedTask?.id}:approve` || requestFinalConfirmation !== null}
                             className={getActionButtonClass(
                               {
-                                actionId: `request:${selectedTask.id}:approve`,
+                                actionId: `request:${selectedTask?.id}:approve`,
                                 label: activeRequestState.primaryActionLabel,
                                 outcomeLabel: "",
                                 stateTransitionPreview: { fromState: "", toState: "" },
                                 confidence: "high",
                                 isPrimary: true,
                               },
-                              pendingActionId === `request:${selectedTask.id}:approve` || requestFinalConfirmation !== null,
+                              pendingActionId === `request:${selectedTask?.id}:approve` || requestFinalConfirmation !== null,
                               true,
                             )}
                           >
                             <span className="block text-base font-semibold">
-                              {requestFinalConfirmation?.action === "approve" ? "Awaiting confirmation" : pendingActionId === `request:${selectedTask.id}:approve` ? "Recording..." : activeRequestState.primaryActionLabel}
+                              {requestFinalConfirmation?.action === "approve" ? "Awaiting confirmation" : pendingActionId === `request:${selectedTask?.id}:approve` ? "Recording..." : activeRequestState.primaryActionLabel}
                             </span>
                             <span className="mt-1 block text-sm opacity-85">Final confirmation required.</span>
                           </button>
@@ -2178,7 +2200,7 @@ export default function ShureFundDashboard({
             {section === "packages" ? (
             <SectionCard
               title="My projects"
-              subtitle="Switch project context, see what needs attention, and enter the current working project."
+              subtitle="Select a project to view its live stage record, assigned roles, funding status, supporting information, approval path, and payment position."
             >
               <div className="grid gap-3">
                 {projectDirectory.map((entry) => (
@@ -2202,7 +2224,7 @@ export default function ShureFundDashboard({
                         <p className={`mt-1 text-sm ${entry.isCurrent ? "text-slate-300" : "text-slate-600"}`}>{entry.workspaceSummary.postureLabel}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${entry.isCurrent ? "bg-white text-slate-950" : entry.requestCount > 0 ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
-                        {entry.requestCount > 0 ? `${entry.requestCount} request${entry.requestCount === 1 ? "" : "s"}` : "No requests waiting"}
+                        {entry.requestCount > 0 ? `${entry.requestCount} notification${entry.requestCount === 1 ? "" : "s"}` : "No notifications waiting"}
                       </span>
                     </div>
                     <p className={`mt-2 text-sm ${entry.isCurrent ? "text-slate-300" : "text-slate-500"}`}>{entry.workspaceSummary.postureReason}</p>
@@ -2219,11 +2241,11 @@ export default function ShureFundDashboard({
 
             {section === "packages" ? (
             <SectionCard
-              title="Project stages"
+              title="Project stages and contracts"
               subtitle={
                 audienceMode === "executive"
-                  ? "Concise project stage payment status and key hold-ups."
-                  : "Select a project stage to see payment status, supporting information, sign-offs, review items, and payment conditions."
+                  ? "Concise project stage status and the key hold-ups in the commercial sequence."
+                  : "Select a project stage to view assigned roles, funding status, supporting information, approval path, and payment conditions."
               }
             >
               <div className="grid gap-3">
@@ -2482,15 +2504,327 @@ export default function ShureFundDashboard({
 
         {section === "packages" ? (
         <div className="grid gap-6">
+          <SectionCard
+            title="What happens next"
+            subtitle={`${project.name} · ${stageDetail.stage.name}`}
+          >
+            <div className="grid gap-4">
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-lg font-semibold text-slate-950">{stageCurrentStep?.stepLabel ?? stageDetail.operationalStatus.label}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-700">{stageCurrentStep?.assuranceLine ?? stageDetail.operationalStatus.reason}</p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {selectedTask?.decisionCue.primaryCue ?? stageCurrentStep?.supportingSentence ?? stageDetail.operationalStatus.nextStep}
+                    </p>
+                    {selectedTask ? (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Notification received: {selectedTask.title}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 rounded-full bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+                    Live stage step
+                  </span>
+                </div>
+              </div>
+
+              {lockedRequestActive ? (
+                <div className="rounded-[24px] border border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(236,253,245,0.92)_100%)] px-4 py-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recorded</p>
+                  <p className="mt-2 text-base font-semibold text-slate-950">{lockedRequestReceipt?.outcomeHeadline ?? "Decision recorded"}</p>
+                  <p className="mt-2 text-sm text-slate-600">{lockedRequestReceipt?.outcomeLine ?? "Decision recorded - audit log updated."}</p>
+                  <p className="mt-2 text-sm text-slate-600">This stage step has been completed and cannot be undone here.</p>
+                </div>
+              ) : lastActionOutcome ? (
+                <div className={`rounded-[24px] border px-4 py-4 ${
+                  lastActionOutcome.result === "advanced" || lastActionOutcome.result === "released"
+                    ? "border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,1)_0%,rgba(236,253,245,0.92)_100%)]"
+                    : lastActionOutcome.result === "exception" || lastActionOutcome.result === "blocked"
+                      ? "border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,1)_0%,rgba(254,243,199,0.62)_100%)]"
+                      : "border-slate-200 bg-slate-50"
+                }`}>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest outcome</p>
+                  <p className="mt-2 text-base font-semibold text-slate-950">{getOutcomeHeadline(lastActionOutcome)}</p>
+                  <p className="mt-2 text-sm text-slate-600">Decision recorded. Funds / stage updated.</p>
+                </div>
+              ) : null}
+
+              {activeRequestState ? (
+                <div className="rounded-[26px] border border-slate-200 bg-slate-50/70 p-4">
+                  <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                    activeRequestState.approveAvailable || activeRequestState.rejectAvailable || activeRequestState.requestInfoAvailable
+                      ? "border-teal-200 bg-white text-slate-900"
+                      : "border-amber-200 bg-amber-50 text-amber-950"
+                  }`}>
+                    {activeRequestState.approveAvailable || activeRequestState.rejectAvailable || activeRequestState.requestInfoAvailable
+                      ? "This is the current governed step for this project stage."
+                      : activeRequestState.noActionReason}
+                  </div>
+
+                  {activeDecisionComposerId ? (
+                    <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                      <textarea
+                        className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder={activeDecisionComposerId === "request-info" ? "What information is needed?" : "Reason for this decision"}
+                        value={requestDecisionNote}
+                        onChange={(event) => setRequestDecisionNote(event.target.value)}
+                      />
+                      {(activeDecisionComposerId === "reject" || activeDecisionComposerId === "request-info") ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                          {activeDecisionComposerId === "reject"
+                            ? getRequestConsequenceLine("reject")
+                            : "This stage will be returned for update and the audit log will record your note."}
+                        </div>
+                      ) : null}
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedTask?.id) return;
+                            if (activeDecisionComposerId === "reject") {
+                              runRequestMutation(`request:${selectedTask?.id}:reject`, (current) => rejectRequest(current, selectedTask!.id, requestDecisionNote));
+                              return;
+                            }
+                            runRequestMutation(`request:${selectedTask?.id}:request_info`, (current) => requestInfo(current, selectedTask!.id, requestDecisionNote));
+                          }}
+                          disabled={requestDecisionNote.trim().length === 0 || pendingActionId !== null}
+                          className={getActionButtonClass({ actionId: activeDecisionComposerId, label: "Confirm", outcomeLabel: "", stateTransitionPreview: { fromState: "", toState: "" }, confidence: "high", isPrimary: false }, requestDecisionNote.trim().length === 0 || pendingActionId !== null)}
+                        >
+                          <span className="block">
+                            {pendingActionId !== null ? "Recording..." : activeDecisionComposerId === "reject" ? "Confirm rejection" : "Confirm"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveDecisionComposerId(null);
+                            setRequestFinalConfirmation(null);
+                            setRequestDecisionNote("");
+                          }}
+                          className="min-h-12 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {requestFinalConfirmation ? (
+                    <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        {requestFinalConfirmation.consequence}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedTask?.id) return;
+                            runRequestMutation(`request:${selectedTask?.id}:approve`, (current) => approveRequest(current, selectedTask!.id));
+                          }}
+                          disabled={pendingActionId === `request:${selectedTask?.id}:approve`}
+                          className={getActionButtonClass(
+                            {
+                              actionId: `request:${selectedTask?.id}:approve`,
+                              label: "Confirm decision",
+                              outcomeLabel: "",
+                              stateTransitionPreview: { fromState: "", toState: "" },
+                              confidence: "high",
+                              isPrimary: true,
+                            },
+                            pendingActionId === `request:${selectedTask?.id}:approve`,
+                            true,
+                          )}
+                        >
+                          <span className="block text-base font-semibold">
+                            {pendingActionId === `request:${selectedTask?.id}:approve` ? "Recording..." : "Confirm decision"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRequestFinalConfirmation(null)}
+                          className="min-h-12 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {activeRequestState.approveAvailable || activeRequestState.rejectAvailable || activeRequestState.requestInfoAvailable ? (
+                    <div className="mt-4 grid gap-3">
+                      {activeRequestState.approveAvailable ? (
+                        <button
+                          type="button"
+                          aria-label={uiControlChecklist.requestPrimaryAction.label}
+                          onClick={() => setRequestFinalConfirmation({ action: "approve", consequence: getRequestConsequenceLine("approve") })}
+                          disabled={pendingActionId === `request:${selectedTask?.id}:approve` || requestFinalConfirmation !== null}
+                          className={getActionButtonClass(
+                            {
+                              actionId: `request:${selectedTask?.id}:approve`,
+                              label: activeRequestState.primaryActionLabel,
+                              outcomeLabel: "",
+                              stateTransitionPreview: { fromState: "", toState: "" },
+                              confidence: "high",
+                              isPrimary: true,
+                            },
+                            pendingActionId === `request:${selectedTask?.id}:approve` || requestFinalConfirmation !== null,
+                            true,
+                          )}
+                        >
+                          <span className="block text-base font-semibold">
+                            {requestFinalConfirmation?.action === "approve" ? "Awaiting confirmation" : pendingActionId === `request:${selectedTask?.id}:approve` ? "Recording..." : activeRequestState.primaryActionLabel}
+                          </span>
+                          <span className="mt-1 block text-sm opacity-85">Final confirmation required.</span>
+                        </button>
+                      ) : null}
+
+                      {activeRequestState.rejectAvailable ? (
+                        <button
+                          type="button"
+                          aria-label={uiControlChecklist.requestSecondaryAction.label}
+                          onClick={() => {
+                            setRequestFinalConfirmation(null);
+                            setActiveDecisionComposerId("reject");
+                          }}
+                          className={getActionButtonClass({ actionId: "reject", label: "Reject", outcomeLabel: "", stateTransitionPreview: { fromState: "", toState: "" }, confidence: "medium", isPrimary: false }, false)}
+                        >
+                          <span className="block">Reject</span>
+                        </button>
+                      ) : null}
+
+                      {activeRequestState.requestInfoAvailable ? (
+                        <button
+                          type="button"
+                          aria-label={uiControlChecklist.requestSecondaryAction.label}
+                          onClick={() => {
+                            setRequestFinalConfirmation(null);
+                            setActiveDecisionComposerId("request-info");
+                          }}
+                          className={getActionButtonClass({ actionId: "request-info", label: "Request more information", outcomeLabel: "", stateTransitionPreview: { fromState: "", toState: "" }, confidence: "medium", isPrimary: false }, false)}
+                        >
+                          <span className="block">Request more information</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : taskDescriptorSet?.primary ? (
+                <div className="rounded-[26px] border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="rounded-2xl border border-teal-200 bg-white px-4 py-3 text-sm text-slate-900">
+                    This is the current live step for this project stage.
+                  </div>
+
+                  {taskDescriptorSet.primary.actionId === "add-evidence" ? (
+                    <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                      <input
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder="Supporting information title"
+                        value={evidenceTitle}
+                        disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                        onChange={(event) => setEvidenceTitle(event.target.value)}
+                      />
+                      <select
+                        className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        value={evidenceType}
+                        disabled={!canEditPrimaryActionFields(taskDescriptorSet.primary)}
+                        onChange={(event) => setEvidenceType(event.target.value as EvidenceType)}
+                      >
+                        <option value="file">File</option>
+                        <option value="form">Form</option>
+                      </select>
+                    </div>
+                  ) : null}
+
+                  {activeStageComposerDescriptor ? (
+                    <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                      <textarea
+                        className="min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                        placeholder={getDecisionReasonPlaceholder(activeStageComposerDescriptor)}
+                        value={getDescriptorReasonDraft(activeStageComposerDescriptor)}
+                        disabled={!canEditPrimaryActionFields(activeStageComposerDescriptor)}
+                        onChange={(event) => setDescriptorReasonDraft(activeStageComposerDescriptor, event.target.value)}
+                      />
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        {getDecisionConfirmationLine(activeStageComposerDescriptor)}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => runDescriptorAction(activeStageComposerDescriptor)}
+                          disabled={isDescriptorDisabled(activeStageComposerDescriptor) || pendingActionId === activeStageComposerDescriptor.actionId}
+                          className={getActionButtonClass(activeStageComposerDescriptor, isDescriptorDisabled(activeStageComposerDescriptor) || pendingActionId === activeStageComposerDescriptor.actionId)}
+                        >
+                          <span className="block">{pendingActionId === activeStageComposerDescriptor.actionId ? "Recording..." : activeStageComposerDescriptor.label}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveDecisionComposerId(null)}
+                          className="min-h-12 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 grid gap-3">
+                    <button
+                      type="button"
+                      aria-label={uiControlChecklist.requestPrimaryAction.label}
+                      onClick={() => {
+                        if (requiresDecisionReason(taskDescriptorSet.primary)) {
+                          setActiveDecisionComposerId(taskDescriptorSet.primary.actionId);
+                          return;
+                        }
+                        runDescriptorAction(taskDescriptorSet.primary);
+                      }}
+                      disabled={!shouldShowControl(requestPrimaryActionControl) || !isControlActive(requestPrimaryActionControl) || pendingActionId === taskDescriptorSet.primary.actionId}
+                      className={getActionButtonClass(taskDescriptorSet.primary, !shouldShowControl(requestPrimaryActionControl) || !isControlActive(requestPrimaryActionControl) || pendingActionId === taskDescriptorSet.primary.actionId, true)}
+                    >
+                      <span className="block text-base font-semibold">
+                        {pendingActionId === taskDescriptorSet.primary.actionId ? "Recording..." : taskDescriptorSet.primary.label}
+                      </span>
+                      <span className="mt-1 block text-sm opacity-85">{getDecisionConfirmationLine(taskDescriptorSet.primary)}</span>
+                    </button>
+
+                    {taskDescriptorSet.secondary.map((descriptor) => (
+                      <button
+                        key={descriptor.actionId}
+                        type="button"
+                        aria-label={uiControlChecklist.requestSecondaryAction.label}
+                        onClick={() => {
+                          if (requiresDecisionReason(descriptor)) {
+                            setActiveDecisionComposerId(descriptor.actionId);
+                            return;
+                          }
+                          runDescriptorAction(descriptor);
+                        }}
+                        disabled={isDescriptorDisabled(descriptor) || pendingActionId === descriptor.actionId}
+                        className={getActionButtonClass(descriptor, isDescriptorDisabled(descriptor) || pendingActionId === descriptor.actionId)}
+                      >
+                        <span className="block">{pendingActionId === descriptor.actionId ? "Recording..." : descriptor.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  No action available for this project stage right now.
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
           {audienceMode !== "executive" ? (
-          <ExpandableSection title="Amount breakdown" subtitle="Expanded payment math and funding top-ups.">
+          <ExpandableSection title="Funding status" subtitle="Funding position, payment cover, and any top-up needed for the selected project stage.">
             <div className="rounded-2xl border border-slate-200 bg-slate-50">
               <button
                 type="button"
                 onClick={() => setShowFundingCalculation((current) => !current)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
-                    <span className="text-sm font-semibold text-slate-900">How this amount view is calculated</span>
+                    <span className="text-sm font-semibold text-slate-900">How this funding status is calculated</span>
                 <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
                   {showFundingCalculation ? "Hide" : "Show"}
                 </span>
@@ -2537,8 +2871,8 @@ export default function ShureFundDashboard({
           ) : null}
 
           <ExpandableSection
-            title="Selected project stage"
-            subtitle="Detailed payment checks, supporting information, sign-offs, review items, and payment actions."
+            title="Project stage record"
+            subtitle="Read the live stage record in the same sequence used to control commercial progress and payment."
             open={showStageDetail}
             onToggle={setShowStageDetail}
           >
@@ -2610,8 +2944,8 @@ export default function ShureFundDashboard({
                 <p className="mt-1 text-sm font-medium text-slate-950">{project.name}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {currentProjectInbox.length > 0
-                    ? `${currentProjectInbox.length} request${currentProjectInbox.length === 1 ? "" : "s"} waiting in this project.`
-                    : "No requests waiting in this project."}
+                    ? `${currentProjectInbox.length} notification${currentProjectInbox.length === 1 ? "" : "s"} waiting in this project.`
+                    : "No notifications waiting in this project."}
                 </p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">

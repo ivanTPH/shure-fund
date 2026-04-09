@@ -1419,11 +1419,11 @@ export default function StageDetailPanel({
       </div>
 
       <div ref={fundingRef} className={`mt-8 ${stageSurfaceHierarchy.tertiaryPanel} ${getSectionClass("funding")}`}>
-        <SectionActionHeader title="Amount status" guidance={detail.sectionGuidance.funding} />
+        <SectionActionHeader title="Funding status" guidance={detail.sectionGuidance.funding} />
       </div>
 
       <div className={`mt-6 ${stageSurfaceHierarchy.tertiaryPanel}`}>
-        <SectionActionHeader title="Amount position" guidance={detail.sectionGuidance.funding} />
+        <SectionActionHeader title="Funding status" guidance={detail.sectionGuidance.funding} />
         <h3 className="text-sm font-medium text-slate-900">Amount status</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className={stageSurfaceHierarchy.secondaryCard}>
@@ -1602,7 +1602,7 @@ export default function StageDetailPanel({
           />
         </div>
         <div ref={approvalsRef} className={`${getSectionClass("approvals")} ${getAreaHighlightClass("approvals")}`}>
-          <SectionActionHeader title="Sign-offs" guidance={detail.sectionGuidance.approvals} />
+          <SectionActionHeader title="Approval path" guidance={detail.sectionGuidance.approvals} />
           <ApprovalPanel
             detail={detail}
             approvalRejectReasons={approvalRejectReasons}
