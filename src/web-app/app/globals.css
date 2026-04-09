@@ -1,19 +1,60 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --brand-navy: #0d1144;
+  --brand-navy-strong: #08126d;
+  --brand-aqua: #71f3cb;
+  --brand-white: #ffffff;
+  --background: var(--brand-white);
+  --foreground: var(--brand-navy);
+  --surface-border: rgba(13, 17, 68, 0.12);
+  --surface-muted: rgba(113, 243, 203, 0.12);
+  --surface-strong: rgba(13, 17, 68, 0.08);
+  --focus-ring: rgba(113, 243, 203, 0.45);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Avenir Next", "Segoe UI", sans-serif;
+  --font-sans: "Stolzl", "Trade Gothic Next SR Pro", "Avenir Next", "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", "Menlo", monospace;
+}
+
+html {
+  background:
+    radial-gradient(circle at top right, rgba(113, 243, 203, 0.18), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, rgba(113, 243, 203, 0.06) 100%);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
+}
+
+::selection {
+  background: rgba(113, 243, 203, 0.45);
+  color: var(--brand-navy);
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }

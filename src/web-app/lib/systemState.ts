@@ -3337,6 +3337,10 @@ export interface StageSectionGuidance {
 
 export interface StageDetailModel {
   projectName: string;
+  projectLocation: string;
+  stageDescription: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
   stage: SystemStageRecord;
   blockers: StageBlocker[];
   decisionSummary: StageDecisionSummary;
@@ -4322,6 +4326,17 @@ export function initializeSystemState(state: SystemStateRecord): SystemStateReco
   const nextState = cloneSystemState(state);
   nextState.eventHistory = nextState.eventHistory ?? [];
   nextState.lastActionOutcomes = nextState.lastActionOutcomes ?? {};
+  nextState.stages = nextState.stages.map((stage) => {
+    const parentProject = nextState.projects.find((project) => project.id === stage.projectId);
+    return {
+      ...stage,
+      projectName: stage.projectName ?? parentProject?.name ?? "Unknown project",
+      projectLocation: stage.projectLocation ?? parentProject?.location ?? "Unknown location",
+      description: stage.description ?? `${stage.name} stage record`,
+      plannedStartDate: stage.plannedStartDate ?? new Date().toISOString().slice(0, 10),
+      plannedEndDate: stage.plannedEndDate ?? new Date().toISOString().slice(0, 10),
+    };
+  });
   reconcileSystemState(nextState);
   if (nextState.eventHistory.length === 0) {
     nextState.eventHistory = buildInitialEventHistory(nextState);
@@ -5301,6 +5316,320 @@ export function getRoleInboxItems(
 
     return (left.stageName ?? left.title).localeCompare(right.stageName ?? right.title);
   });
+}
+
+function getInboxRequestForUser(
+  state: SystemStateRecord,
+  requestId: string,
+  userId = state.currentUserId,
+) {
+  const role = getUserRecord(state, userId).role;
+  return getRoleInboxItems(state, role).find((item) => item.id === requestId) ?? null;
+}
+
+export function getRequestDecisionState(
+  state: SystemStateRecord,
+  requestId: string,
+  userId = state.currentUserId,
+) {
+  const request = getInboxRequestForUser(state, requestId, userId);
+  if (!request?.stageId) return null;
+
+  const actor = getUserRecord(state, userId);
+  const detail = getStageDetail(state, request.stageId);
+  const section = request.deepLinkTarget?.section ?? "overview";
+  const pendingVariation = detail.variations.find((item) => item.status === "pending") ?? null;
+  const approvedVariation = detail.variations.find((item) => item.status === "approved") ?? null;
+  const openDispute = detail.disputes.find((item) => item.status === "open") ?? null;
+  const reviewEvidence = detail.evidence.find((item) => item.record?.status !== "accepted") ?? detail.evidence[0] ?? null;
+  const availableApproval = detail.approvals.find((approval) => approval.role === actor.role);
+
+  let primaryActionLabel = "Approve";
+  let approveAvailable = false;
+  let rejectAvailable = false;
+  let requestInfoAvailable = false;
+  let noActionReason = "No action available.";
+
+  if (section === "release") {
+    primaryActionLabel = "Release payment";
+    approveAvailable = detail.actionReadiness.release.isAvailable && detail.releaseDecision.releasable;
+    noActionReason = detail.actionDescriptorMap["release"]?.blockerSummary ?? detail.operationalStatus.reason;
+  } else if (section === "funding") {
+    primaryActionLabel = "Allocate funds";
+    approveAvailable = detail.actionReadiness.fundStage.isAvailable && detail.funding.gapToRequiredCover > 0;
+    noActionReason = detail.actionDescriptorMap["fund-stage"]?.blockerSummary ?? detail.operationalStatus.reason;
+  } else if (section === "approvals" && availableApproval) {
+    primaryActionLabel = "Approve";
+    approveAvailable = availableApproval.approveAction.confidence !== "blocked";
+    rejectAvailable = availableApproval.rejectAction.confidence !== "blocked";
+    noActionReason = availableApproval.approveAction.blockerSummary ?? detail.operationalStatus.reason;
+  } else if (section === "evidence" && reviewEvidence) {
+    primaryActionLabel = "Approve";
+    approveAvailable = Boolean(reviewEvidence.actionDescriptors.accepted && reviewEvidence.actionDescriptors.accepted.confidence !== "blocked");
+    rejectAvailable = Boolean(reviewEvidence.actionDescriptors.rejected && reviewEvidence.actionDescriptors.rejected.confidence !== "blocked");
+    requestInfoAvailable = Boolean(reviewEvidence.actionDescriptors.requires_more && reviewEvidence.actionDescriptors.requires_more.confidence !== "blocked");
+    noActionReason = reviewEvidence.actionDescriptors.accepted?.blockerSummary ?? detail.operationalStatus.reason;
+  } else if (section === "variation" && (pendingVariation || approvedVariation)) {
+    primaryActionLabel = approvedVariation ? "Apply approved variation" : "Approve";
+    approveAvailable = approvedVariation
+      ? detail.actionReadiness.activateVariation.isAvailable
+      : Boolean(pendingVariation?.approveAction && pendingVariation.approveAction.confidence !== "blocked");
+    rejectAvailable = Boolean(pendingVariation?.rejectAction && pendingVariation.rejectAction.confidence !== "blocked");
+    noActionReason =
+      pendingVariation?.approveAction?.blockerSummary ??
+      detail.actionDescriptorMap["activate-variation"]?.blockerSummary ??
+      detail.operationalStatus.reason;
+  } else if (section === "dispute" && openDispute) {
+    primaryActionLabel = "Resolve dispute";
+    approveAvailable = Boolean(openDispute.resolveAction && openDispute.resolveAction.confidence !== "blocked");
+    noActionReason = openDispute.resolveAction?.blockerSummary ?? detail.operationalStatus.reason;
+  }
+
+  return {
+    request,
+    detail,
+    section,
+    primaryActionLabel,
+    approveAvailable,
+    rejectAvailable,
+    requestInfoAvailable,
+    noActionReason,
+  };
+}
+
+export type CommercialSequenceStepKey =
+  | "quote_requested"
+  | "quote_received"
+  | "quote_decision_required"
+  | "funding_required"
+  | "funded_and_scheduled"
+  | "evidence_required"
+  | "approval_required"
+  | "payment_ready"
+  | "paid";
+
+export interface ProjectStageCurrentStep {
+  projectId: string;
+  projectName: string;
+  stageId: string;
+  stageName: string;
+  stepKey: CommercialSequenceStepKey;
+  stepLabel: string;
+  assuranceLine: string;
+  supportingSentence: string;
+  requestId: string | null;
+  requestTitle: string | null;
+  ctaLabel: string | null;
+  section: StageDetailSectionKey | null;
+  sortOrder: number;
+}
+
+function getCommercialSequenceStepOrder(stepKey: CommercialSequenceStepKey) {
+  switch (stepKey) {
+    case "quote_requested":
+      return 0;
+    case "quote_received":
+      return 1;
+    case "quote_decision_required":
+      return 2;
+    case "funding_required":
+      return 3;
+    case "funded_and_scheduled":
+      return 4;
+    case "evidence_required":
+      return 5;
+    case "approval_required":
+      return 6;
+    case "payment_ready":
+      return 7;
+    case "paid":
+      return 8;
+    default:
+      return 99;
+  }
+}
+
+export function getProjectStageCurrentSteps(
+  state: SystemStateRecord,
+  projectId: string,
+  userId = state.currentUserId,
+): ProjectStageCurrentStep[] {
+  const role = getUserRecord(state, userId).role;
+  const project = state.projects.find((entry) => entry.id === projectId);
+
+  if (!project) {
+    return [];
+  }
+
+  const inbox = getRoleInboxItems(state, role, projectId);
+
+  return state.stages
+    .filter((stage) => stage.projectId === projectId)
+    .map((stage) => {
+      const detail = getStageDetail(state, stage.id, userId);
+
+      let stepKey: CommercialSequenceStepKey;
+      let stepLabel: string;
+      let assuranceLine: string;
+      let supportingSentence: string;
+      let preferredSection: StageDetailSectionKey | null = null;
+
+      if (stage.requiredAmount > 0 && stage.releasedAmount >= stage.requiredAmount) {
+        stepKey = "paid";
+        stepLabel = "Paid";
+        assuranceLine = detail.releaseSummary.releasedAmountLabel;
+        supportingSentence = "Payment has already been sent for this project stage.";
+      } else if (detail.releaseDecision.releasable && detail.releaseDecision.releasableAmount > 0) {
+        stepKey = "payment_ready";
+        stepLabel = "Payment ready";
+        assuranceLine = `${detail.releaseSummary.eligibleAmountLabel} - ${detail.releaseDecision.explanation.label}`;
+        supportingSentence = detail.releaseDecision.explanation.reason;
+        preferredSection = "release";
+      } else if (detail.funding.gapToRequiredCover > 0) {
+        stepKey = "funding_required";
+        stepLabel = "Funding required";
+        assuranceLine = `${detail.fundingExplanation.ringfencedLabel.replace("Ringfenced to this stage: ", "")} of ${detail.fundingExplanation.requiredCoverLabel.replace("Required cover for current WIP: ", "")} required funds secured (30-day coverage)`;
+        supportingSentence = detail.sectionGuidance.funding.summary;
+        preferredSection = "funding";
+      } else if (
+        detail.evidenceSummary.evidenceState === "missing" ||
+        detail.evidenceSummary.evidenceState === "rejected"
+      ) {
+        stepKey = "evidence_required";
+        stepLabel = "Evidence required";
+        assuranceLine = `${detail.evidenceSummary.reviewStatusLabel} - payment blocked`;
+        supportingSentence = detail.sectionGuidance.evidence.summary;
+        preferredSection = "evidence";
+      } else if (detail.approvalState !== "approved") {
+        stepKey = "approval_required";
+        stepLabel = "Approval required";
+        assuranceLine = `${detail.approvalSummary.approvalProgressLabel} - awaiting ${(detail.approvalSummary.nextApproverLabel ?? detail.sectionGuidance.approvals.ownerLabel).toLowerCase()}`;
+        supportingSentence = detail.sectionGuidance.approvals.summary;
+        preferredSection = "approvals";
+      } else {
+        stepKey = "funded_and_scheduled";
+        stepLabel = "Funded and scheduled";
+        assuranceLine =
+          detail.fundingExplanation.coverageLabel === "Covered by ringfenced funds"
+            ? `${detail.fundingExplanation.coverageLabel} - ${detail.releaseDecision.explanation.label.toLowerCase()}`
+            : detail.fundingExplanation.coverageLabel;
+        supportingSentence =
+          detail.operationalStatus.label === "Ready"
+            ? "Funding is in place and the project stage is moving through its governed checks."
+            : detail.operationalStatus.reason;
+      }
+
+      const matchingRequest =
+        inbox.find((item) => item.stageId === stage.id && (preferredSection ? item.deepLinkTarget?.section === preferredSection : true)) ??
+        inbox.find((item) => item.stageId === stage.id) ??
+        null;
+
+      return {
+        projectId,
+        projectName: project.name,
+        stageId: stage.id,
+        stageName: stage.name,
+        stepKey,
+        stepLabel,
+        assuranceLine,
+        supportingSentence,
+        requestId: matchingRequest?.id ?? null,
+        requestTitle: matchingRequest?.title ?? null,
+        ctaLabel: matchingRequest ? "Open request" : null,
+        section: preferredSection,
+        sortOrder: getCommercialSequenceStepOrder(stepKey),
+      } satisfies ProjectStageCurrentStep;
+    })
+    .sort((left, right) => {
+      const actionableDelta = Number(Boolean(left.requestId)) - Number(Boolean(right.requestId));
+      if (actionableDelta !== 0) {
+        return actionableDelta * -1;
+      }
+
+      const orderDelta = left.sortOrder - right.sortOrder;
+      if (orderDelta !== 0) {
+        return orderDelta;
+      }
+
+      return left.stageName.localeCompare(right.stageName);
+    });
+}
+
+export function approveRequest(
+  state: SystemStateRecord,
+  requestId: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const decisionState = getRequestDecisionState(state, requestId, userId);
+  if (!decisionState) return state;
+
+  const { detail, section } = decisionState;
+  const actor = getUserRecord(state, userId);
+
+  if (section === "release") return releaseStage(state, detail.stage.id, userId);
+  if (section === "funding") return allocateStageFunds(state, detail.stage.id, userId);
+  if (section === "approvals" && ["professional", "commercial", "treasury"].includes(actor.role)) {
+    return giveApproval(state, detail.stage.id, actor.role as FundingApprovalRole, userId);
+  }
+  if (section === "evidence") {
+    const reviewEvidence = detail.evidence.find((item) => item.record?.status !== "accepted") ?? detail.evidence[0];
+    return reviewEvidence ? updateEvidenceStatus(state, reviewEvidence.id, "accepted", { userId }) : state;
+  }
+  if (section === "variation") {
+    const approvedVariation = detail.variations.find((item) => item.status === "approved");
+    if (approvedVariation) return activateVariation(state, detail.stage.id, approvedVariation.id, userId);
+    const pendingVariation = detail.variations.find((item) => item.status === "pending");
+    return pendingVariation ? reviewVariation(state, detail.stage.id, pendingVariation.id, "approved", { userId }) : state;
+  }
+  if (section === "dispute") {
+    const openDispute = detail.disputes.find((item) => item.status === "open");
+    return openDispute ? resolveDispute(state, detail.stage.id, openDispute.id, userId) : state;
+  }
+
+  return state;
+}
+
+export function rejectRequest(
+  state: SystemStateRecord,
+  requestId: string,
+  reason: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const decisionState = getRequestDecisionState(state, requestId, userId);
+  if (!decisionState || !reason.trim()) return state;
+
+  const { detail, section } = decisionState;
+  const actor = getUserRecord(state, userId);
+
+  if (section === "approvals" && ["professional", "commercial", "treasury"].includes(actor.role)) {
+    return rejectApproval(state, detail.stage.id, actor.role as FundingApprovalRole, reason.trim(), userId);
+  }
+  if (section === "evidence") {
+    const reviewEvidence = detail.evidence.find((item) => item.record?.status !== "accepted") ?? detail.evidence[0];
+    return reviewEvidence ? updateEvidenceStatus(state, reviewEvidence.id, "rejected", { userId, reason: reason.trim() }) : state;
+  }
+  if (section === "variation") {
+    const pendingVariation = detail.variations.find((item) => item.status === "pending");
+    return pendingVariation ? reviewVariation(state, detail.stage.id, pendingVariation.id, "rejected", { userId, reason: reason.trim() }) : state;
+  }
+
+  return state;
+}
+
+export function requestInfo(
+  state: SystemStateRecord,
+  requestId: string,
+  message: string,
+  userId = state.currentUserId,
+): SystemStateRecord {
+  const decisionState = getRequestDecisionState(state, requestId, userId);
+  if (!decisionState || !message.trim()) return state;
+
+  const { detail, section } = decisionState;
+  if (section !== "evidence") return state;
+
+  const reviewEvidence = detail.evidence.find((item) => item.record?.status !== "accepted") ?? detail.evidence[0];
+  return reviewEvidence ? updateEvidenceStatus(state, reviewEvidence.id, "requires_more", { userId, reason: message.trim() }) : state;
 }
 
 export function getResponsibilityCue(actionableBy: FundingActionGroup["actionableBy"], actionType: QueueActionType) {
@@ -8413,6 +8742,10 @@ export function getStageDetail(state: SystemStateRecord, stageId: string, userId
 
   return {
     projectName: project.name,
+    projectLocation: stage.projectLocation,
+    stageDescription: stage.description,
+    plannedStartDate: stage.plannedStartDate,
+    plannedEndDate: stage.plannedEndDate,
     stage,
     blockers: stageBlockers,
     decisionSummary,

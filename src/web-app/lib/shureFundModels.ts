@@ -41,6 +41,7 @@ export interface UserRecord {
 export interface ProjectRecord {
   id: string;
   name: string;
+  location: string;
   status: string;
   reserveBuffer: number;
 }
@@ -48,7 +49,12 @@ export interface ProjectRecord {
 export interface StageRecordV2 {
   id: string;
   projectId: string;
+  projectName: string;
+  projectLocation: string;
   name: string;
+  description: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
   status: StageStatus;
   requiredAmount: number;
   releasedAmount: number;
