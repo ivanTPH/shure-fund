@@ -1,5 +1,5 @@
-import ProjectStageMobileShell from "./components/ProjectStageMobileShell";
+import { ProjectSummaryRouteScreen } from "./components/ProjectStageRouteScreens";
 
 export default function HomePage() {
-  return <ProjectStageMobileShell />;
+  return <ProjectSummaryRouteScreen />;
 }

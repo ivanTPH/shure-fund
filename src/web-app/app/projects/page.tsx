@@ -1,5 +1,5 @@
-import ShureFundDashboard from "../components/ShureFundDashboard";
+import { StageListRouteScreen } from "../components/ProjectStageRouteScreens";
 
 export default function ProjectsPage() {
-  return <ShureFundDashboard section="packages" />;
+  return <StageListRouteScreen />;
 }

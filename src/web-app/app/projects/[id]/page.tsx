@@ -1,18 +1,11 @@
-import { Suspense } from "react";
+import { StageListRouteScreen } from "../../components/ProjectStageRouteScreens";
 
-import ShureFundWorkspace from "../../components/ShureFundWorkspace";
-import WorkspaceRouteFallback from "../../components/WorkspaceRouteFallback";
-
-export default async function ProjectDetailPage({
+export default async function ProjectStagesPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
 
-  return (
-    <Suspense fallback={<WorkspaceRouteFallback />}>
-      <ShureFundWorkspace routeView="projects" routeProjectId={id} projectDetailMode />
-    </Suspense>
-  );
+  return <StageListRouteScreen routeProjectId={id} />;
 }

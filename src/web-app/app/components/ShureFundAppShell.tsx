@@ -86,7 +86,7 @@ export default function ShureFundAppShell({
   const [selectedWorkspaceCue, setSelectedWorkspaceCue] = useState<{ stageId: string; cue: WorkspaceDecisionCue } | null>(null);
   const pathname = usePathname();
   const activeSection = getSectionFromPath(pathname);
-  const isMobileWorkflowSurface = pathname === "/";
+  const isMobileWorkflowSurface = pathname === "/" || pathname.startsWith("/projects");
 
   const project = state.projects.find((entry) => entry.id === selectedProjectId) ?? state.projects[0];
   const currentUser = state.users.find((entry) => entry.id === state.currentUserId) ?? state.users[0];
