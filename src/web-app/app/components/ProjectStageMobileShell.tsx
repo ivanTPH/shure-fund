@@ -50,7 +50,7 @@ type ProjectScreen = "summary" | "stages" | "stage";
 
 const navItems: Array<{ key: MobileTab; label: string; icon: string }> = [
   { key: "notifications", label: "Notifications", icon: "/brand/icons/Notifications.svg" },
-  { key: "projects", label: "Projects", icon: "/brand/icons/Contracts.svg" },
+  { key: "projects", label: "My work", icon: "/brand/icons/Contracts.svg" },
   { key: "account", label: "Account", icon: "/brand/icons/Account.svg" },
   { key: "funds", label: "Funds", icon: "/brand/icons/Funds.svg" },
 ];
@@ -717,59 +717,63 @@ export default function ProjectStageMobileShell() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-md bg-gradient-to-b from-neutral-950 via-neutral-925 to-black px-4 pb-24 pt-5 text-neutral-100">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-neutral-500">Shure.Fund</div>
-          <div className="mt-1 text-sm text-neutral-400">Mobile workflow shell</div>
+    <div className="mobile-app-viewport text-neutral-100">
+      <div className="mobile-app-frame">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-neutral-500">Shure.Fund</div>
+            <div className="mt-1 text-sm text-neutral-400">Mobile workflow shell</div>
+          </div>
+          <select
+            className="rounded-2xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            value={project.id}
+            onChange={(event) => {
+              setSelectedProjectId(event.target.value);
+              setProjectScreen("summary");
+              setActiveTab("projects");
+            }}
+          >
+            {state.projects.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
         </div>
-        <select
-          className="rounded-2xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-          value={project.id}
-          onChange={(event) => {
-            setSelectedProjectId(event.target.value);
-            setProjectScreen("summary");
-            setActiveTab("projects");
-          }}
-        >
-          {state.projects.map((entry) => (
-            <option key={entry.id} value={entry.id}>{entry.name}</option>
-          ))}
-        </select>
+
+        {screenContent}
       </div>
 
-      {screenContent}
-
-      <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t border-neutral-800 bg-neutral-950/95 px-3 py-3 backdrop-blur">
-        <div className="grid grid-cols-4 gap-2">
-          {navItems.map((item) => {
-            const active = activeTab === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => {
-                  setActiveTab(item.key);
-                  if (item.key === "projects" && projectScreen === "stage") {
-                    setProjectScreen("summary");
-                  }
-                }}
-                className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium ${
-                  active ? "bg-blue-700 text-white" : "text-neutral-400"
-                }`}
-              >
-                <div className="relative">
-                  <Image src={item.icon} alt="" width={16} height={16} className="h-4 w-4" aria-hidden />
-                  {item.key === "notifications" && notifications.length > 0 ? (
-                    <span className="absolute -right-2 -top-2 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-white">
-                      {notifications.length}
-                    </span>
-                  ) : null}
-                </div>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/90 backdrop-blur">
+        <div className="mobile-app-bottom-nav">
+          <div className="grid grid-cols-4 gap-2">
+            {navItems.map((item) => {
+              const active = activeTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(item.key);
+                    if (item.key === "projects" && projectScreen === "stage") {
+                      setProjectScreen("summary");
+                    }
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium ${
+                    active ? "bg-blue-700 text-white" : "text-neutral-400"
+                  }`}
+                >
+                  <div className="relative">
+                    <Image src={item.icon} alt="" width={16} height={16} className="h-4 w-4" aria-hidden />
+                    {item.key === "notifications" && notifications.length > 0 ? (
+                      <span className="absolute -right-2 -top-2 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-white">
+                        {notifications.length}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>

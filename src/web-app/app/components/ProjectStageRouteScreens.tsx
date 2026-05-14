@@ -122,21 +122,23 @@ function MobileScreen({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col gap-5 bg-neutral-950 px-4 py-5 text-neutral-100">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-neutral-500">Shure.Fund</p>
-          <h1 className="mt-2 text-[1.75rem] font-black tracking-tight text-neutral-50">{title}</h1>
-          {subtitle ? <p className="mt-2 text-sm text-neutral-400">{subtitle}</p> : null}
-        </div>
-        {backHref ? (
-          <Link href={backHref} className="rounded-full border border-neutral-700 px-3 py-2 text-sm font-medium text-neutral-200">
-            {backLabel}
-          </Link>
-        ) : null}
-      </header>
-      {children}
-    </main>
+    <div className="mobile-app-viewport text-neutral-100">
+      <main className="mobile-app-frame flex flex-col gap-5">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-neutral-500">Shure.Fund</p>
+            <h1 className="mt-2 text-[1.75rem] font-black tracking-tight text-neutral-50">{title}</h1>
+            {subtitle ? <p className="mt-2 text-sm text-neutral-400">{subtitle}</p> : null}
+          </div>
+          {backHref ? (
+            <Link href={backHref} className="rounded-full border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-sm font-medium text-neutral-200">
+              {backLabel}
+            </Link>
+          ) : null}
+        </header>
+        {children}
+      </main>
+    </div>
   );
 }
 

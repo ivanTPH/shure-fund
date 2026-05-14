@@ -1,5 +1,5 @@
-import { StageListRouteScreen } from "../components/ProjectStageRouteScreens";
+import ProjectsListScreen from "./ProjectsListScreen";
 
 export default function ProjectsPage() {
-  return <StageListRouteScreen />;
+  return <ProjectsListScreen />;
 }

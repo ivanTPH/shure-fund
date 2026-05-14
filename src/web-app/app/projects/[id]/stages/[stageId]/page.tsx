@@ -1,4 +1,7 @@
-import { StageDetailRouteScreen } from "../../../../components/ProjectStageRouteScreens";
+import { Suspense } from "react";
+
+import { StageDetailRouteScreen } from "../../../../components/RoutedMobileScreens";
+import VisibleRouteFallback from "../../../../components/prototype/VisibleRouteFallback";
 
 export default async function StageDetailPage({
   params,
@@ -7,5 +10,17 @@ export default async function StageDetailPage({
 }) {
   const { id, stageId } = await params;
 
-  return <StageDetailRouteScreen routeProjectId={id} routeStageId={stageId} />;
+  return (
+    <Suspense
+      fallback={
+        <VisibleRouteFallback
+          title="Preparing stage detail"
+          detail="Preparing the current funding position and workflow view for this stage."
+          actionLabel="Loading the selected package and contract position."
+        />
+      }
+    >
+      <StageDetailRouteScreen routeProjectId={id} routeStageId={stageId} />
+    </Suspense>
+  );
 }

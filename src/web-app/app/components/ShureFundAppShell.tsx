@@ -17,6 +17,7 @@ import {
 import type { SystemStateRecord } from "@/lib/shureFundModels";
 import type { WorkspaceDecisionCue } from "@/lib/systemState";
 import { activeControl, isControlActive, uiControlChecklist } from "./uiCapability";
+import AuthUserBadge, { SignOutButton } from "./AuthUserBadge";
 
 export type AppSection = "actions" | "summary" | "payments" | "packages" | "activity" | "settings";
 
@@ -129,9 +130,7 @@ export default function ShureFundAppShell({
   return (
     <ShellStateContext.Provider value={contextValue}>
       {isMobileWorkflowSurface ? (
-        <div className="min-h-screen bg-neutral-950 text-neutral-100">
-          {children}
-        </div>
+        children
       ) : (
         <div className="flex h-screen overflow-hidden bg-transparent text-[var(--foreground)]">
           <div className="flex min-h-0 flex-1 flex-col">
@@ -168,6 +167,8 @@ export default function ShureFundAppShell({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
+                  <AuthUserBadge variant="light" />
+                  <SignOutButton variant="light" />
                   <Link
                     href="/requests"
                     className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold"

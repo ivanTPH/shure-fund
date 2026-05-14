@@ -1,0 +1,231 @@
+"use client";
+
+import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/browser";
+
+const DEV_PROFILES = [
+  { role: "funder",      label: "Funder",      email: "funder@test.com",      color: "#0D1144" },
+  { role: "developer",   label: "Developer",   email: "developer@test.com",   color: "#1a3a6b" },
+  { role: "contractor",  label: "Contractor",  email: "contractor@test.com",  color: "#1e5c3a" },
+  { role: "commercial",  label: "Commercial",  email: "commercial@test.com",  color: "#7c3a00" },
+  { role: "consultant",  label: "Consultant",  email: "consultant@test.com",  color: "#5b2a8a" },
+  { role: "admin",       label: "Admin",       email: "admin@test.com",       color: "#8a0000" },
+] as const;
+
+export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") ?? "/";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [devLoading, setDevLoading] = useState<string | null>(null);
+
+  async function signIn(emailVal: string, passwordVal: string) {
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: emailVal,
+      password: passwordVal,
+    });
+    return authError;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const authError = await signIn(email, password);
+    if (authError) {
+      setError(authError.message);
+      setLoading(false);
+      return;
+    }
+    router.push(redirectTo);
+    router.refresh();
+  }
+
+  async function handleDevLogin(profileEmail: string, role: string) {
+    setError(null);
+    setDevLoading(role);
+    const authError = await signIn(profileEmail, "password123");
+    if (authError) {
+      setError(authError.message);
+      setDevLoading(null);
+      return;
+    }
+    router.push(redirectTo);
+    router.refresh();
+  }
+
+  return (
+    <div
+      className="flex min-h-screen flex-col items-center justify-center px-4 py-16"
+      style={{ backgroundColor: "var(--surface-muted, #f7f8fc)" }}
+    >
+      <div
+        className="w-full max-w-sm rounded-[28px] bg-white p-8 shadow-sm"
+        style={{ border: "1px solid var(--surface-border, #e4e7f0)" }}
+      >
+        {/* Brand mark */}
+        <div className="mb-8 flex items-center gap-3">
+          <Image
+            src="/brand/shure-fund-icon.png"
+            alt="Shure.Fund"
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-[12px]"
+            priority
+          />
+          <div>
+            <p
+              className="text-base font-semibold tracking-[0.18em]"
+              style={{ color: "var(--brand-navy-strong, #0D1144)" }}
+            >
+              SHURE.FUND
+            </p>
+            <p
+              className="text-[11px] uppercase tracking-[0.22em]"
+              style={{ color: "rgba(13,17,68,0.5)" }}
+            >
+              Secure sign in
+            </p>
+          </div>
+        </div>
+
+        <h1
+          className="mb-1 text-2xl font-semibold tracking-tight"
+          style={{ color: "var(--brand-navy, #0D1144)" }}
+        >
+          Welcome back
+        </h1>
+        <p className="mb-7 text-sm" style={{ color: "rgba(13,17,68,0.6)" }}>
+          Sign in to access your projects and workflow.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="email"
+              className="mb-1.5 block text-xs font-medium uppercase tracking-[0.14em]"
+              style={{ color: "rgba(13,17,68,0.55)" }}
+            >
+              Email address
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none transition focus:ring-2"
+              style={{
+                border: "1px solid var(--surface-border, #e4e7f0)",
+                color: "var(--brand-navy, #0D1144)",
+                backgroundColor: "var(--surface-muted, #f7f8fc)",
+              }}
+              placeholder="you@yourcompany.com"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-1.5 block text-xs font-medium uppercase tracking-[0.14em]"
+              style={{ color: "rgba(13,17,68,0.55)" }}
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none transition"
+              style={{
+                border: "1px solid var(--surface-border, #e4e7f0)",
+                color: "var(--brand-navy, #0D1144)",
+                backgroundColor: "var(--surface-muted, #f7f8fc)",
+              }}
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error ? (
+            <div
+              className="rounded-xl px-4 py-3 text-sm"
+              style={{
+                backgroundColor: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                color: "#dc2626",
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-2 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-opacity disabled:opacity-60"
+            style={{
+              backgroundColor: "var(--brand-navy, #0D1144)",
+              color: "var(--brand-white, #fff)",
+            }}
+          >
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        <p
+          className="mt-6 text-center text-xs"
+          style={{ color: "rgba(13,17,68,0.45)" }}
+        >
+          Access is invitation-only. Contact your project administrator if you
+          need an account.
+        </p>
+      </div>
+
+      {/* Dev-only profile switcher */}
+      {process.env.NODE_ENV === "development" && (
+        <div
+          className="mt-6 w-full max-w-sm rounded-[20px] p-5"
+          style={{
+            backgroundColor: "rgba(255,255,255,0.7)",
+            border: "1px dashed rgba(13,17,68,0.2)",
+          }}
+        >
+          <p
+            className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]"
+            style={{ color: "rgba(13,17,68,0.4)" }}
+          >
+            Dev — Quick sign in
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {DEV_PROFILES.map((p) => (
+              <button
+                key={p.role}
+                onClick={() => handleDevLogin(p.email, p.role)}
+                disabled={devLoading !== null}
+                className="rounded-xl px-3 py-2.5 text-xs font-semibold transition-opacity disabled:opacity-50"
+                style={{
+                  backgroundColor: p.color,
+                  color: "#fff",
+                  opacity: devLoading === p.role ? 0.7 : undefined,
+                }}
+              >
+                {devLoading === p.role ? "…" : p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

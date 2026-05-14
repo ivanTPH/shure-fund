@@ -1,5 +1,5 @@
-import ShureFundDashboard from "../components/ShureFundDashboard";
+import { redirect } from "next/navigation";
 
 export default function SettingsPage() {
-  return <ShureFundDashboard section="settings" />;
+  redirect("/");
 }

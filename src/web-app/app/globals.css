@@ -3,7 +3,7 @@
 :root {
   --brand-navy: #0d1144;
   --brand-navy-strong: #08126d;
-  --brand-aqua: #71f3cb;
+  --brand-aqua: #10b981;
   --brand-white: #ffffff;
   --background: var(--brand-white);
   --foreground: var(--brand-navy);
@@ -22,14 +22,43 @@
 
 html {
   background:
-    radial-gradient(circle at top right, rgba(113, 243, 203, 0.18), transparent 28%),
-    linear-gradient(180deg, #ffffff 0%, rgba(113, 243, 203, 0.06) 100%);
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.1), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
+}
+
+.mobile-app-viewport {
+  min-height: 100dvh;
+  width: 100%;
+  background:
+    radial-gradient(circle at top, rgba(16, 185, 129, 0.08), transparent 32%),
+    linear-gradient(180deg, #f8fafc 0%, #f8fafc 48%, #f1f5f9 100%);
+}
+
+.mobile-app-frame {
+  width: 100%;
+  max-width: 420px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding:
+    calc(1rem + env(safe-area-inset-top))
+    1rem
+    calc(6.5rem + env(safe-area-inset-bottom));
+}
+
+.mobile-app-bottom-nav {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding:
+    0.75rem
+    0.75rem
+    calc(0.75rem + env(safe-area-inset-bottom));
 }
 
 ::selection {

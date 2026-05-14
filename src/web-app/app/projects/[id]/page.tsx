@@ -1,11 +1,10 @@
-import { StageListRouteScreen } from "../../components/ProjectStageRouteScreens";
+import ProjectSummaryClient from "./ProjectSummaryClient";
 
-export default async function ProjectStagesPage({
+export default async function ProjectSummaryPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
-  return <StageListRouteScreen routeProjectId={id} />;
+  return <ProjectSummaryClient projectId={id} />;
 }

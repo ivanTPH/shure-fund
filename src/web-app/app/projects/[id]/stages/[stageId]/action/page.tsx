@@ -1,4 +1,4 @@
-import { StageActionRouteScreen } from "../../../../../components/ProjectStageRouteScreens";
+import { StageActionRouteScreen } from "../../../../../components/RoutedMobileScreens";
 
 export default async function StageActionPage({
   params,
