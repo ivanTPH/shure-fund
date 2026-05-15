@@ -31,6 +31,9 @@ import AuthUserBadge, { SignOutButton } from "./AuthUserBadge";
 import type { TransitionAction } from "@/lib/workflow/stateMachine";
 import EvidenceUpload from "./evidence/EvidenceUpload";
 import FundingBanner from "./FundingBanner";
+import VariationList from "./VariationList";
+import NotificationBell from "./notifications/NotificationBell";
+import DisputeList from "./DisputeList";
 
 const currency = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -675,16 +678,19 @@ export function ProjectSummaryRouteScreen() {
       subtitle={`${project.location}. One project summary, one next governed move, one consistent mobile flow.`}
       footer={<PrimaryFooterLink href={`/projects/${project.id}`} label="Open stage list" />}
       headerAccessory={
-        <select
-          className="max-w-[8.5rem] rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-          value={state.currentUserId}
-          onChange={(event) => setState((current) => setCurrentUser(current, event.target.value))}
-          aria-label="Switch acting role"
-        >
-          {switchableUsers.map((user) => (
-            <option key={user.id} value={user.id}>{getUserFacingRoleLabel(user.role)}</option>
-          ))}
-        </select>
+        <>
+          <select
+            className="max-w-[8.5rem] rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            value={state.currentUserId}
+            onChange={(event) => setState((current) => setCurrentUser(current, event.target.value))}
+            aria-label="Switch acting role"
+          >
+            {switchableUsers.map((user) => (
+              <option key={user.id} value={user.id}>{getUserFacingRoleLabel(user.role)}</option>
+            ))}
+          </select>
+          <NotificationBell />
+        </>
       }
     >
       <ScreenPanel title="Project posture">
@@ -907,6 +913,7 @@ export function StageDetailRouteScreen({
       title={stageDetail.stage.name}
       subtitle={`${project.name}. Financial position first, then the workflow context supporting it.`}
       backHref={`/projects/${project.id}`}
+      headerAccessory={<NotificationBell />}
     >
       <FundingPositionRing detail={stageDetail} activeSegment={activeFundingState} onSelectSegment={setActiveFundingState} />
 
@@ -1042,6 +1049,16 @@ export function StageDetailRouteScreen({
             </Link>
           </div>
         </div>
+      </section>
+
+      <section className="px-4 pb-6">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Variations</h2>
+        <VariationList stageId={routeStageId} projectId={routeProjectId} />
+      </section>
+
+      <section className="px-4 pb-8">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Disputes</h2>
+        <DisputeList stageId={routeStageId} projectId={routeProjectId} />
       </section>
     </MobileFlowLayout>
   );

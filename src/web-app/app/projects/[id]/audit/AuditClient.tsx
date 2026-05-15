@@ -103,6 +103,29 @@ export default function AuditClient({
     [initialEvents, stageFilter, actionFilter],
   );
 
+  function exportCSV() {
+    const header = ["id", "date", "action", "stage", "from_state", "to_state", "actor", "role", "reason"];
+    const rows = filtered.map((ev) => [
+      ev.id,
+      formatTs(ev.createdAt),
+      ev.action,
+      ev.stageName ?? "",
+      ev.fromState ?? "",
+      ev.toState ?? "",
+      ev.actor?.full_name ?? "",
+      ev.actor?.role ?? "",
+      ev.metadata?.reason !== undefined ? String(ev.metadata.reason) : "",
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-${projectId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const selectClass =
     "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
 
@@ -162,6 +185,14 @@ export default function AuditClient({
         <span className="ml-auto self-center text-xs text-neutral-500">
           {filtered.length} event{filtered.length !== 1 ? "s" : ""}
         </span>
+
+        <button
+          type="button"
+          onClick={exportCSV}
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 hover:text-white"
+        >
+          Export CSV
+        </button>
       </div>
 
       {/* Events */}
