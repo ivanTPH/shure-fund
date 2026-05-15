@@ -1,5 +1,5 @@
 /**
- * GET /api/projects/[projectId]/wallet  — get wallet balance for a project
+ * GET /api/projects/[projectId]/wallet  — get wallet balances for a project
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
   const { data, error } = await service
     .from("wallets")
-    .select("id, total_deposited, available_amount, reserved_amount, released_amount, updated_at")
+    .select("id, balance, available_amount, ringfenced_amount, updated_at")
     .eq("project_id", projectId)
     .single();
 

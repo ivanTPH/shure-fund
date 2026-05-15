@@ -67,8 +67,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { data: variation, error: vErr } = await service
     .from("variations")
     .select(`id, stage_id, status, value_change, requested_by,
-             stage:contract_stages!stage_id ( value,
-               contracts!inner ( project_id ) )`)
+             stage:contract_stages!stage_id ( id, name, value,
+               contracts!inner ( id, project_id ) )`)
     .eq("id", variationId)
     .single();
 
@@ -132,13 +132,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const stg = Array.isArray(variation.stage) ? variation.stage[0] : variation.stage;
     const contract = Array.isArray(stg?.contracts) ? stg.contracts[0] : stg?.contracts;
     const projectId = contract?.project_id ?? null;
+    const contractId = contract?.id ?? null;
+    const stageName = stg?.name ?? variationId;
 
     if (rule.to === "submitted") {
-      await notifyVariationSubmitted(service, variation.stage_id, variationId, projectId);
+      await notifyVariationSubmitted(service, projectId, variation.stage_id, stageName, contractId, variationId, Number(variation.value_change));
     } else if (rule.to === "approved") {
-      await notifyVariationApproved(service, variation.stage_id, variationId, projectId, variation.requested_by as string);
+      await notifyVariationApproved(service, projectId, variation.stage_id, stageName, contractId, variationId, variation.requested_by as string);
     } else if (rule.to === "rejected") {
-      await notifyVariationRejected(service, variation.stage_id, variationId, projectId, variation.requested_by as string);
+      await notifyVariationRejected(service, projectId, variation.stage_id, stageName, contractId, variationId, variation.requested_by as string);
     }
   } catch { /* non-fatal */ }
 

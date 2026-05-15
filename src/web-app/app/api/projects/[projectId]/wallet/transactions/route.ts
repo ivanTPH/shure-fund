@@ -16,7 +16,6 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   const { projectId } = await context.params;
   const service = createServiceClient();
 
-  // Get wallet id first
   const { data: wallet } = await service
     .from("wallets")
     .select("id")
@@ -27,7 +26,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
   const { data, error } = await service
     .from("wallet_transactions")
-    .select("id, type, amount, description, balance_after, created_at")
+    .select("id, type, amount, reference, created_at")
     .eq("wallet_id", wallet.id)
     .order("created_at", { ascending: false })
     .limit(100);

@@ -11,17 +11,15 @@ type WalletTx = {
   id: string;
   type: string;
   amount: number;
-  description: string | null;
+  reference: string;
   created_at: string;
-  balance_after: number | null;
 };
 
 type Wallet = {
   id: string;
-  total_deposited: number;
+  balance: number;
   available_amount: number;
-  reserved_amount: number;
-  released_amount: number;
+  ringfenced_amount: number;
 };
 
 export default function WalletPage() {
@@ -48,7 +46,12 @@ export default function WalletPage() {
   }, [projectId]);
 
   const TX_COLOR: Record<string, string> = {
-    deposit: "#34d399", release: "#f87171", reserve: "#fbbf24", reversal: "#60a5fa",
+    deposit: "#34d399",
+    allocation_in: "#60a5fa",
+    allocation_out: "#fbbf24",
+    release: "#f87171",
+    reversal: "#a78bfa",
+    buffer_adjustment: "#94a3b8",
   };
 
   if (loading) return (
@@ -74,16 +77,15 @@ export default function WalletPage() {
       {wallet && (
         <div className="mt-6 max-w-lg space-y-4">
           {/* Balances */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {[
+              { label: "Total balance", value: wallet.balance, color: "#94a3b8" },
               { label: "Available", value: wallet.available_amount, color: "#34d399" },
-              { label: "Reserved", value: wallet.reserved_amount, color: "#fbbf24" },
-              { label: "Released", value: wallet.released_amount, color: "#f87171" },
-              { label: "Total deposited", value: wallet.total_deposited, color: "#94a3b8" },
+              { label: "Ring-fenced", value: wallet.ringfenced_amount, color: "#fbbf24" },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
-                <p className="text-xs text-neutral-500">{label}</p>
-                <p className="mt-1 text-lg font-bold" style={{ color }}>{gbp.format(Number(value))}</p>
+                <p className="text-[10px] uppercase tracking-wider text-neutral-500">{label}</p>
+                <p className="mt-1 text-base font-bold" style={{ color }}>{gbp.format(Number(value))}</p>
               </div>
             ))}
           </div>
@@ -97,20 +99,17 @@ export default function WalletPage() {
               <div className="space-y-2">
                 {transactions.map((tx) => {
                   const color = TX_COLOR[tx.type] ?? "#94a3b8";
+                  const isOut = tx.type === "release" || tx.type === "allocation_out";
                   return (
                     <div key={tx.id} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
                       <div className="min-w-0">
-                        <p className="truncate text-sm text-white">{tx.description ?? tx.type}</p>
+                        <p className="truncate text-sm text-white">{tx.reference}</p>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-neutral-500">{tx.type.replace(/_/g, " ")}</p>
                         <p className="mt-0.5 text-xs text-neutral-500">{fmt.format(new Date(tx.created_at))}</p>
                       </div>
-                      <div className="ml-3 shrink-0 text-right">
-                        <p className="text-sm font-bold" style={{ color }}>
-                          {tx.type === "release" || tx.type === "reserve" ? "−" : "+"}{gbp.format(Math.abs(Number(tx.amount)))}
-                        </p>
-                        {tx.balance_after !== null && (
-                          <p className="text-xs text-neutral-500">bal {gbp.format(Number(tx.balance_after))}</p>
-                        )}
-                      </div>
+                      <p className="ml-3 shrink-0 text-sm font-bold" style={{ color }}>
+                        {isOut ? "−" : "+"}{gbp.format(Math.abs(Number(tx.amount)))}
+                      </p>
                     </div>
                   );
                 })}

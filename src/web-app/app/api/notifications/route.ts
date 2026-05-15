@@ -1,5 +1,5 @@
 /**
- * GET /api/notifications  — list notifications for the current user
+ * GET /api/notifications  — list notifications for the current user (richer fields)
  * PATCH /api/notifications  — mark all as read
  */
 import { NextResponse } from "next/server";
@@ -15,7 +15,12 @@ export async function GET(_req: NextRequest) {
   const service = createServiceClient();
   const { data, error } = await service
     .from("notifications")
-    .select("id, type, message, action_url, read, created_at, project_id, stage_id")
+    .select(`
+      id, type, required_action, message,
+      entity_type, entity_id, entity_name,
+      action_url, read, created_at,
+      project_id, stage_id, contract_id
+    `)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50);

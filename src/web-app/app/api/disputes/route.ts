@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const service = createServiceClient();
   const { data, error } = await service
     .from("disputes")
-    .select(`id, reason, status, created_at, resolution_notes,
+    .select(`id, reason, status, disputed_value, created_at, resolution_notes,
              raiser:users!raised_by ( id, full_name, role ),
              respondent:users!respondent_id ( id, full_name, role )`)
     .eq("stage_id", stageId)
@@ -38,35 +38,40 @@ export async function POST(req: NextRequest) {
   const role = getRole(user);
   if (!role) return NextResponse.json({ error: "No role assigned" }, { status: 403 });
 
-  let body: { stageId: string; reason: string; evidenceUrl?: string };
+  let body: { stageId: string; reason: string; disputedValue: number; evidenceUrl?: string };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { stageId, reason, evidenceUrl } = body;
+  const { stageId, reason, disputedValue, evidenceUrl } = body;
   if (!stageId) return NextResponse.json({ error: "stageId required" }, { status: 400 });
   if (!reason?.trim()) return NextResponse.json({ error: "Reason is required" }, { status: 400 });
+  if (!disputedValue || isNaN(Number(disputedValue)) || Number(disputedValue) <= 0) {
+    return NextResponse.json({ error: "Disputed value must be a positive number" }, { status: 400 });
+  }
 
   const service = createServiceClient();
 
-  // Get stage → project
+  // Get stage → contract → project
   const { data: stage } = await service
     .from("contract_stages")
-    .select("id, name, contracts!inner ( project_id )")
+    .select("id, name, contracts!inner ( id, project_id )")
     .eq("id", stageId)
     .single();
 
   const contract = Array.isArray(stage?.contracts) ? stage.contracts[0] : stage?.contracts;
   const projectId = contract?.project_id ?? null;
+  const contractId = contract?.id ?? null;
 
   const { data: dispute, error } = await service
     .from("disputes")
     .insert({
-      stage_id: stageId,
-      raised_by: user.id,
-      reason: reason.trim(),
-      evidence_url: evidenceUrl ?? null,
-      status: "raised",
+      stage_id:       stageId,
+      raised_by:      user.id,
+      reason:         reason.trim(),
+      disputed_value: Number(disputedValue),
+      evidence_url:   evidenceUrl ?? null,
+      status:         "raised",
     })
     .select("id")
     .single();
@@ -75,7 +80,9 @@ export async function POST(req: NextRequest) {
 
   // Notify
   try {
-    await notifyDisputeRaised(service, stageId, stage?.name ?? stageId, projectId);
+    if (projectId) {
+      await notifyDisputeRaised(service, projectId, stageId, stage?.name ?? stageId, contractId, dispute.id);
+    }
   } catch { /* non-fatal */ }
 
   return NextResponse.json({ dispute }, { status: 201 });

@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest) {
   const service = createServiceClient();
   const { data, error } = await service
     .from("projects")
-    .select("id, name, location, status, created_at")
+    .select("id, name, address, status, created_at")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -33,19 +33,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Only admins or developers can create projects" }, { status: 403 });
   }
 
-  let body: { name: string; location?: string };
+  let body: { name: string; location?: string; funderId?: string };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, location } = body;
+  const { name, location, funderId } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Project name is required" }, { status: 400 });
 
+  // Ensure the creating user has a profile row (needed for FK)
   const service = createServiceClient();
+  await service.from("users").upsert({ id: user.id, email: user.email ?? "", full_name: user.user_metadata?.full_name ?? user.email ?? "", role: getRole(user) ?? "developer" }, { onConflict: "id" });
+
   const { data, error } = await service
     .from("projects")
-    .insert({ name: name.trim(), location: location?.trim() ?? "", status: "active" })
-    .select("id, name, location, status, created_at")
+    .insert({
+      name:         name.trim(),
+      address:      location?.trim() ?? "",
+      status:       "active",
+      developer_id: user.id,                   // creator is the developer
+      funder_id:    funderId ?? user.id,        // caller can provide a funder; defaults to creator
+    })
+    .select("id, name, address, status, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -9,6 +9,7 @@ export default function NewDisputePage() {
   const { id: projectId, stageId } = useParams<{ id: string; stageId: string }>();
 
   const [reason, setReason] = useState("");
+  const [disputedValue, setDisputedValue] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,13 +18,20 @@ export default function NewDisputePage() {
     e.preventDefault();
     setError(null);
     if (!reason.trim()) { setError("Reason is required."); return; }
+    const dv = parseFloat(disputedValue);
+    if (isNaN(dv) || dv <= 0) { setError("Disputed value must be a positive number."); return; }
 
     setSubmitting(true);
     try {
       const res = await fetch("/api/disputes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stageId, reason: reason.trim(), evidenceUrl: evidenceUrl.trim() || undefined }),
+        body: JSON.stringify({
+          stageId,
+          reason: reason.trim(),
+          disputedValue: dv,
+          evidenceUrl: evidenceUrl.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Failed to raise dispute."); return; }
@@ -48,7 +56,25 @@ export default function NewDisputePage() {
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-lg space-y-4">
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-400">Reason for dispute</label>
+          <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-400">
+            Disputed value (£)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
+            placeholder="e.g. 12500"
+            value={disputedValue}
+            onChange={(e) => setDisputedValue(e.target.value)}
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-400">
+            Reason for dispute
+          </label>
           <textarea
             className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
             rows={5}

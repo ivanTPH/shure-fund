@@ -36,6 +36,12 @@ import {
   type StageStatus,
   type TransitionAction,
 } from "@/lib/workflow/stateMachine";
+import {
+  notifyApprovalRequired,
+  notifyPaymentReady,
+  notifyEvidenceRequired,
+  notifyFundingGap,
+} from "@/lib/notifications/notificationService";
 
 // ---------------------------------------------------------------------------
 // Request body type
@@ -291,7 +297,32 @@ export async function POST(
     );
   }
 
-  // ---- 8. Success ----
+  // ---- 8. Fire notifications (non-fatal) ----
+  try {
+    // Resolve project + contract for notification context
+    const { data: stageCtx } = await serviceClient
+      .from("contract_stages")
+      .select("contracts!inner ( id, project_id )")
+      .eq("id", stageId)
+      .single();
+    const contract = Array.isArray(stageCtx?.contracts) ? stageCtx.contracts[0] : stageCtx?.contracts;
+    const projectId: string | null = contract?.project_id ?? null;
+    const contractId: string | null = contract?.id ?? null;
+
+    if (projectId) {
+      if (rule.to === "awaiting_approval") {
+        await notifyApprovalRequired(serviceClient, projectId, stageId, stage.name, contractId);
+      } else if (rule.to === "available_to_release") {
+        await notifyPaymentReady(serviceClient, projectId, stageId, stage.name, contractId);
+      } else if (rule.to === "in_progress") {
+        await notifyEvidenceRequired(serviceClient, projectId, stageId, stage.name, contractId);
+      } else if (rule.to === "funding_gap") {
+        await notifyFundingGap(serviceClient, projectId, stageId, stage.name, contractId);
+      }
+    }
+  } catch { /* non-fatal — transitions must never fail due to notification errors */ }
+
+  // ---- 9. Success ----
   return NextResponse.json({
     ok: true,
     stageId,
