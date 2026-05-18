@@ -356,35 +356,94 @@ export default function WalletPage() {
             </div>
           )}
 
-          {/* 4. Transaction history */}
+          {/* 4. Transaction history — bank statement format */}
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Transaction history</p>
             {transactions.length === 0 ? (
               <p className="text-sm text-neutral-500">No transactions yet.</p>
             ) : (
-              <div className="space-y-2">
-                {transactions.map((tx) => {
-                  const color = TX_TYPE_COLOR[tx.type] ?? "#94a3b8";
-                  const isOut = TX_OUTBOUND.has(tx.type);
-                  return (
-                    <div
-                      key={tx.id}
-                      className="flex items-center justify-between rounded-2xl px-4 py-3"
-                      style={{ border: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.03)" }}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white">{tx.reference}</p>
-                        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>
-                          {tx.type.replace(/_/g, " ")}
-                        </p>
-                        <p className="mt-0.5 text-xs text-neutral-500">{fmt.format(new Date(tx.created_at))}</p>
+              <div
+                className="rounded-[20px] overflow-hidden"
+                style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr
+                        className="text-left text-[10px] font-semibold uppercase tracking-widest text-neutral-500"
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                      >
+                        <th className="px-5 py-3">Date</th>
+                        <th className="px-5 py-3">Description</th>
+                        <th className="px-5 py-3">Type</th>
+                        <th className="px-5 py-3 text-right" style={{ color: "#f87171" }}>Money out</th>
+                        <th className="px-5 py-3 text-right" style={{ color: "#34d399" }}>Money in</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactions.map((tx, i) => {
+                        const isOut = TX_OUTBOUND.has(tx.type);
+                        const amt = Math.abs(Number(tx.amount));
+                        return (
+                          <tr
+                            key={tx.id}
+                            style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : undefined, backgroundColor: "rgba(255,255,255,0.02)" }}
+                          >
+                            <td className="px-5 py-3 text-xs text-neutral-400 whitespace-nowrap">{fmt.format(new Date(tx.created_at))}</td>
+                            <td className="px-5 py-3 font-medium text-white max-w-xs truncate">{tx.reference}</td>
+                            <td className="px-5 py-3">
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                style={{ backgroundColor: (TX_TYPE_COLOR[tx.type] ?? "#94a3b8") + "18", color: TX_TYPE_COLOR[tx.type] ?? "#94a3b8" }}
+                              >
+                                {tx.type.replace(/_/g, " ")}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-right font-bold" style={{ color: isOut ? "#f87171" : "transparent" }}>
+                              {isOut ? gbp.format(amt) : "—"}
+                            </td>
+                            <td className="px-5 py-3 text-right font-bold" style={{ color: !isOut ? "#34d399" : "transparent" }}>
+                              {!isOut ? gbp.format(amt) : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile — stacked with debit/credit side-by-side */}
+                <div className="md:hidden divide-y divide-white/5">
+                  {transactions.map((tx) => {
+                    const isOut = TX_OUTBOUND.has(tx.type);
+                    const amt = Math.abs(Number(tx.amount));
+                    return (
+                      <div key={tx.id} className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-white truncate">{tx.reference}</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: TX_TYPE_COLOR[tx.type] ?? "#94a3b8" }}>
+                            {tx.type.replace(/_/g, " ")}
+                          </p>
+                          <p className="text-xs text-neutral-500 mt-0.5">{fmt.format(new Date(tx.created_at))}</p>
+                        </div>
+                        <div className="ml-4 text-right shrink-0">
+                          {isOut ? (
+                            <>
+                              <p className="text-xs text-neutral-500">out</p>
+                              <p className="text-sm font-bold" style={{ color: "#f87171" }}>−{gbp.format(amt)}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs text-neutral-500">in</p>
+                              <p className="text-sm font-bold" style={{ color: "#34d399" }}>+{gbp.format(amt)}</p>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <p className="ml-4 shrink-0 text-sm font-bold" style={{ color }}>
-                        {isOut ? "−" : "+"}{gbp.format(Math.abs(Number(tx.amount)))}
-                      </p>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
