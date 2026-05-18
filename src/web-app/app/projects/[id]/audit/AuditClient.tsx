@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,9 +60,21 @@ const ACTION_COLORS: Record<string, string> = {
   release_failed: "#ef4444",
   dispute_opened: "#f97316",
   dispute_resolved: "#fb923c",
+  variation_requested: "#38bdf8",
+  variation_approved: "#34d399",
+  variation_activated: "#a3e635",
   wallet_funded: "#38bdf8",
   wallet_allocated: "#7dd3fc",
   override_applied: "#e879f9",
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  funder: "Funder",
+  developer: "Developer",
+  contractor: "Contractor",
+  commercial: "Commercial",
+  consultant: "Consultant",
+  admin: "Admin",
 };
 
 // ---------------------------------------------------------------------------
@@ -77,8 +90,11 @@ export default function AuditClient({
 }) {
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
-  // Build unique stage + action lists from data
+  // Build unique stage / action / role lists from data
   const stages = useMemo(() => {
     const seen = new Map<string, string>();
     for (const ev of initialEvents) {
@@ -93,18 +109,41 @@ export default function AuditClient({
     return Array.from(seen).sort();
   }, [initialEvents]);
 
-  const filtered = useMemo(
-    () =>
-      initialEvents.filter((ev) => {
-        if (stageFilter !== "all" && ev.stageId !== stageFilter) return false;
-        if (actionFilter !== "all" && ev.action !== actionFilter) return false;
-        return true;
-      }),
-    [initialEvents, stageFilter, actionFilter],
-  );
+  const roles = useMemo(() => {
+    const seen = new Set<string>();
+    for (const ev of initialEvents) if (ev.actor?.role) seen.add(ev.actor.role);
+    return Array.from(seen).sort();
+  }, [initialEvents]);
+
+  const filtered = useMemo(() => {
+    const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
+    // dateTo is a date (no time) — treat it as end of that day
+    const toTs = dateTo ? new Date(dateTo + "T23:59:59").getTime() : null;
+
+    return initialEvents.filter((ev) => {
+      if (stageFilter !== "all" && ev.stageId !== stageFilter) return false;
+      if (actionFilter !== "all" && ev.action !== actionFilter) return false;
+      if (roleFilter !== "all" && ev.actor?.role !== roleFilter) return false;
+      const evTs = new Date(ev.createdAt).getTime();
+      if (fromTs !== null && evTs < fromTs) return false;
+      if (toTs !== null && evTs > toTs) return false;
+      return true;
+    });
+  }, [initialEvents, stageFilter, actionFilter, roleFilter, dateFrom, dateTo]);
+
+  function clearFilters() {
+    setStageFilter("all");
+    setActionFilter("all");
+    setRoleFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  }
+
+  const hasFilters =
+    stageFilter !== "all" || actionFilter !== "all" || roleFilter !== "all" || dateFrom !== "" || dateTo !== "";
 
   function exportCSV() {
-    const header = ["id", "date", "action", "stage", "from_state", "to_state", "actor", "role", "reason"];
+    const header = ["id", "date", "action", "stage", "from_state", "to_state", "actor", "role", "notes"];
     const rows = filtered.map((ev) => [
       ev.id,
       formatTs(ev.createdAt),
@@ -116,7 +155,9 @@ export default function AuditClient({
       ev.actor?.role ?? "",
       ev.metadata?.reason !== undefined ? String(ev.metadata.reason) : "",
     ]);
-    const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = [header, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -128,15 +169,20 @@ export default function AuditClient({
 
   const selectClass =
     "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
+  const inputClass =
+    "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
 
   return (
     <div className="min-h-screen px-4 py-6" style={{ backgroundColor: "#0d1144" }}>
       {/* Header */}
       <div className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-          Shure.Fund
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">
+        <Link
+          href={`/projects/${projectId}`}
+          className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500 hover:text-neutral-300"
+        >
+          ← Back to project
+        </Link>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">
           Audit trail
         </h1>
         <p className="mt-1 text-sm text-neutral-400">
@@ -146,36 +192,54 @@ export default function AuditClient({
 
       {/* Filters */}
       <div className="mb-4 flex flex-wrap gap-2">
-        <select
-          value={stageFilter}
-          onChange={(e) => setStageFilter(e.target.value)}
-          className={selectClass}
-        >
+        {/* Stage */}
+        <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className={selectClass}>
           <option value="all">All stages</option>
           {stages.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
+            <option key={id} value={id}>{name}</option>
           ))}
         </select>
 
-        <select
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
-          className={selectClass}
-        >
+        {/* Action */}
+        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectClass}>
           <option value="all">All actions</option>
           {actions.map((action) => (
-            <option key={action} value={action}>
-              {actionLabel(action)}
-            </option>
+            <option key={action} value={action}>{actionLabel(action)}</option>
           ))}
         </select>
 
-        {(stageFilter !== "all" || actionFilter !== "all") && (
+        {/* Role */}
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
+          <option value="all">All roles</option>
+          {roles.map((role) => (
+            <option key={role} value={role}>{ROLE_LABELS[role] ?? role}</option>
+          ))}
+        </select>
+
+        {/* Date from */}
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className={inputClass}
+          title="From date"
+          style={{ colorScheme: "dark" }}
+        />
+
+        {/* Date to */}
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className={inputClass}
+          title="To date"
+          style={{ colorScheme: "dark" }}
+        />
+
+        {hasFilters && (
           <button
             type="button"
-            onClick={() => { setStageFilter("all"); setActionFilter("all"); }}
+            onClick={clearFilters}
             className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 hover:text-white"
           >
             Clear filters
@@ -216,28 +280,39 @@ export default function AuditClient({
                   backgroundColor: "rgba(255,255,255,0.04)",
                 }}
               >
-                {/* Top row: action + timestamp */}
+                {/* Top row: timestamp | action | role pill */}
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span
                       className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full"
                       style={{ backgroundColor: dotColor }}
                     />
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: dotColor }}
-                    >
+                    <span className="text-sm font-semibold" style={{ color: dotColor }}>
                       {actionLabel(ev.action)}
                     </span>
+                    {ev.actor?.role && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ backgroundColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}
+                      >
+                        {ROLE_LABELS[ev.actor.role] ?? ev.actor.role}
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-neutral-500">{formatTs(ev.createdAt)}</span>
                 </div>
 
+                {/* Actor */}
+                {ev.actor && (
+                  <p className="mt-1.5 text-xs text-neutral-500">
+                    <span className="font-medium text-neutral-300">{ev.actor.full_name}</span>
+                  </p>
+                )}
+
                 {/* Stage name */}
                 {ev.stageName && (
-                  <p className="mt-1.5 text-xs text-neutral-400">
-                    Stage:{" "}
-                    <span className="font-medium text-neutral-200">{ev.stageName}</span>
+                  <p className="mt-1 text-xs text-neutral-400">
+                    Stage: <span className="font-medium text-neutral-200">{ev.stageName}</span>
                   </p>
                 )}
 
@@ -248,19 +323,6 @@ export default function AuditClient({
                     <span>→</span>
                     {stateChip(ev.toState)}
                   </div>
-                )}
-
-                {/* Actor */}
-                {ev.actor && (
-                  <p className="mt-2 text-xs text-neutral-500">
-                    Actor:{" "}
-                    <span className="font-medium text-neutral-300">
-                      {ev.actor.full_name}
-                    </span>{" "}
-                    <span className="uppercase tracking-wide">
-                      ({ev.actor.role})
-                    </span>
-                  </p>
                 )}
 
                 {/* Metadata notes */}

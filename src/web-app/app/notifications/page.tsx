@@ -1,5 +1,4 @@
-import NotificationsHome from "./NotificationsHome";
-
+import { redirect } from "next/navigation";
 export default function NotificationsPage() {
-  return <NotificationsHome />;
+  redirect("/inbox");
 }

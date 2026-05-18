@@ -1,20 +1,9 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
-import VisibleRouteFallback from "./components/prototype/VisibleRouteFallback";
-import ProjectsListScreen from "./projects/ProjectsListScreen";
-
+/**
+ * Root route — redirect to the real projects list.
+ * Middleware handles unauthenticated users (→ /auth/login).
+ */
 export default function HomePage() {
-  return (
-    <Suspense
-      fallback={
-        <VisibleRouteFallback
-          title="Preparing your action feed"
-          detail="Loading the live contracts and project actions that need attention now."
-          actionLabel="Building the workflow queue."
-        />
-      }
-    >
-      <ProjectsListScreen />
-    </Suspense>
-  );
+  redirect("/projects");
 }

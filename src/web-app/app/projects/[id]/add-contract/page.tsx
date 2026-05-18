@@ -1,10 +1,9 @@
-import AddContractClient from "./AddContractClient";
-
+import { redirect } from "next/navigation";
 export default async function AddContractPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <AddContractClient projectId={id} />;
+  redirect(`/projects/${id}/contracts/new`);
 }

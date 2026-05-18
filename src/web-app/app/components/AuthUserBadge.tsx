@@ -6,6 +6,15 @@ import { createClient } from "@/lib/supabase/browser";
 import { getRole, ROLE_LABELS } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 
+const ROLE_PILL_COLOR: Record<string, string> = {
+  funder:     "#34d399",
+  developer:  "#60a5fa",
+  contractor: "#fbbf24",
+  commercial: "#a78bfa",
+  consultant: "#fb923c",
+  admin:      "#f87171",
+};
+
 type BadgeVariant = "light" | "dark";
 
 /**
@@ -45,6 +54,7 @@ export default function AuthUserBadge({
   const roleLabel = role ? (ROLE_LABELS[role as AppRole] ?? role) : "No role";
 
   if (variant === "dark") {
+    const pillColor = role ? (ROLE_PILL_COLOR[role] ?? "#94a3b8") : "#94a3b8";
     return (
       <div className="flex items-center gap-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">
@@ -52,7 +62,12 @@ export default function AuthUserBadge({
         </div>
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-white">{name}</p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">{roleLabel}</p>
+          <span
+            className="inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+            style={{ backgroundColor: pillColor + "22", color: pillColor, border: `1px solid ${pillColor}44` }}
+          >
+            {roleLabel}
+          </span>
         </div>
       </div>
     );

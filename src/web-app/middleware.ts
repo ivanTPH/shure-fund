@@ -7,13 +7,15 @@ import { createMiddlewareClient } from "./lib/supabase/middleware-client";
  */
 const PROTECTED_PREFIXES = [
   "/projects",
+  "/inbox",
+  "/account",
+  "/admin",
+  "/audit-log",
+  "/activity",
   "/payments",
   "/approvals",
-  "/audit-log",
   "/funding",
-  "/activity",
   "/notifications",
-  "/account",
   "/settings",
   "/requests",
   "/reviews",
@@ -42,9 +44,9 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // If the user is authenticated and hits the login page, send them to /.
+  // If the user is authenticated and hits the login page, send them to /projects.
   if (user && isAuthRoute(pathname)) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/projects", request.url));
   }
 
   // If the user is not authenticated and tries to access a protected route,

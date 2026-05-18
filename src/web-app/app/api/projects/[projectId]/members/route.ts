@@ -8,6 +8,7 @@ import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
+import { assertProjectAccess } from "@/lib/auth-server";
 
 type RouteContext = { params: Promise<{ projectId: string }> };
 
@@ -18,6 +19,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
   const { projectId } = await context.params;
   const service = createServiceClient();
+
+  const denied = await assertProjectAccess(service, user, projectId);
+  if (denied) return denied;
 
   const { data, error } = await service
     .from("project_members")

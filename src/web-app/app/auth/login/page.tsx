@@ -25,39 +25,72 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [devLoading, setDevLoading] = useState<string | null>(null);
 
+  /** Returns the role-appropriate home URL after successful sign-in */
+  function roleHome(userRole: string | undefined): string {
+    // If the caller had a specific destination (e.g. from a notification link),
+    // honour it. Otherwise route to the projects list for all roles.
+    if (redirectTo && redirectTo !== "/") return redirectTo;
+    return "/projects";
+  }
+
   async function signIn(emailVal: string, passwordVal: string) {
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: emailVal,
       password: passwordVal,
     });
-    return authError;
+    return { error: authError, user: data?.user ?? null };
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const authError = await signIn(email, password);
+    const { error: authError, user } = await signIn(email, password);
     if (authError) {
       setError(authError.message);
       setLoading(false);
       return;
     }
-    router.push(redirectTo);
+    router.push(roleHome(user?.user_metadata?.role));
     router.refresh();
   }
 
   async function handleDevLogin(profileEmail: string, role: string) {
     setError(null);
     setDevLoading(role);
-    const authError = await signIn(profileEmail, "password123");
-    if (authError) {
-      setError(authError.message);
+
+    // Try sign-in first; on failure auto-create the dev account
+    const { error: signInError } = await signIn(profileEmail, "password123");
+    if (!signInError) {
+      router.push(roleHome(role));
+      router.refresh();
+      return;
+    }
+
+    // Account doesn't exist yet — create it with role metadata so the
+    // handle_new_user trigger fires and seeds public.users + project_members
+    const supabase = createClient();
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: profileEmail,
+      password: "password123",
+      options: { data: { role } },
+    });
+    if (signUpError) {
+      setError(signUpError.message);
       setDevLoading(null);
       return;
     }
-    router.push(redirectTo);
+
+    // Sign in with the newly-created account
+    const { error: finalError } = await signIn(profileEmail, "password123");
+    if (finalError) {
+      setError(finalError.message);
+      setDevLoading(null);
+      return;
+    }
+
+    router.push(roleHome(role));
     router.refresh();
   }
 

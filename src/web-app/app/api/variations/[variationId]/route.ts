@@ -41,7 +41,22 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     .single();
 
   if (error || !data) return NextResponse.json({ error: "Variation not found" }, { status: 404 });
-  return NextResponse.json({ variation: data });
+
+  // Fetch wallet for financial details on the detail page
+  const stgForWallet = Array.isArray(data.stage) ? data.stage[0] : data.stage;
+  const contractForWallet = Array.isArray(stgForWallet?.contracts) ? stgForWallet.contracts[0] : stgForWallet?.contracts;
+  const projectIdForWallet = contractForWallet?.project_id;
+  let wallet = null;
+  if (projectIdForWallet) {
+    const { data: walletData } = await service
+      .from("wallets")
+      .select("balance, available_amount, ringfenced_amount")
+      .eq("project_id", projectIdForWallet)
+      .single();
+    wallet = walletData;
+  }
+
+  return NextResponse.json({ variation: data, wallet });
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -96,9 +111,20 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       const needed = Number(variation.value_change);
       const available = Number(wallet?.available_amount ?? 0);
       if (needed > 0 && available < needed) {
+        const shortfall = needed - available;
+
+        // Auto-transition: variation → pending_funding, stage → funding_gap
+        if (variation.status === "approved") {
+          await service.from("variations").update({ status: "pending_funding" }).eq("id", variationId);
+        }
+        await service.from("contract_stages").update({ status: "funding_gap" }).eq("id", variation.stage_id);
+
         return NextResponse.json({
-          error: `Wallet available balance (£${available.toLocaleString()}) cannot cover variation value (£${needed.toLocaleString()}). Mark as pending_funding instead.`,
-        }, { status: 403 });
+          error: `Insufficient wallet funds. Available: £${available.toLocaleString()}, needed: £${needed.toLocaleString()}, shortfall: £${shortfall.toLocaleString()}. Variation moved to pending_funding; stage flagged as funding_gap.`,
+          shortfall,
+          available,
+          needed,
+        }, { status: 402 });
       }
     }
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { withAuth, withRole, getRole, ROLE_LABELS } from "@/lib/auth";
+import { withAuth, withRole } from "@/lib/auth-server";
+import { getRole, ROLE_LABELS } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
 /**

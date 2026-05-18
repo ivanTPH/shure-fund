@@ -14,16 +14,29 @@ export type AppNotification = {
   created_at: string;
 };
 
+// Labels shown in the notification panel — plain UK English
+const TYPE_LABEL: Record<string, string> = {
+  payment_ready:        "Release payment",
+  approval_required:    "Sign-off needed",
+  evidence_required:    "Evidence needed",
+  variation_submitted:  "Contract change to review",
+  variation_approved:   "Contract change approved",
+  variation_rejected:   "Contract change rejected",
+  dispute_raised:       "Dispute — payment held",
+  dispute_resolved:     "Dispute sorted",
+  funding_gap:          "Funds short",
+};
+
 const TYPE_ICON: Record<string, string> = {
-  payment_ready:        "💳",
-  approval_required:    "✅",
+  payment_ready:        "£",
+  approval_required:    "✓",
   evidence_required:    "📎",
-  variation_submitted:  "📋",
-  variation_approved:   "✔",
+  variation_submitted:  "↕",
+  variation_approved:   "✓",
   variation_rejected:   "✗",
   dispute_raised:       "⚠",
-  dispute_resolved:     "🔒",
-  funding_gap:          "💸",
+  dispute_resolved:     "✓",
+  funding_gap:          "!",
 };
 
 const TYPE_ACCENT: Record<string, string> = {
@@ -130,12 +143,10 @@ export default function NotificationsPanel({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    {/* Required action — iOS notification title */}
-                    {n.required_action && (
-                      <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: accent }}>
-                        {n.required_action}
-                      </p>
-                    )}
+                    {/* Plain-English action label */}
+                    <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: accent }}>
+                      {TYPE_LABEL[n.type] ?? (n.required_action ?? "Update")}
+                    </p>
 
                     {/* Entity name — what it's about */}
                     {n.entity_name && (
@@ -153,7 +164,7 @@ export default function NotificationsPanel({
                       <p className="text-[10px] text-neutral-600">{relativeTime(n.created_at)}</p>
                       {isActionable && !n.read && (
                         <span className="text-[10px] font-semibold" style={{ color: accent }}>
-                          Tap to action →
+                          Tap to sort it →
                         </span>
                       )}
                     </div>

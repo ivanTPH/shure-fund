@@ -168,7 +168,7 @@ export async function notifyApprovalRequired(
   stageName: string,
   contractId: string | null,
 ) {
-  const url = `/projects/${projectId}/stages/${stageId}/action`;
+  const url = `/projects/${projectId}/stages/${stageId}/approve`;
   await notifyRoles(db, ["commercial", "consultant", "developer", "admin"], projectId, {
     type:            "approval_required",
     required_action: "Approve stage",
@@ -190,7 +190,7 @@ export async function notifyPaymentReady(
   stageName: string,
   contractId: string | null,
 ) {
-  const url = `/projects/${projectId}/stages/${stageId}/action`;
+  const url = `/projects/${projectId}/stages/${stageId}/release`;
   await notifyRoles(db, ["funder", "admin"], projectId, {
     type:            "payment_ready",
     required_action: "Release payment",

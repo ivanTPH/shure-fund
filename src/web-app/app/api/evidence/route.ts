@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
   const file = form.get("file") as File | null;
   const stageId = form.get("stageId") as string | null;
   const packageId = form.get("packageId") as string | null;
+  const note = (form.get("note") as string | null) || null;
 
   if (!file || !stageId) {
     return NextResponse.json({ error: "Missing file or stageId" }, { status: 400 });
@@ -167,6 +168,7 @@ export async function POST(request: NextRequest) {
       name: file.name,
       file_size: file.size,
       uploaded_by: user.id,
+      notes: note,
     })
     .select(`
       id, stage_id, package_id, file_url, file_type, name, file_size,

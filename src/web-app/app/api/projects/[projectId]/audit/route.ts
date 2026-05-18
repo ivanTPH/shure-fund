@@ -16,6 +16,7 @@ import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
+import { assertProjectAccess } from "@/lib/auth-server";
 
 const ALLOWED_ROLES = ["funder", "developer", "admin"] as const;
 
@@ -37,12 +38,15 @@ export async function GET(
   }
 
   const { projectId } = await context.params;
+  const service = createServiceClient();
+
+  const denied = await assertProjectAccess(service, user, projectId);
+  if (denied) return denied;
+
   const params = request.nextUrl.searchParams;
   const filterStageId = params.get("stageId");
   const filterAction = params.get("action");
   const limit = Math.min(Number(params.get("limit") ?? "200"), 500);
-
-  const service = createServiceClient();
 
   let query = service
     .from("audit_events")

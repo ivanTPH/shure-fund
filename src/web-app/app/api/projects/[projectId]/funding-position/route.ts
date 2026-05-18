@@ -15,6 +15,7 @@ import type { NextRequest } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { assertProjectAccess } from "@/lib/auth-server";
 import {
   calculateFundingPosition,
   type StageSnapshot,
@@ -31,6 +32,9 @@ export async function GET(
 
   const { projectId } = await context.params;
   const service = createServiceClient();
+
+  const denied = await assertProjectAccess(service, user, projectId);
+  if (denied) return denied;
 
   // Fetch wallet
   const { data: wallet, error: walletError } = await service
