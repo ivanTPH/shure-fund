@@ -197,7 +197,7 @@ function FunderView({ data, projectId }: { data: DashboardData; projectId: strin
             )}
             {summary.activeDisputes > 0 && (
               <Link
-                href={`/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}/disputes`}
+                href={`/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`}
                 className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold text-white"
                 style={{ backgroundColor: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.25)" }}
               >
@@ -384,7 +384,7 @@ function FunderView({ data, projectId }: { data: DashboardData; projectId: strin
               )}
               {summary.activeDisputes > 0 && (
                 <Link
-                  href={`/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}/disputes`}
+                  href={`/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`}
                   className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   style={{ backgroundColor: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.25)" }}
                 >
