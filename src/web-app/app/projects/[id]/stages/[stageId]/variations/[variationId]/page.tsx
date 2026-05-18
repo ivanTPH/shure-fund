@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 import type { VariationAction } from "@/lib/workflow/variationStateMachine";
-import AppShell from "../../../../../components/AppShell";
+import AppShell from "@/app/components/AppShell";
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import AppShell from "../../components/AppShell";
+import AppShell from "@/app/components/AppShell";
 
 // ---------------------------------------------------------------------------
 // Types
