@@ -37,21 +37,20 @@ export default async function AuditLogPage() {
     redirect("/projects");
   }
 
-  // Fetch audit events
-  // Admin sees all; others see only projects they're members of
-  let query = service
-    .from("audit_events")
-    .select(`
-      id, project_id, stage_id, action, from_state, to_state, metadata, created_at,
-      project:projects!project_id ( name ),
-      stage:contract_stages!stage_id ( name ),
-      actor:users!actor_id ( full_name, role )
-    `)
-    .order("created_at", { ascending: false })
-    .limit(1000);
+  // Select base columns + project name only (avoid slow multi-table joins on 1000 rows)
+  const select = `id, project_id, stage_id, actor_id, action, from_state, to_state, metadata, created_at,
+    project:projects!project_id ( name )`;
 
-  if (effectiveRole !== "admin") {
-    // Get project IDs this user is a member of
+  let rawEvents: Array<Record<string, unknown>> = [];
+
+  if (effectiveRole === "admin") {
+    const { data } = await service
+      .from("audit_events")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    rawEvents = (data ?? []) as Array<Record<string, unknown>>;
+  } else {
     const { data: memberRows } = await service
       .from("project_members")
       .select("project_id")
@@ -59,34 +58,49 @@ export default async function AuditLogPage() {
 
     const projectIds = (memberRows ?? []).map((r) => r.project_id as string);
     if (projectIds.length === 0) {
-      // No projects — show empty page
       return (
         <AppShell>
           <GlobalAuditClient initialEvents={[]} />
         </AppShell>
       );
     }
-    query = query.in("project_id", projectIds);
+
+    const { data } = await service
+      .from("audit_events")
+      .select(select)
+      .in("project_id", projectIds)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    rawEvents = (data ?? []) as Array<Record<string, unknown>>;
   }
 
-  const { data } = await query;
+  // Batch-fetch actor names for unique actor IDs (single query instead of per-row join)
+  const actorIds = [...new Set(rawEvents.map(r => r.actor_id as string).filter(Boolean))];
+  const actorMap = new Map<string, { full_name: string; role: string }>();
+  if (actorIds.length) {
+    const { data: actors } = await service
+      .from("users")
+      .select("id, full_name, role")
+      .in("id", actorIds);
+    for (const a of actors ?? []) {
+      actorMap.set(a.id, { full_name: a.full_name ?? "", role: a.role ?? "" });
+    }
+  }
 
-  const events: GlobalAuditEvent[] = (data ?? []).map((row) => {
+  const events: GlobalAuditEvent[] = rawEvents.map((row) => {
     const project = Array.isArray(row.project) ? row.project[0] : row.project;
-    const stage = Array.isArray(row.stage) ? row.stage[0] : row.stage;
-    const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor;
     return {
-      id: row.id,
-      projectId: row.project_id,
+      id: row.id as string,
+      projectId: row.project_id as string,
       projectName: (project as { name: string } | null)?.name ?? "Unknown project",
-      stageId: row.stage_id,
-      stageName: (stage as { name: string } | null)?.name ?? null,
-      action: row.action,
-      fromState: row.from_state,
-      toState: row.to_state,
+      stageId: (row.stage_id as string | null) ?? null,
+      stageName: null,
+      action: row.action as string,
+      fromState: (row.from_state as string | null) ?? null,
+      toState: (row.to_state as string | null) ?? null,
       metadata: (row.metadata ?? {}) as Record<string, unknown>,
-      createdAt: row.created_at,
-      actor: actor as { full_name: string; role: string } | null,
+      createdAt: row.created_at as string,
+      actor: row.actor_id ? (actorMap.get(row.actor_id as string) ?? null) : null,
     };
   });
 

@@ -65,10 +65,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Run on all paths except Next.js internals and static files.
-     * Auth callback and static brand assets are intentionally excluded
-     * so they remain reachable without a session.
+     * Run only on page navigations — skip API routes, Next.js internals,
+     * static files and the auth callback. API routes perform their own auth
+     * via createClient(); running middleware on them doubles round-trips.
      */
-    "/((?!_next/static|_next/image|favicon\\.ico|brand/|auth/callback).*)",
+    "/((?!api/|_next/static|_next/image|favicon\\.ico|brand/|auth/callback).*)",
   ],
 };

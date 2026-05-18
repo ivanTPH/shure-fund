@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 
 const DEV_PROFILES = [
@@ -14,7 +14,16 @@ const DEV_PROFILES = [
   { role: "admin",       label: "Admin",       email: "admin@test.com",       color: "#8a0000" },
 ] as const;
 
+// Suspense wrapper required by Next.js 16 for pages using useSearchParams
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/";
