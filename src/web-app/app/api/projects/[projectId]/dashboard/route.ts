@@ -60,37 +60,29 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   const denied = await assertProjectAccess(service, user, projectId);
   if (denied) return denied;
 
-  // 2. Project
-  const { data: project, error: projErr } = await service
-    .from("projects")
-    .select("id, name, address, status")
-    .eq("id", projectId)
-    .single();
+  // 2. Fetch project, wallet, and contracts in parallel
+  const [
+    { data: project, error: projErr },
+    { data: wallet },
+    { data: contracts, error: contractsErr },
+  ] = await Promise.all([
+    service.from("projects").select("id, name, address, status").eq("id", projectId).single(),
+    service.from("wallets").select("balance, available_amount, ringfenced_amount").eq("project_id", projectId).maybeSingle(),
+    service.from("contracts")
+      .select(`
+        id, contractor_id, total_value, status, created_at,
+        contractor:users!contractor_id ( id, full_name, email ),
+        contract_stages (
+          id, name, description, value, status, start_date, end_date, created_at
+        )
+      `)
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true }),
+  ]);
 
   if (projErr || !project) {
     return NextResponse.json({ error: "Project not found." }, { status: 404 });
   }
-
-  // 3. Wallet
-  const { data: wallet } = await service
-    .from("wallets")
-    .select("balance, available_amount, ringfenced_amount")
-    .eq("project_id", projectId)
-    .single();
-
-  // 4. Contracts + stages (with contractor name)
-  const { data: contracts, error: contractsErr } = await service
-    .from("contracts")
-    .select(`
-      id, contractor_id, total_value, status, created_at,
-      contractor:users!contractor_id ( id, full_name, email ),
-      contract_stages (
-        id, name, description, value, status, start_date, end_date, created_at
-      )
-    `)
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: true });
-
   if (contractsErr) {
     return NextResponse.json({ error: contractsErr.message }, { status: 500 });
   }
@@ -101,60 +93,45 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   );
   const stageIds = allStages.map((s) => s.id);
 
-  // 5. Approvals (batch for all stages)
-  const approvalsQuery = stageIds.length
-    ? await service.from("approvals").select("stage_id, role, decision, certified_amount").in("stage_id", stageIds)
-    : null;
-  const approvals: Array<{ stage_id: string; role: string; decision: string; certified_amount: number | null }> =
-    approvalsQuery?.data ?? [];
+  // 3. Fetch all stage-level data in parallel
+  const [approvals, evidence, variations, disputes] = stageIds.length
+    ? await Promise.all([
+        service.from("approvals").select("stage_id, role, decision, certified_amount").in("stage_id", stageIds).then(r => r.data ?? []),
+        service.from("evidence").select("stage_id, status").in("stage_id", stageIds).then(r => r.data ?? []),
+        service.from("variations").select("stage_id, status, value_change").in("stage_id", stageIds).then(r => r.data ?? []),
+        service.from("disputes").select("id, stage_id, status").in("stage_id", stageIds).then(r => r.data ?? []),
+      ])
+    : [[], [], [], []] as [unknown[], unknown[], unknown[], unknown[]];
 
-  // 6. Evidence (batch for all stages)
-  const evidenceQuery = stageIds.length
-    ? await service.from("evidence").select("stage_id, status").in("stage_id", stageIds)
-    : null;
-  const evidence: Array<{ stage_id: string; status: string }> = evidenceQuery?.data ?? [];
-
-  // 7. Variations (batch for all stages)
-  const variationsQuery = stageIds.length
-    ? await service.from("variations").select("stage_id, status, value_change").in("stage_id", stageIds)
-    : null;
-  const variations: Array<{ stage_id: string; status: string; value_change: number }> =
-    variationsQuery?.data ?? [];
-
-  // 8. Disputes (batch for all stages) — include id so UI can deep-link
-  const disputesQuery = stageIds.length
-    ? await service.from("disputes").select("id, stage_id, status").in("stage_id", stageIds)
-    : null;
-  const disputes: Array<{ id: string; stage_id: string; status: string }> = disputesQuery?.data ?? [];
+  type ApprovalRow  = { stage_id: string; role: string; decision: string; certified_amount: number | null };
+  type EvidenceRow  = { stage_id: string; status: string };
+  type VariationRow = { stage_id: string; status: string; value_change: number };
+  type DisputeRow   = { id: string; stage_id: string; status: string };
 
   // ---------------------------------------------------------------------------
   // Aggregate per-stage lookups
   // ---------------------------------------------------------------------------
 
-  // Index approvals by stage_id
-  const approvalsByStage = new Map<string, typeof approvals>();
-  for (const a of approvals) {
+  const approvalsByStage = new Map<string, ApprovalRow[]>();
+  for (const a of approvals as ApprovalRow[]) {
     if (!approvalsByStage.has(a.stage_id)) approvalsByStage.set(a.stage_id, []);
     approvalsByStage.get(a.stage_id)!.push(a);
   }
 
-  // Index evidence by stage_id
-  const evidenceByStage = new Map<string, typeof evidence>();
-  for (const e of evidence) {
+  const evidenceByStage = new Map<string, EvidenceRow[]>();
+  for (const e of evidence as EvidenceRow[]) {
     if (!evidenceByStage.has(e.stage_id)) evidenceByStage.set(e.stage_id, []);
     evidenceByStage.get(e.stage_id)!.push(e);
   }
 
-  // Index variations by stage_id
-  const variationsByStage = new Map<string, typeof variations>();
-  for (const v of variations) {
+  const variationsByStage = new Map<string, VariationRow[]>();
+  for (const v of variations as VariationRow[]) {
     if (!variationsByStage.has(v.stage_id)) variationsByStage.set(v.stage_id, []);
     variationsByStage.get(v.stage_id)!.push(v);
   }
 
-  // Index disputes by stage_id (preserving id for deep-links)
-  const disputesByStage = new Map<string, typeof disputes>();
-  for (const d of disputes) {
+  const disputesByStage = new Map<string, DisputeRow[]>();
+  for (const d of disputes as DisputeRow[]) {
     if (!disputesByStage.has(d.stage_id)) disputesByStage.set(d.stage_id, []);
     disputesByStage.get(d.stage_id)!.push(d);
   }

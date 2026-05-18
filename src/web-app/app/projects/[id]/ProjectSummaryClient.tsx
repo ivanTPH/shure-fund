@@ -1049,18 +1049,22 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-        <p className="text-neutral-500 text-sm">Loading project…</p>
-      </div>
+      <AppShell>
+        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
+          <p className="text-neutral-500 text-sm">Loading project…</p>
+        </div>
+      </AppShell>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-        <Link href="/projects" className="text-xs text-neutral-400 hover:text-white">← Projects</Link>
-        <p className="mt-6 text-sm text-red-300">{error ?? "Project not found."}</p>
-      </div>
+      <AppShell>
+        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
+          <Link href="/projects" className="text-xs text-neutral-400 hover:text-white">← Projects</Link>
+          <p className="mt-6 text-sm text-red-300">{error ?? "Project not found."}</p>
+        </div>
+      </AppShell>
     );
   }
 

@@ -75,35 +75,18 @@ export async function assertProjectAccess(
     if (dbUser?.role === "admin") return null;
   }
 
-  // Check project_members table (most common path)
-  const { data: member } = await service
-    .from("project_members")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // Run all membership checks in parallel (one network round-trip)
+  const [{ data: member }, { data: proj }, { data: contract }] = await Promise.all([
+    service.from("project_members").select("id")
+      .eq("project_id", projectId).eq("user_id", user.id).maybeSingle(),
+    service.from("projects").select("funder_id, developer_id")
+      .eq("id", projectId).maybeSingle(),
+    service.from("contracts").select("id")
+      .eq("project_id", projectId).eq("contractor_id", user.id).maybeSingle(),
+  ]);
 
   if (member) return null;
-
-  // Fallback: check funder_id / developer_id on the project row
-  const { data: proj } = await service
-    .from("projects")
-    .select("funder_id, developer_id")
-    .eq("id", projectId)
-    .single();
-
-  if (proj && (proj.funder_id === user.id || proj.developer_id === user.id)) {
-    return null;
-  }
-
-  // Fallback: check contractor_id via contracts
-  const { data: contract } = await service
-    .from("contracts")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("contractor_id", user.id)
-    .maybeSingle();
-
+  if (proj && (proj.funder_id === user.id || proj.developer_id === user.id)) return null;
   if (contract) return null;
 
   // Lazy membership: any authenticated user with a valid role gets auto-added
@@ -112,23 +95,14 @@ export async function assertProjectAccess(
   // access the demo projects without manual seeding.
   let userRole = getRole(user);
   if (!userRole) {
-    // JWT metadata missing — fall back to public.users table
     const { data: dbUser } = await service
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
+      .from("users").select("role").eq("id", user.id).maybeSingle();
     userRole = (dbUser?.role as AppRole | null) ?? null;
   }
   if (userRole) {
-    // Ensure public.users row exists (FK required by project_members)
+    // Ensure public.users row exists (FK required by project_members), then upsert membership
     await service.from("users").upsert(
-      {
-        id: user.id,
-        email: user.email ?? "",
-        full_name: user.user_metadata?.full_name ?? null,
-        role: userRole,
-      },
+      { id: user.id, email: user.email ?? "", full_name: user.user_metadata?.full_name ?? null, role: userRole },
       { onConflict: "id", ignoreDuplicates: true },
     );
     await service.from("project_members").upsert(
