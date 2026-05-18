@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import AppShell from "@/app/components/AppShell";
 
 type EvidenceItem = {
   id: string;
-  title: string;
-  file_url: string | null;
+  name: string;
+  signedUrl: string | null;
   status: string;
-  created_at: string;
-  uploaded_by_user: { full_name: string } | null;
+  uploadedAt: string;
+  uploadedBy: { full_name: string } | null;
 };
 
 type StageInfo = { id: string; name: string; value: number; status: string };
@@ -49,12 +50,15 @@ export default function ReconciliationPage() {
   const rejected = evidence.filter((e) => e.status === "rejected");
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-      <p className="text-neutral-400">Loading…</p>
-    </div>
+    <AppShell>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
+        <p className="text-neutral-400">Loading…</p>
+      </div>
+    </AppShell>
   );
 
   return (
+    <AppShell>
     <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
       <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs font-medium text-neutral-400 hover:text-white">
         ← Back to stage
@@ -96,14 +100,14 @@ export default function ReconciliationPage() {
                 return (
                   <div key={ev.id} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{ev.title}</p>
+                      <p className="truncate text-sm font-medium text-white">{ev.name}</p>
                       <p className="mt-0.5 text-xs text-neutral-500">
-                        {ev.uploaded_by_user?.full_name ?? "Unknown"} · {fmt.format(new Date(ev.created_at))}
+                        {ev.uploadedBy?.full_name ?? "Unknown"} · {fmt.format(new Date(ev.uploadedAt))}
                       </p>
                     </div>
                     <div className="ml-3 flex shrink-0 items-center gap-2">
-                      {ev.file_url && (
-                        <a href={ev.file_url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300">
+                      {ev.signedUrl && (
+                        <a href={ev.signedUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300">
                           View
                         </a>
                       )}
@@ -119,5 +123,6 @@ export default function ReconciliationPage() {
         )}
       </div>
     </div>
+    </AppShell>
   );
 }

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 import type { VariationAction } from "@/lib/workflow/variationStateMachine";
+import AppShell from "../../../../../components/AppShell";
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 
@@ -117,14 +118,18 @@ export default function VariationDetailPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-      <p className="text-neutral-400">Loading…</p>
-    </div>
+    <AppShell>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
+        <p className="text-neutral-400">Loading…</p>
+      </div>
+    </AppShell>
   );
   if (error || !variation) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-      <p className="text-red-400">{error ?? "Not found"}</p>
-    </div>
+    <AppShell>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
+        <p className="text-red-400">{error ?? "Not found"}</p>
+      </div>
+    </AppShell>
   );
 
   const statusColor = STATUS_COLORS[variation.status] ?? "#94a3b8";
@@ -148,6 +153,7 @@ export default function VariationDetailPage() {
   );
 
   return (
+    <AppShell>
     <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
       <Link
         href={`/projects/${projectId}/stages/${stageId}`}
@@ -320,5 +326,6 @@ export default function VariationDetailPage() {
         )}
       </div>
     </div>
+    </AppShell>
   );
 }

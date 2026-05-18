@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import AppShell from "@/app/components/AppShell";
 
 export default function NewVariationPage() {
   const router = useRouter();
@@ -54,6 +55,7 @@ export default function NewVariationPage() {
   }
 
   return (
+    <AppShell>
     <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
       <Link href={`/projects/${projectId}/stages/${stageId}`}
         className="text-xs font-medium text-neutral-400 hover:text-white">
@@ -106,11 +108,12 @@ export default function NewVariationPage() {
           type="submit"
           disabled={submitting}
           className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-          style={{ backgroundColor: "#0d1144", border: "1px solid rgba(255,255,255,0.2)" }}
+          style={{ backgroundColor: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
         >
           {submitting ? "Submitting…" : "Submit variation for review"}
         </button>
       </form>
     </div>
+    </AppShell>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import AppShell from "../../components/AppShell";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -173,6 +174,7 @@ export default function AuditClient({
     "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
 
   return (
+    <AppShell>
     <div className="min-h-screen px-4 py-6" style={{ backgroundColor: "#0d1144" }}>
       {/* Header */}
       <div className="mb-6">
@@ -337,5 +339,6 @@ export default function AuditClient({
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

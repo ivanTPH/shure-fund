@@ -65,6 +65,15 @@ const TX_TYPE_COLOR: Record<string, string> = {
   buffer_adjustment: "#94a3b8",
 };
 
+const TX_TYPE_LABEL: Record<string, string> = {
+  deposit:           "Funding received",
+  allocation_in:     "Budget transfer in",
+  allocation_out:    "Budget committed",
+  release:           "Stage payment",
+  reversal:          "Payment reversed",
+  buffer_adjustment: "Buffer adjustment",
+};
+
 const TX_OUTBOUND = new Set(["release", "allocation_out"]);
 
 // ---------------------------------------------------------------------------
@@ -397,7 +406,7 @@ export default function WalletPage() {
                                 className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                                 style={{ backgroundColor: (TX_TYPE_COLOR[tx.type] ?? "#94a3b8") + "18", color: TX_TYPE_COLOR[tx.type] ?? "#94a3b8" }}
                               >
-                                {tx.type.replace(/_/g, " ")}
+                                {TX_TYPE_LABEL[tx.type] ?? tx.type.replace(/_/g, " ")}
                               </span>
                             </td>
                             <td className="px-5 py-3 text-right font-bold" style={{ color: isOut ? "#f87171" : "transparent" }}>
@@ -423,7 +432,7 @@ export default function WalletPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-white truncate">{tx.reference}</p>
                           <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: TX_TYPE_COLOR[tx.type] ?? "#94a3b8" }}>
-                            {tx.type.replace(/_/g, " ")}
+                            {TX_TYPE_LABEL[tx.type] ?? tx.type.replace(/_/g, " ")}
                           </p>
                           <p className="text-xs text-neutral-500 mt-0.5">{fmt.format(new Date(tx.created_at))}</p>
                         </div>
