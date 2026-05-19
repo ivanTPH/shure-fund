@@ -28,7 +28,7 @@ const isProtected = (pathname: string) =>
 
 const isAuthRoute = (pathname: string) => pathname.startsWith("/auth");
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
