@@ -18,6 +18,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AuthUserBadge, { SignOutButton } from "./AuthUserBadge";
 import { createClient } from "@/lib/supabase/browser";
+import { getRole } from "@/lib/auth";
 
 export type ShellTab = "inbox" | "projects" | "approvals" | "audit" | "account";
 
@@ -100,6 +101,63 @@ const NAV: Array<{
   { tab: "audit",     label: "Audit",     href: "/audit-log", Icon: AuditIcon },
   { tab: "account",   label: "Account",   href: "/account",   Icon: AccountIcon },
 ];
+
+// ---------------------------------------------------------------------------
+// Dev role switcher (development only)
+// ---------------------------------------------------------------------------
+
+const DEV_ROLES = [
+  { role: "funder",     email: "funder@test.com",     color: "#0D1144" },
+  { role: "developer",  email: "developer@test.com",  color: "#1a3a6b" },
+  { role: "contractor", email: "contractor@test.com", color: "#1e5c3a" },
+  { role: "commercial", email: "commercial@test.com", color: "#7c3a00" },
+  { role: "consultant", email: "consultant@test.com", color: "#5b2a8a" },
+  { role: "admin",      email: "admin@test.com",      color: "#8a0000" },
+] as const;
+
+function DevRoleSwitcher() {
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentRole(getRole(user));
+    });
+  }, []);
+
+  async function switchRole(email: string, role: string) {
+    setSwitching(role);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signInWithPassword({ email, password: "password123" });
+    if (error) { setSwitching(null); return; }
+    window.location.reload();
+  }
+
+  if (process.env.NODE_ENV !== "development") return null;
+
+  return (
+    <div className="px-3 py-2.5 rounded-xl mt-1" style={{ backgroundColor: "rgba(13,17,68,0.05)", border: "1px dashed rgba(13,17,68,0.2)" }}>
+      <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(13,17,68,0.4)" }}>Dev — switch role</p>
+      <div className="grid grid-cols-3 gap-1">
+        {DEV_ROLES.map(({ role, email, color }) => (
+          <button
+            key={role}
+            onClick={() => switchRole(email, role)}
+            disabled={switching !== null}
+            className="rounded-lg py-1.5 text-[10px] font-semibold text-white capitalize transition-opacity disabled:opacity-40"
+            style={{
+              backgroundColor: color,
+              boxShadow: currentRole === role ? "0 0 0 2px white, 0 0 0 3px " + color : "none",
+            }}
+          >
+            {switching === role ? "…" : role}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Shell component
@@ -230,6 +288,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         >
           <AuthUserBadge variant="light" />
           <SignOutButton variant="light" />
+          <DevRoleSwitcher />
         </div>
       </aside>
 

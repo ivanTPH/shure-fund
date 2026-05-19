@@ -147,15 +147,18 @@ function dateStr(d: string | null) {
 // Role-specific views
 // ---------------------------------------------------------------------------
 
-function FunderView({ data, projectId }: { data: DashboardData; projectId: string }) {
+function FunderView({ data, projectId, role }: { data: DashboardData; projectId: string; role: AppRole }) {
   const { wallet, summary, contracts } = data;
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const allStages = contracts.flatMap((c) =>
     c.stages.map((s) => ({ ...s, contractorName: c.contractorName })),
   );
   const firstAwaitingStage = allStages.find((s) => s.status === "awaiting_approval");
   const firstDisputedStage = allStages.find((s) => s.activeDisputes > 0);
+  const selectedStage = selectedStageId ? allStages.find((s) => s.id === selectedStageId) ?? null : null;
 
   return (
+    <>
     <div className="space-y-6">
       {/* Funding gap warning */}
       {summary.fundingGapWarning && (
@@ -241,7 +244,7 @@ function FunderView({ data, projectId }: { data: DashboardData; projectId: strin
                   <tr
                     key={s.id}
                     className="hover:bg-white/5 cursor-pointer transition-colors"
-                    onClick={() => { window.location.href = `/projects/${projectId}/stages/${s.id}`; }}
+                    onClick={() => setSelectedStageId(s.id)}
                   >
                     <td className="px-4 py-3">
                       <p className="font-semibold text-white">{s.name}</p>
@@ -294,10 +297,10 @@ function FunderView({ data, projectId }: { data: DashboardData; projectId: strin
           {/* Mobile: card list */}
           <div className="space-y-2 md:hidden">
             {allStages.map((s) => (
-              <Link
+              <button
                 key={s.id}
-                href={`/projects/${projectId}/stages/${s.id}`}
-                className="flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
+                onClick={() => setSelectedStageId(s.id)}
+                className="w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5 text-left"
                 style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
               >
                 <div className="flex-1 min-w-0">
@@ -330,7 +333,7 @@ function FunderView({ data, projectId }: { data: DashboardData; projectId: strin
                     <p className="text-xs text-green-400">Certified ✓</p>
                   )}
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         </div>
@@ -410,12 +413,18 @@ function FunderView({ data, projectId }: { data: DashboardData; projectId: strin
         </aside>
       </div>
     </div>
+    {selectedStage && (
+      <StageDrawer stage={selectedStage} projectId={projectId} role={role} onClose={() => setSelectedStageId(null)} />
+    )}
+    </>
   );
 }
 
-function DeveloperView({ data, projectId }: { data: DashboardData; projectId: string }) {
+function DeveloperView({ data, projectId, role }: { data: DashboardData; projectId: string; role: AppRole }) {
   const { summary, contracts } = data;
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const allStages = contracts.flatMap((c) => c.stages.map((s) => ({ ...s, contractorName: c.contractorName })));
+  const selectedStage = selectedStageId ? allStages.find((s) => s.id === selectedStageId) ?? null : null;
 
   function stageProgress(status: string): number {
     switch (status) {
@@ -428,6 +437,7 @@ function DeveloperView({ data, projectId }: { data: DashboardData; projectId: st
   }
 
   return (
+    <>
     <div className="space-y-6">
       {/* Programme summary — metric cards */}
       <div>
@@ -502,7 +512,7 @@ function DeveloperView({ data, projectId }: { data: DashboardData; projectId: st
                   <tr
                     key={s.id}
                     className="hover:bg-white/5 cursor-pointer transition-colors"
-                    onClick={() => { window.location.href = `/projects/${projectId}/stages/${s.id}`; }}
+                    onClick={() => setSelectedStageId(s.id)}
                   >
                     <td className="px-4 py-3">
                       <p className="font-semibold text-white">{s.name}</p>
@@ -553,10 +563,10 @@ function DeveloperView({ data, projectId }: { data: DashboardData; projectId: st
                 const pctDrawn = pct(drawn, s.value);
                 const progressPct = stageProgress(s.status);
                 return (
-                  <Link
+                  <button
                     key={s.id}
-                    href={`/projects/${projectId}/stages/${s.id}`}
-                    className="mb-2 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
+                    onClick={() => setSelectedStageId(s.id)}
+                    className="mb-2 w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5 text-left"
                     style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
                   >
                     <div className="flex-1 min-w-0">
@@ -574,7 +584,7 @@ function DeveloperView({ data, projectId }: { data: DashboardData; projectId: st
                       <p className="text-xs text-neutral-500">Drawn: {pctDrawn}</p>
                       <StatusPill status={s.status} />
                     </div>
-                  </Link>
+                  </button>
                 );
               })}
             </div>
@@ -582,6 +592,10 @@ function DeveloperView({ data, projectId }: { data: DashboardData; projectId: st
         </div>
       </div>
     </div>
+    {selectedStage && (
+      <StageDrawer stage={selectedStage} projectId={projectId} role={role} onClose={() => setSelectedStageId(null)} />
+    )}
+    </>
   );
 }
 
@@ -741,6 +755,145 @@ function StageDetailPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stage drawer — slide-over panel shown when a row is clicked in Funder/Developer views
+// ---------------------------------------------------------------------------
+
+function StageDrawer({
+  stage,
+  projectId,
+  role,
+  onClose,
+}: {
+  stage: Stage & { contractorName: string };
+  projectId: string;
+  role: AppRole | null;
+  onClose: () => void;
+}) {
+  const [description, setDescription] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`/api/stages/${stage.id}`)
+      .then((r) => r.json())
+      .then((d) => setDescription(d.stage?.description ?? null))
+      .catch(() => {});
+  }, [stage.id]);
+
+  const statusColor = STATUS_COLOR[stage.status] ?? "#94a3b8";
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div
+        className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md overflow-y-auto"
+        style={{ backgroundColor: "#0f172a", borderLeft: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 flex items-start justify-between px-5 py-4 border-b border-white/10" style={{ backgroundColor: "#0f172a" }}>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{stage.contractorName}</p>
+            <h2 className="mt-1 text-lg font-bold text-white leading-tight">{stage.name}</h2>
+          </div>
+          <button onClick={onClose} className="ml-3 mt-1 shrink-0 text-2xl leading-none text-neutral-400 hover:text-white transition">×</button>
+        </div>
+
+        <div className="px-5 py-5 space-y-4">
+          {/* Status + value */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5">Status</p>
+              <span className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ backgroundColor: statusColor + "22", color: statusColor }}>
+                {stage.status.replace(/_/g, " ")}
+              </span>
+            </div>
+            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1">Value</p>
+              <p className="text-lg font-bold text-white">{gbp.format(stage.value)}</p>
+            </div>
+          </div>
+
+          {/* Certified */}
+          {stage.certifiedAmount !== null && (
+            <div className="flex items-center justify-between rounded-xl px-4 py-2.5" style={{ backgroundColor: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.18)" }}>
+              <p className="text-xs text-neutral-400">Certified amount</p>
+              <p className="text-sm font-bold text-green-400">{gbp.format(stage.certifiedAmount)}</p>
+            </div>
+          )}
+
+          {/* Description */}
+          {description && (
+            <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5">Description</p>
+              <p className="text-sm text-neutral-300 leading-relaxed">{description}</p>
+            </div>
+          )}
+
+          {/* Dates */}
+          {(stage.startDate || stage.endDate) && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-neutral-500">Start</p>
+                <p className="mt-0.5 text-sm text-white">{dateStr(stage.startDate)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-neutral-500">End</p>
+                <p className="mt-0.5 text-sm text-white">{dateStr(stage.endDate)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Counters */}
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Evidence pending", count: stage.pendingEvidence, color: "#f97316" },
+              { label: "Approvals", count: stage.pendingApprovals, color: "#c084fc" },
+              { label: "Variations", count: stage.pendingVariations, color: "#60a5fa" },
+              { label: "Disputes", count: stage.activeDisputes, color: "#f87171" },
+            ].map(({ label, count, color }) => (
+              <div key={label} className="rounded-xl px-3 py-2.5 text-center" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-xl font-bold" style={{ color: count > 0 ? color : "#374151" }}>{count}</p>
+                <p className="text-[9px] uppercase tracking-wider text-neutral-600 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Next action */}
+          <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1">Next action</p>
+            <p className="text-sm text-neutral-300">{stage.nextAction || "No action required"}</p>
+          </div>
+
+          {/* Role-appropriate action buttons */}
+          <div className="space-y-2 pt-1">
+            {role === "contractor" && (
+              <Link href={`/projects/${projectId}/stages/${stage.id}/action`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                Upload evidence
+              </Link>
+            )}
+            {(role === "commercial" || role === "admin") && stage.pendingApprovals > 0 && (
+              <Link href={`/projects/${projectId}/stages/${stage.id}/approve`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(192,132,252,0.2)", border: "1px solid rgba(192,132,252,0.35)" }}>
+                Review &amp; approve
+              </Link>
+            )}
+            {(role === "funder" || role === "admin") && stage.status === "available_to_release" && (
+              <Link href={`/projects/${projectId}/stages/${stage.id}/release`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(52,211,153,0.2)", border: "1px solid rgba(52,211,153,0.35)" }}>
+                Release payment
+              </Link>
+            )}
+            {stage.activeDisputes > 0 && stage.activeDisputeId && (
+              <Link href={`/projects/${projectId}/stages/${stage.id}/disputes/${stage.activeDisputeId}`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)" }}>
+                ⚠ View dispute
+              </Link>
+            )}
+            <Link href={`/projects/${projectId}/stages/${stage.id}`} className="flex w-full items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+              Full stage details →
+            </Link>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1113,13 +1266,13 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
       )}
 
       {/* Role-specific dashboard content */}
-      {role === "funder" && <FunderView data={data} projectId={projectId} />}
-      {role === "developer" && <DeveloperView data={data} projectId={projectId} />}
+      {role === "funder" && <FunderView data={data} projectId={projectId} role={role} />}
+      {role === "developer" && <DeveloperView data={data} projectId={projectId} role={role} />}
       {role === "contractor" && <ContractorView data={data} projectId={projectId} contractorId={userId ?? ""} />}
       {(role === "commercial" || role === "consultant" || role === "admin") && (
         <CommercialView data={data} projectId={projectId} />
       )}
-      {!role && <DeveloperView data={data} projectId={projectId} />}
+      {!role && <DeveloperView data={data} projectId={projectId} role={"developer"} />}
     </div>
     </AppShell>
   );

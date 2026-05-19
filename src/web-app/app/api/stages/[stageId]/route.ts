@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
   const { data, error } = await service
     .from("contract_stages")
-    .select(`id, name, description, value, status, sequence_order, start_date, end_date, created_at,
+    .select(`id, name, description, value, status, start_date, end_date, created_at,
              contracts!inner ( id, project_id, contractor_id, projects!inner ( id, name ) )`)
     .eq("id", stageId)
     .single();

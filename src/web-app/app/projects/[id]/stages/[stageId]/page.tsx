@@ -180,7 +180,7 @@ export default function StageOverviewPage() {
         description:   s.description ?? null,
         value:         Number(s.value),
         status:        s.status,
-        sequenceOrder: s.sequence_order ?? null,
+        sequenceOrder: null,
         startDate:     s.start_date ?? null,
         endDate:       s.end_date ?? null,
         contractId:    contract?.id ?? "",
