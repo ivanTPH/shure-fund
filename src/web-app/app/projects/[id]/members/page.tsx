@@ -126,15 +126,15 @@ export default function ProjectMembersPage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-8" style={{ backgroundColor: "#0d1144" }}>
-        <Link href={`/projects/${projectId}`} className="text-xs font-medium text-neutral-400 hover:text-white">
+      <div className="min-h-full px-4 md:px-8 py-8">
+        <Link href={`/projects/${projectId}`} className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
           ← Back to project
         </Link>
 
         <div className="mt-4 mb-2 flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-white">Project team</h1>
-            <p className="mt-1 text-sm text-neutral-400">
+            <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Project team</h1>
+            <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>
               Assign team members and control their role on this project.
             </p>
           </div>
@@ -142,7 +142,7 @@ export default function ProjectMembersPage() {
             <button
               onClick={() => { setAdding((v) => !v); setSaveError(null); }}
               className="rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-              style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
             >
               {adding ? "Cancel" : "+ Add member"}
             </button>
@@ -150,8 +150,8 @@ export default function ProjectMembersPage() {
         </div>
 
         {error && (
-          <div className="mt-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm text-red-300">{error}</p>
+          <div className="mt-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>
           </div>
         )}
 
@@ -160,18 +160,19 @@ export default function ProjectMembersPage() {
           <form
             onSubmit={addMember}
             className="mt-4 max-w-lg rounded-[20px] p-5 space-y-3"
-            style={{ border: "1px solid rgba(96,165,250,0.25)", backgroundColor: "rgba(96,165,250,0.05)" }}
+            style={{ border: "1px solid rgba(37,99,235,0.2)", backgroundColor: "rgba(37,99,235,0.04)" }}
           >
-            <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">Add team member</p>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#2563eb" }}>Add team member</p>
 
             {availableUsers.length === 0 ? (
-              <p className="text-xs text-neutral-500">No additional users available. All users are already on this project, or you do not have permission to list users.</p>
+              <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>No additional users available. All users are already on this project, or you do not have permission to list users.</p>
             ) : (
               <select
                 value={newUserId}
                 onChange={(e) => setNewUserId(e.target.value)}
                 required
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               >
                 <option value="">Select user…</option>
                 {availableUsers.map((u) => (
@@ -184,7 +185,8 @@ export default function ProjectMembersPage() {
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+                className="rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               >
                 {ALL_ROLES.map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -194,7 +196,8 @@ export default function ProjectMembersPage() {
               <select
                 value={newDelegatedTo}
                 onChange={(e) => setNewDelegatedTo(e.target.value)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+                className="rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               >
                 <option value="">No delegation</option>
                 {allUsers.filter((u) => u.id !== newUserId).map((u) => (
@@ -208,16 +211,17 @@ export default function ProjectMembersPage() {
               placeholder="Notes (optional)"
               value={newNotes}
               onChange={(e) => setNewNotes(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none"
+              className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
             />
 
-            {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+            {saveError && <p className="text-xs" style={{ color: "#dc2626" }}>{saveError}</p>}
 
             <button
               type="submit"
               disabled={saving || !newUserId}
-              className="w-full rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
-              style={{ backgroundColor: "rgba(96,165,250,0.2)", border: "1px solid rgba(96,165,250,0.3)" }}
+              className="w-full rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
             >
               {saving ? "Adding…" : "Add to project"}
             </button>
@@ -226,16 +230,16 @@ export default function ProjectMembersPage() {
 
         {/* Members — desktop table */}
         {loading ? (
-          <p className="mt-6 text-sm text-neutral-500">Loading…</p>
+          <p className="mt-6 text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
         ) : members.length === 0 ? (
-          <p className="mt-6 text-sm text-neutral-500">No team members assigned yet.</p>
+          <p className="mt-6 text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No team members assigned yet.</p>
         ) : (
           <div className="mt-6">
             {/* Desktop table */}
-            <div className="hidden md:block rounded-[20px] overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="hidden md:block rounded-[20px] overflow-hidden" style={{ border: "1px solid var(--surface-border, #e4e7f0)" }}>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-neutral-500 border-b border-white/8" style={{ backgroundColor: "rgba(255,255,255,0.03)" }}>
+                  <tr className="text-left text-xs" style={{ backgroundColor: "rgba(13,17,68,0.03)", borderBottom: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.45)" }}>
                     <th className="px-5 py-3 font-medium">Name</th>
                     <th className="px-5 py-3 font-medium">Email</th>
                     <th className="px-5 py-3 font-medium">Project role</th>
@@ -244,14 +248,14 @@ export default function ProjectMembersPage() {
                     {canManage && <th className="px-5 py-3 font-medium"></th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
-                  {members.map((m) => {
+                <tbody>
+                  {members.map((m, i) => {
                     const color = ROLE_COLOR[m.role] ?? "#94a3b8";
                     return (
-                      <tr key={m.id} className="text-neutral-300 hover:bg-white/[0.02] transition">
+                      <tr key={m.id} className="hover:bg-neutral-50 transition" style={{ borderTop: i > 0 ? "1px solid var(--surface-border, #e4e7f0)" : "none" }}>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-white">{m.member?.full_name ?? "—"}</p>
+                            <p className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{m.member?.full_name ?? "—"}</p>
                             {m.is_primary && (
                               <span className="text-[10px] rounded-full px-1.5 py-0.5 font-bold" style={{ backgroundColor: color + "22", color }}>
                                 PRIMARY
@@ -259,7 +263,7 @@ export default function ProjectMembersPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-xs text-neutral-400">{m.member?.email ?? "—"}</td>
+                        <td className="px-5 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{m.member?.email ?? "—"}</td>
                         <td className="px-5 py-3">
                           <span
                             className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
@@ -268,13 +272,14 @@ export default function ProjectMembersPage() {
                             {m.role}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-xs text-neutral-400">{m.delegate?.full_name ?? "—"}</td>
-                        <td className="px-5 py-3 text-xs text-neutral-500 italic">{m.notes ?? "—"}</td>
+                        <td className="px-5 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{m.delegate?.full_name ?? "—"}</td>
+                        <td className="px-5 py-3 text-xs italic" style={{ color: "rgba(13,17,68,0.4)" }}>{m.notes ?? "—"}</td>
                         {canManage && (
                           <td className="px-5 py-3 text-right">
                             <button
                               onClick={() => removeMember(m.member?.id ?? "")}
-                              className="text-xs text-neutral-600 hover:text-red-400 transition"
+                              className="text-xs transition hover:opacity-70"
+                              style={{ color: "rgba(13,17,68,0.35)" }}
                             >
                               Remove
                             </button>
@@ -295,24 +300,25 @@ export default function ProjectMembersPage() {
                   <div
                     key={m.id}
                     className="flex items-start gap-3 rounded-2xl px-4 py-3"
-                    style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                    style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-white">{m.member?.full_name ?? "—"}</p>
+                        <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{m.member?.full_name ?? "—"}</p>
                         {m.is_primary && (
                           <span className="text-[10px] rounded-full px-1.5 py-0.5 font-bold" style={{ backgroundColor: color + "22", color }}>PRIMARY</span>
                         )}
                       </div>
-                      <p className="text-xs text-neutral-500">{m.member?.email}</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{m.member?.email}</p>
                       <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{m.role}</p>
-                      {m.delegate && <p className="mt-0.5 text-xs text-neutral-500">Delegate: {m.delegate.full_name}</p>}
-                      {m.notes && <p className="mt-0.5 text-xs text-neutral-500 italic">{m.notes}</p>}
+                      {m.delegate && <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Delegate: {m.delegate.full_name}</p>}
+                      {m.notes && <p className="mt-0.5 text-xs italic" style={{ color: "rgba(13,17,68,0.4)" }}>{m.notes}</p>}
                     </div>
                     {canManage && (
                       <button
                         onClick={() => removeMember(m.member?.id ?? "")}
-                        className="shrink-0 text-xs text-neutral-600 hover:text-red-400 transition"
+                        className="shrink-0 text-xs transition hover:opacity-70"
+                        style={{ color: "rgba(13,17,68,0.35)" }}
                       >
                         Remove
                       </button>

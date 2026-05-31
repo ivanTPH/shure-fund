@@ -313,30 +313,30 @@ export default function UploadEvidenceClient({
 
   return (
     <AppShell>
-      <div className="min-h-screen" style={{ backgroundColor: "#0d1144" }}>
+      <div className="min-h-screen">
 
         {/* Sticky header */}
         <div
-          className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/8 px-4 py-3"
-          style={{ backgroundColor: "#0d1144" }}
+          className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
+          style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}
         >
           <Link
             href={`/projects/${projectId}`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:text-white"
-            style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:opacity-70"
+            style={{ backgroundColor: "rgba(13,17,68,0.06)", color: "var(--brand-navy, #0D1144)" }}
             aria-label="Back to project"
           >
             ←
           </Link>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white">Upload evidence</p>
-            {stageName && <p className="text-xs text-neutral-400 truncate">{stageName}</p>}
+            <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Upload evidence</p>
+            {stageName && <p className="text-xs truncate" style={{ color: "rgba(13,17,68,0.45)" }}>{stageName}</p>}
           </div>
           {uploadedFiles.length > 0 && (
             <Link
               href={`/projects/${projectId}`}
-              className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-green-400 transition hover:text-green-300"
-              style={{ border: "1px solid rgba(52,211,153,0.3)", backgroundColor: "rgba(52,211,153,0.08)" }}
+              className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+              style={{ border: "1px solid rgba(5,150,105,0.3)", backgroundColor: "rgba(5,150,105,0.08)", color: "#059669" }}
             >
               Done ({uploadedFiles.length} uploaded)
             </Link>
@@ -345,9 +345,9 @@ export default function UploadEvidenceClient({
           <div className="flex items-center gap-1.5 shrink-0">
             <span
               className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: isOnline ? "#34d399" : "#f87171" }}
+              style={{ backgroundColor: isOnline ? "#059669" : "#dc2626" }}
             />
-            <span className="text-[10px] text-neutral-500">
+            <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.45)" }}>
               {isOnline ? "Online" : "No signal"}
             </span>
           </div>
@@ -357,16 +357,16 @@ export default function UploadEvidenceClient({
         {hasQueue && (
           <div
             className="mx-4 mt-4 rounded-2xl px-4 py-3"
-            style={{ backgroundColor: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)" }}
+            style={{ backgroundColor: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.25)" }}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-xs font-bold text-amber-300">
+                <p className="text-xs font-bold" style={{ color: "#d97706" }}>
                   {processingQueue
                     ? "Sending queued files…"
                     : `${queue.length} file${queue.length !== 1 ? "s" : ""} queued — waiting for signal`}
                 </p>
-                <p className="mt-0.5 text-xs text-neutral-400">
+                <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
                   {isOnline && !processingQueue
                     ? "Signal restored — tap to send now"
                     : isOnline && processingQueue
@@ -377,8 +377,8 @@ export default function UploadEvidenceClient({
               {isOnline && !processingQueue && (
                 <button
                   onClick={processQueue}
-                  className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-amber-200 transition"
-                  style={{ backgroundColor: "rgba(251,191,36,0.2)", border: "1px solid rgba(251,191,36,0.3)" }}
+                  className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+                  style={{ backgroundColor: "rgba(217,119,6,0.12)", border: "1px solid rgba(217,119,6,0.3)", color: "#d97706" }}
                 >
                   Send now
                 </button>
@@ -388,9 +388,9 @@ export default function UploadEvidenceClient({
             <ul className="mt-2 space-y-1">
               {queue.map((q) => (
                 <li key={q.id} className="flex items-center gap-2">
-                  <span className="text-[10px] text-neutral-600">—</span>
-                  <p className="flex-1 min-w-0 truncate text-xs text-neutral-300">{q.fileName}</p>
-                  <span className="shrink-0 text-[10px] text-amber-400">{EVIDENCE_LABELS[q.evidenceType]}</span>
+                  <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.3)" }}>—</span>
+                  <p className="flex-1 min-w-0 truncate text-xs" style={{ color: "rgba(13,17,68,0.7)" }}>{q.fileName}</p>
+                  <span className="shrink-0 text-[10px]" style={{ color: "#d97706" }}>{EVIDENCE_LABELS[q.evidenceType]}</span>
                 </li>
               ))}
             </ul>
@@ -400,14 +400,14 @@ export default function UploadEvidenceClient({
         {/* Uploaded files list */}
         {uploadedFiles.length > 0 && (
           <div className="mx-4 mt-4 space-y-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500 px-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest px-1" style={{ color: "rgba(13,17,68,0.45)" }}>
               Added this session
             </p>
             {uploadedFiles.map((f, i) => (
               <div
                 key={i}
                 className="flex items-center gap-3 rounded-2xl overflow-hidden"
-                style={{ border: "1px solid rgba(52,211,153,0.25)", backgroundColor: "rgba(52,211,153,0.06)" }}
+                style={{ border: "1px solid rgba(5,150,105,0.25)", backgroundColor: "rgba(5,150,105,0.05)" }}
               >
                 {/* Thumbnail or file type block */}
                 {f.previewUrl ? (
@@ -425,8 +425,8 @@ export default function UploadEvidenceClient({
                   </div>
                 )}
                 <div className="min-w-0 flex-1 py-2 pr-3">
-                  <p className="truncate text-sm font-medium text-white">{f.name}</p>
-                  <p className="text-[11px] text-green-400">✓ {f.label} — uploaded</p>
+                  <p className="truncate text-sm font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{f.name}</p>
+                  <p className="text-[11px]" style={{ color: "#059669" }}>✓ {f.label} — uploaded</p>
                 </div>
               </div>
             ))}
@@ -441,7 +441,7 @@ export default function UploadEvidenceClient({
 
           {/* Evidence type grid */}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
               Type of evidence
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -455,8 +455,8 @@ export default function UploadEvidenceClient({
                     className="rounded-2xl px-3 py-2.5 text-left text-xs font-semibold transition active:scale-[0.97]"
                     style={
                       active
-                        ? { backgroundColor: "rgba(96,165,250,0.18)", border: "1px solid rgba(96,165,250,0.5)", color: "#93c5fd" }
-                        : { backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "#737373" }
+                        ? { backgroundColor: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.35)", color: "#2563eb" }
+                        : { backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.5)" }
                     }
                   >
                     {EVIDENCE_LABELS[type]}
@@ -468,7 +468,7 @@ export default function UploadEvidenceClient({
 
           {/* File picker */}
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
               {uploadedFiles.length > 0 ? "Add another document" : "Attach file"}
             </p>
 
@@ -493,7 +493,7 @@ export default function UploadEvidenceClient({
               /* Preview card */
               <div
                 className="overflow-hidden rounded-2xl"
-                style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)" }}
               >
                 {previewUrl && (
                   <img
@@ -504,16 +504,17 @@ export default function UploadEvidenceClient({
                 )}
                 <div
                   className="flex items-center gap-3 px-4 py-3"
-                  style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
+                  style={{ backgroundColor: "rgba(13,17,68,0.02)" }}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">{selectedFile.name}</p>
-                    <p className="text-xs text-neutral-400">{formatBytes(selectedFile.size)}</p>
+                    <p className="truncate text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{selectedFile.name}</p>
+                    <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{formatBytes(selectedFile.size)}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => { setSelectedFile(null); setPreviewUrl(null); if (cameraRef.current) cameraRef.current.value = ""; if (fileRef.current) fileRef.current.value = ""; }}
-                    className="shrink-0 text-xs text-neutral-500 transition hover:text-white"
+                    className="shrink-0 text-xs transition hover:opacity-70"
+                    style={{ color: "rgba(13,17,68,0.4)" }}
                   >
                     Remove
                   </button>
@@ -525,8 +526,8 @@ export default function UploadEvidenceClient({
                 <button
                   type="button"
                   onClick={() => cameraRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl py-5 text-sm font-bold text-white transition active:scale-[0.98]"
-                  style={{ backgroundColor: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)" }}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl py-5 text-sm font-bold transition active:scale-[0.98]"
+                  style={{ backgroundColor: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.25)", color: "#2563eb" }}
                 >
                   <span className="text-xl">📷</span>
                   Take photo
@@ -534,8 +535,8 @@ export default function UploadEvidenceClient({
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-neutral-300 transition active:scale-[0.98]"
-                  style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition active:scale-[0.98]"
+                  style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.6)" }}
                 >
                   <span>📎</span>
                   Choose from files (PDF, XLSX, JPG)
@@ -546,9 +547,9 @@ export default function UploadEvidenceClient({
 
           {/* Note */}
           <div>
-            <label htmlFor="ev-note" className="mb-2 block text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            <label htmlFor="ev-note" className="mb-2 block text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
               Note{" "}
-              <span className="text-neutral-600 normal-case tracking-normal">(optional)</span>
+              <span className="normal-case tracking-normal" style={{ color: "rgba(13,17,68,0.35)" }}>(optional)</span>
             </label>
             <textarea
               id="ev-note"
@@ -556,8 +557,8 @@ export default function UploadEvidenceClient({
               onChange={(e) => setNote(e.target.value)}
               placeholder={`What does this show? e.g. "First fix joists complete — inspector visited 14 May"`}
               rows={3}
-              className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none"
-              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+              className="w-full resize-none rounded-2xl px-4 py-3 text-sm focus:outline-none"
+              style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
             />
           </div>
 
@@ -565,10 +566,10 @@ export default function UploadEvidenceClient({
           {!isOnline && selectedFile && (
             <div
               className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)" }}
+              style={{ backgroundColor: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.2)" }}
             >
-              <p className="text-xs font-semibold text-amber-300">No signal — will save to upload queue</p>
-              <p className="mt-0.5 text-xs text-neutral-400">
+              <p className="text-xs font-semibold" style={{ color: "#d97706" }}>No signal — will save to upload queue</p>
+              <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
                 {selectedFile.size > OFFLINE_SIZE_LIMIT
                   ? `This file (${formatBytes(selectedFile.size)}) is too large to save offline (max 3 MB). Get a signal to upload.`
                   : "Your file will be sent automatically when you're back online."}
@@ -580,9 +581,9 @@ export default function UploadEvidenceClient({
           {error && (
             <div
               className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}
+              style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}
             >
-              <p className="text-sm text-red-300">{error}</p>
+              <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>
             </div>
           )}
 
@@ -592,8 +593,7 @@ export default function UploadEvidenceClient({
             disabled={!selectedFile || uploading || (!isOnline && !!selectedFile && selectedFile.size > OFFLINE_SIZE_LIMIT)}
             className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-40 active:scale-[0.98]"
             style={{
-              backgroundColor: !isOnline ? "rgba(251,191,36,0.2)" : "rgba(52,211,153,0.2)",
-              border: `1px solid ${!isOnline ? "rgba(251,191,36,0.4)" : "rgba(52,211,153,0.4)"}`,
+              backgroundColor: !isOnline ? "#d97706" : "var(--brand-navy, #0D1144)",
             }}
           >
             {uploading
@@ -607,7 +607,8 @@ export default function UploadEvidenceClient({
 
           <Link
             href={`/projects/${projectId}`}
-            className="block py-2 text-center text-sm text-neutral-500 transition hover:text-white"
+            className="block py-2 text-center text-sm transition hover:opacity-70"
+            style={{ color: "rgba(13,17,68,0.45)" }}
           >
             {uploadedFiles.length > 0 ? "Done — back to project" : "Cancel"}
           </Link>
