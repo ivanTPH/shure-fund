@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import ShureFundAppShell from "./components/ShureFundAppShell";
 
 export const metadata: Metadata = {
   title: "Shure.Fund",
-  description: "Rules-based construction funding control dashboard",
+  description: "Construction finance platform — Shure.Fund",
 };
 
 export default function RootLayout({
@@ -15,7 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="h-full min-h-full">
-        <ShureFundAppShell>{children}</ShureFundAppShell>
+        {children}
       </body>
     </html>
   );

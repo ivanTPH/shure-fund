@@ -1,5 +1,8 @@
-import ShureFundDashboard from "../components/ShureFundDashboard";
+import { redirect } from "next/navigation";
 
+/**
+ * /activity → redirect to inbox (the real unified action feed).
+ */
 export default function ActivityPage() {
-  return <ShureFundDashboard section="activity" />;
+  redirect("/inbox");
 }
