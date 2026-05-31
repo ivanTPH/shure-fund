@@ -145,15 +145,15 @@ function Section({
         className="mb-3 flex w-full items-center gap-2 text-left group"
         onClick={() => setOpen((o) => !o)}
       >
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-300 transition-colors">
+        <h2 className="text-xs font-semibold uppercase tracking-widest transition-colors" style={{ color: "rgba(13,17,68,0.45)" }}>
           {title}
         </h2>
         {badge !== undefined && badge > 0 && (
-          <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-neutral-300">
+          <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[10px] font-bold" style={{ backgroundColor: "rgba(13,17,68,0.08)", color: "var(--brand-navy, #0D1144)" }}>
             {badge}
           </span>
         )}
-        <span className="ml-auto text-[10px] text-neutral-600 group-hover:text-neutral-400 transition-colors select-none">
+        <span className="ml-auto text-[10px] select-none" style={{ color: "rgba(13,17,68,0.3)" }}>
           {open ? "▲" : "▼"}
         </span>
       </button>
@@ -301,8 +301,8 @@ export default function StageOverviewPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-sm text-neutral-500">Loading stage…</p>
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading stage…</p>
         </div>
       </AppShell>
     );
@@ -311,12 +311,12 @@ export default function StageOverviewPage() {
   if (error || !stage) {
     return (
       <AppShell>
-        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-          <Link href={`/projects/${projectId}`} className="text-xs text-neutral-400 hover:text-white">
+        <div className="min-h-screen px-4 py-8">
+          <Link href={`/projects/${projectId}`} className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
             ← Back to project
           </Link>
-          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm text-red-300">{error ?? "Stage not found."}</p>
+          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{error ?? "Stage not found."}</p>
           </div>
         </div>
       </AppShell>
@@ -358,15 +358,15 @@ export default function StageOverviewPage() {
   return (
     <>
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-6 max-w-2xl mx-auto space-y-6" style={{ backgroundColor: "#0d1144" }}>
+      <div className="min-h-screen px-4 md:px-8 py-6 max-w-2xl mx-auto space-y-6">
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-1.5 text-xs text-neutral-500">
-          <Link href="/projects" className="hover:text-neutral-300">Projects</Link>
+        <div className="flex items-center gap-1.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+          <Link href="/projects" className="hover:opacity-100 transition-opacity" style={{ opacity: 0.7 }}>Projects</Link>
           <span>/</span>
-          <Link href={`/projects/${projectId}`} className="hover:text-neutral-300">{stage.projectName}</Link>
+          <Link href={`/projects/${projectId}`} className="hover:opacity-100 transition-opacity" style={{ opacity: 0.7 }}>{stage.projectName}</Link>
           <span>/</span>
-          <span className="text-neutral-300">{stage.name}</span>
+          <span style={{ color: "var(--brand-navy, #0D1144)", fontWeight: 500 }}>{stage.name}</span>
         </div>
 
         {/* ── Stage header ─────────────────────────────────────────────────── */}
@@ -389,16 +389,16 @@ export default function StageOverviewPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl font-bold text-white">{stage.name}</h1>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage.name}</h1>
           {stage.description && (
-            <p className="mt-1.5 text-sm text-neutral-400">{stage.description}</p>
+            <p className="mt-1.5 text-sm" style={{ color: "rgba(13,17,68,0.6)" }}>{stage.description}</p>
           )}
 
           {/* Value + dates */}
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Contracted value</p>
-              <p className="mt-0.5 text-lg font-bold text-white">{gbp.format(stage.value)}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Contracted value</p>
+              <p className="mt-0.5 text-lg font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(stage.value)}</p>
               {variationImpact !== 0 && (
                 <p className="text-[11px]" style={{ color: variationImpact > 0 ? "#34d399" : "#f87171" }}>
                   {variationImpact > 0 ? "+" : ""}{gbp.format(variationImpact)} variations
@@ -406,12 +406,12 @@ export default function StageOverviewPage() {
               )}
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Start</p>
-              <p className="mt-0.5 text-sm font-semibold text-white">{formatDate(stage.startDate)}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Start</p>
+              <p className="mt-0.5 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{formatDate(stage.startDate)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">End</p>
-              <p className="mt-0.5 text-sm font-semibold text-white">{formatDate(stage.endDate)}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>End</p>
+              <p className="mt-0.5 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{formatDate(stage.endDate)}</p>
               {stage.endDate && new Date(stage.endDate) < new Date() && stage.status !== "released" && (
                 <p className="text-[10px] text-red-400">Overdue</p>
               )}
@@ -549,7 +549,7 @@ export default function StageOverviewPage() {
             </p>
           )}
           {evidence.length === 0 ? (
-            <p className="text-sm text-neutral-500">No evidence uploaded yet.</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No evidence uploaded yet.</p>
           ) : (
             <div className="space-y-2">
               {evidence.map((item) => {
@@ -568,7 +568,7 @@ export default function StageOverviewPage() {
                   <div
                     key={item.id}
                     className="rounded-2xl overflow-hidden"
-                    style={{ border: `1px solid ${isExpanded ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.07)"}`, backgroundColor: isExpanded ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)" }}
+                    style={{ border: `1px solid ${isExpanded ? "rgba(13,17,68,0.14)" : "var(--surface-border, #e4e7f0)"}`, backgroundColor: isExpanded ? "rgba(13,17,68,0.03)" : "#fff" }}
                   >
                     {/* Main row — button only when expandable to avoid nested button error */}
                     {canExpand ? (
@@ -583,8 +583,8 @@ export default function StageOverviewPage() {
                       >
                         <span className="mt-0.5 text-lg shrink-0">{fileIcon}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="truncate text-sm font-semibold text-white">{item.name}</p>
-                          <p className="text-[11px] text-neutral-500">
+                          <p className="truncate text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{item.name}</p>
+                          <p className="text-[11px]" style={{ color: "rgba(13,17,68,0.45)" }}>
                             {item.uploadedBy?.full_name ?? "Unknown"} · {relativeTime(item.uploadedAt)}
                           </p>
                         </div>
@@ -592,15 +592,15 @@ export default function StageOverviewPage() {
                           <span className="text-[10px] font-bold uppercase" style={{ color: sc }}>
                             {item.status.replace(/_/g, " ")}
                           </span>
-                          <span className="text-[10px] text-neutral-600">{isExpanded ? "▲" : "▼"}</span>
+                          <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.3)" }}>{isExpanded ? "▲" : "▼"}</span>
                         </div>
                       </button>
                     ) : (
                       <div className="flex w-full items-start gap-3 px-4 py-3 text-left">
                         <span className="mt-0.5 text-lg shrink-0">{fileIcon}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="truncate text-sm font-semibold text-white">{item.name}</p>
-                          <p className="text-[11px] text-neutral-500">
+                          <p className="truncate text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{item.name}</p>
+                          <p className="text-[11px]" style={{ color: "rgba(13,17,68,0.45)" }}>
                             {item.uploadedBy?.full_name ?? "Unknown"} · {relativeTime(item.uploadedAt)}
                           </p>
                         </div>
@@ -624,14 +624,14 @@ export default function StageOverviewPage() {
 
                     {/* Expanded review panel — only for pending / requires_more */}
                     {isExpanded && canExpand && (
-                      <div className="border-t border-white/10 px-4 pb-4 pt-3 space-y-3">
+                      <div className="px-4 pb-4 pt-3 space-y-3" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
                         {/* View file button */}
                         {item.signedUrl && (
                           <button
                             type="button"
                             onClick={() => setViewerFile({ url: item.signedUrl!, name: item.name })}
-                            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:text-white"
-                            style={{ border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.05)" }}
+                            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+                            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc", color: "var(--brand-navy, #0D1144)" }}
                           >
                             View file
                           </button>
@@ -639,7 +639,7 @@ export default function StageOverviewPage() {
 
                         {/* Notes */}
                         <div>
-                          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
+                          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
                             Review notes (required for reject / more info)
                           </label>
                           <textarea
@@ -648,7 +648,8 @@ export default function StageOverviewPage() {
                             placeholder="Add notes for the contractor…"
                             value={reviewNotes[item.id] ?? ""}
                             onChange={(e) => setReviewNotes((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none resize-none"
+                            className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+                            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
                           />
                         </div>
 
@@ -682,7 +683,7 @@ export default function StageOverviewPage() {
                             ✗ Reject
                           </button>
                           {isReviewing && (
-                            <span className="flex items-center text-[11px] text-neutral-500">Saving…</span>
+                            <span className="flex items-center text-[11px]" style={{ color: "rgba(13,17,68,0.45)" }}>Saving…</span>
                           )}
                         </div>
                       </div>
@@ -697,7 +698,7 @@ export default function StageOverviewPage() {
         {/* ── Approval chain ───────────────────────────────────────────────── */}
         <Section title="Approval chain" badge={pendingApprovals || undefined}>
           {approvals.length === 0 ? (
-            <p className="text-sm text-neutral-500">No approval records yet.</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No approval records yet.</p>
           ) : (
             <div className="space-y-2">
               {approvals.map((ap) => {
@@ -706,7 +707,7 @@ export default function StageOverviewPage() {
                   <div
                     key={ap.id}
                     className="flex items-start gap-3 rounded-2xl px-4 py-3"
-                    style={{ border: `1px solid ${ds.color}22`, backgroundColor: ds.color + "0d" }}
+                    style={{ border: `1px solid ${ds.color}33`, backgroundColor: ds.color + "0d" }}
                   >
                     <span
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
@@ -715,12 +716,12 @@ export default function StageOverviewPage() {
                       {ap.decision === "approved" ? "✓" : ap.decision === "rejected" ? "✗" : ap.decision === "returned" ? "↩" : "·"}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white">{APPROVAL_ROLE_LABEL[ap.role] ?? ap.role}</p>
-                      <p className="text-xs text-neutral-400">{ap.approver?.full_name ?? "—"}</p>
+                      <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{APPROVAL_ROLE_LABEL[ap.role] ?? ap.role}</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{ap.approver?.full_name ?? "—"}</p>
                       {ap.certifiedAmount !== null && (
-                        <p className="mt-0.5 text-xs text-neutral-300">Certified {gbp.format(ap.certifiedAmount)}</p>
+                        <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.65)" }}>Certified {gbp.format(ap.certifiedAmount)}</p>
                       )}
-                      {ap.notes && <p className="mt-0.5 text-xs italic text-neutral-500">{ap.notes}</p>}
+                      {ap.notes && <p className="mt-0.5 text-xs italic" style={{ color: "rgba(13,17,68,0.45)" }}>{ap.notes}</p>}
                     </div>
                     <span className="shrink-0 text-xs font-bold uppercase" style={{ color: ds.color }}>{ds.label}</span>
                   </div>
@@ -729,7 +730,7 @@ export default function StageOverviewPage() {
             </div>
           )}
           {allApproved && (
-            <p className="mt-3 text-xs font-semibold" style={{ color: "#34d399" }}>
+            <p className="mt-3 text-xs font-semibold" style={{ color: "#059669" }}>
               All approvals granted — stage cleared for payment release.
             </p>
           )}
@@ -738,27 +739,27 @@ export default function StageOverviewPage() {
         {/* ── Variations ───────────────────────────────────────────────────── */}
         <Section title="Variations" badge={variations.length || undefined}>
           {variations.length === 0 ? (
-            <p className="text-sm text-neutral-500">No variations requested.</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No variations requested.</p>
           ) : (
             <div className="space-y-2">
               {variations.map((v) => {
                 const isApproved = v.status === "approved" || v.status === "active";
                 const isPending  = v.status === "pending" || v.status === "under_review";
-                const color = isApproved ? "#34d399" : isPending ? "#fbbf24" : "#94a3b8";
+                const color = isApproved ? "#059669" : isPending ? "#d97706" : "#6b7280";
                 return (
                   <div
                     key={v.id}
                     className="rounded-2xl px-4 py-3"
-                    style={{ border: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                    style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold text-white">{v.description}</p>
+                      <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{v.description}</p>
                       <span className="shrink-0 text-[10px] font-bold uppercase" style={{ color }}>
                         {v.status.replace(/_/g, " ")}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-neutral-500">
-                      <span style={{ color: v.valueChange >= 0 ? "#34d399" : "#f87171", fontWeight: 600 }}>
+                    <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                      <span style={{ color: v.valueChange >= 0 ? "#059669" : "#dc2626", fontWeight: 600 }}>
                         {v.valueChange >= 0 ? "+" : ""}{gbp.format(v.valueChange)}
                       </span>
                       <span>·</span>
@@ -776,28 +777,28 @@ export default function StageOverviewPage() {
         {/* ── Disputes ─────────────────────────────────────────────────────── */}
         <Section title="Disputes" badge={activeDisputes || undefined}>
           {disputes.length === 0 ? (
-            <p className="text-sm text-neutral-500">No disputes raised.</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No disputes raised.</p>
           ) : (
             <div className="space-y-2">
               {disputes.map((d) => {
                 const isActive   = d.status === "raised" || d.status === "open";
                 const isResolved = d.status === "resolved" || d.status === "withdrawn";
-                const color = isActive ? "#f97316" : isResolved ? "#94a3b8" : "#fbbf24";
+                const color = isActive ? "#dc2626" : isResolved ? "#6b7280" : "#d97706";
                 return (
                   <Link
                     key={d.id}
                     href={`/projects/${projectId}/stages/${stageId}/disputes/${d.id}`}
-                    className="block rounded-2xl px-4 py-3 transition hover:bg-white/5"
-                    style={{ border: `1px solid ${color}22`, backgroundColor: color + "0a" }}
+                    className="block rounded-2xl px-4 py-3 transition hover:opacity-90"
+                    style={{ border: `1px solid ${color}33`, backgroundColor: color + "0a" }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold text-white line-clamp-1">{d.reason}</p>
+                      <p className="text-sm font-semibold line-clamp-1" style={{ color: "var(--brand-navy, #0D1144)" }}>{d.reason}</p>
                       <span className="shrink-0 text-[10px] font-bold uppercase" style={{ color }}>
                         {d.status}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-neutral-500">
-                      <span className="font-semibold" style={{ color: "#f97316" }}>{gbp.format(d.disputedValue)}</span>
+                    <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                      <span className="font-semibold" style={{ color }}>{gbp.format(d.disputedValue)}</span>
                       <span>·</span>
                       <span>{d.raiser?.full_name ?? "—"}</span>
                       <span>·</span>
@@ -811,10 +812,11 @@ export default function StageOverviewPage() {
         </Section>
 
         {/* ── Audit link ───────────────────────────────────────────────────── */}
-        <div className="border-t border-white/5 pt-4 pb-6">
+        <div className="pt-4 pb-6" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
           <Link
             href={`/projects/${projectId}/audit`}
-            className="text-xs font-medium text-neutral-500 hover:text-neutral-300 transition"
+            className="text-xs font-medium transition hover:opacity-70"
+            style={{ color: "rgba(13,17,68,0.5)" }}
           >
             View full project audit trail →
           </Link>

@@ -111,11 +111,17 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function MetricCard({ label, value, tone, sub }: { label: string; value: string; tone?: string; sub?: string }) {
+  const valueColor = tone === "text-green-400" ? "#059669"
+    : tone === "text-red-400" ? "#dc2626"
+    : tone === "text-blue-400" ? "#2563eb"
+    : tone === "text-purple-400" ? "#7c3aed"
+    : tone === "text-orange-400" ? "#ea580c"
+    : "var(--brand-navy, #0D1144)";
   return (
-    <div className="rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className={`mt-1 text-lg font-bold tracking-tight ${tone ?? "text-white"}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-neutral-600">{sub}</p>}
+    <div className="rounded-2xl px-4 py-3" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{label}</p>
+      <p className="mt-1 text-lg font-bold tracking-tight" style={{ color: valueColor }}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>{sub}</p>}
     </div>
   );
 }
@@ -123,8 +129,8 @@ function MetricCard({ label, value, tone, sub }: { label: string; value: string;
 function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="mb-3">
-      <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{title}</p>
-      {sub && <p className="mt-0.5 text-xs text-neutral-600">{sub}</p>}
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>{title}</p>
+      {sub && <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>{sub}</p>}
     </div>
   );
 }
@@ -182,7 +188,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
             <MetricCard label="Total committed" value={gbp.format(summary.totalCommitted)} />
             <MetricCard label="Total drawn" value={gbp.format(summary.totalDrawn)} tone="text-green-400" />
             <MetricCard label="Ringfenced" value={gbp.format(wallet.ringfenced)} tone="text-blue-400" sub="Allocated to active stages" />
-            <MetricCard label="Available balance" value={gbp.format(wallet.available)} tone={wallet.available < summary.projectedDraw30d ? "text-red-400" : "text-white"} sub="Free in wallet" />
+            <MetricCard label="Available balance" value={gbp.format(wallet.available)} tone={wallet.available < summary.projectedDraw30d ? "text-red-400" : undefined} sub="Free in wallet" />
           </div>
         </div>
         <div>
@@ -191,8 +197,8 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
             {summary.pendingApprovals > 0 && (
               <Link
                 href={`/projects/${projectId}/stages/${firstAwaitingStage?.id ?? ""}/approve`}
-                className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold text-white"
-                style={{ backgroundColor: "rgba(192,132,252,0.2)", border: "1px solid rgba(192,132,252,0.3)" }}
+                className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold"
+                style={{ backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#7c3aed" }}
               >
                 Pending approvals
                 <Badge count={summary.pendingApprovals} color="#c084fc" />
@@ -205,8 +211,8 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                     ? `/projects/${projectId}/stages/${firstDisputedStage.id}/disputes/${firstDisputedStage.activeDisputeId}`
                     : `/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`
                 }
-                className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold text-white"
-                style={{ backgroundColor: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.25)" }}
+                className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold"
+                style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
               >
                 Active disputes
                 <Badge count={summary.activeDisputes} color="#f87171" />
@@ -214,8 +220,8 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
             )}
             <Link
               href={`/projects/${projectId}/wallet`}
-              className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold text-white"
-              style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+              className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
             >
               Wallet & transactions
             </Link>
@@ -231,10 +237,10 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
           <SectionHeader title="Stage register" sub="All stages · contracted value · certified · next action" />
 
           {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
+          <div className="hidden md:block overflow-x-auto rounded-2xl" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-neutral-500 border-b border-white/8">
+                <tr className="text-left text-xs" style={{ color: "rgba(13,17,68,0.45)", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
                   <th className="px-4 py-3 font-medium">Stage</th>
                   <th className="px-4 py-3 font-medium">Contractor</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -243,15 +249,16 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                   <th className="px-4 py-3 font-medium">Next action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody>
                 {allStages.map((s) => (
                   <tr
                     key={s.id}
-                    className="hover:bg-white/5 cursor-pointer transition-colors"
+                    className="cursor-pointer transition-colors hover:bg-neutral-50"
+                    style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}
                     onClick={() => setSelectedStageId(s.id)}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-white">{s.name}</p>
+                      <p className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
                       {s.activeDisputes > 0 && s.activeDisputeId && (
                         <Link
                           href={`/projects/${projectId}/stages/${s.id}/disputes/${s.activeDisputeId}`}
@@ -266,33 +273,34 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                       <Link
                         href={`/projects/${projectId}/contracts/${s.contractId}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-neutral-400 hover:text-blue-300 transition underline-offset-2 hover:underline"
+                        className="transition hover:opacity-70 underline-offset-2 hover:underline"
+                        style={{ color: "rgba(13,17,68,0.55)" }}
                       >
                         {s.contractorName}
                       </Link>
                     </td>
                     <td className="px-4 py-3"><StatusPill status={s.status} /></td>
-                    <td className="px-4 py-3 text-right font-medium text-white">{gbp.format(s.value)}</td>
+                    <td className="px-4 py-3 text-right font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</td>
                     <td className="px-4 py-3 text-right">
                       {s.certifiedAmount !== null ? (
-                        <span className={s.certifiedAmount === s.value ? "text-green-400 font-semibold" : "text-purple-300"}>
+                        <span style={{ color: s.certifiedAmount === s.value ? "#059669" : "#7c3aed", fontWeight: 600 }}>
                           {gbp.format(s.certifiedAmount)}
                           {s.certifiedAmount === s.value && " ✓"}
                         </span>
                       ) : (
-                        <span className="text-neutral-600">—</span>
+                        <span style={{ color: "rgba(13,17,68,0.3)" }}>—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-neutral-400 max-w-[180px]">{s.nextAction}</td>
+                    <td className="px-4 py-3 text-xs max-w-[180px]" style={{ color: "rgba(13,17,68,0.5)" }}>{s.nextAction}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t border-white/10">
+              <tfoot style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
                 <tr className="text-sm font-bold">
-                  <td className="px-4 py-3 text-white" colSpan={3}>Total</td>
-                  <td className="px-4 py-3 text-right text-white">{gbp.format(summary.totalCommitted)}</td>
-                  <td className="px-4 py-3 text-right text-green-400">{gbp.format(summary.totalDrawn)} drawn</td>
-                  <td className="px-4 py-3 text-xs text-neutral-500">{gbp.format(summary.totalRemaining)} remaining</td>
+                  <td className="px-4 py-3" style={{ color: "var(--brand-navy, #0D1144)" }} colSpan={3}>Total</td>
+                  <td className="px-4 py-3 text-right" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(summary.totalCommitted)}</td>
+                  <td className="px-4 py-3 text-right" style={{ color: "#059669" }}>{gbp.format(summary.totalDrawn)} drawn</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{gbp.format(summary.totalRemaining)} remaining</td>
                 </tr>
               </tfoot>
             </table>
@@ -304,37 +312,38 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
               <button
                 key={s.id}
                 onClick={() => setSelectedStageId(s.id)}
-                className="w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5 text-left"
-                style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                className="w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-neutral-50 text-left"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{s.name}</p>
-                  <p className="text-xs text-neutral-500">{s.contractorName}</p>
+                  <p className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                  <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{s.contractorName}</p>
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <StatusPill status={s.status} />
                     {s.activeDisputes > 0 && s.activeDisputeId && (
                       <Link
                         href={`/projects/${projectId}/stages/${s.id}/disputes/${s.activeDisputeId}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[10px] font-bold text-red-400 underline underline-offset-2 hover:text-red-300"
+                        className="text-[10px] font-bold underline underline-offset-2"
+                        style={{ color: "#dc2626" }}
                       >
                         ⚠ Dispute — tap to view
                       </Link>
                     )}
                     {s.activeDisputes > 0 && !s.activeDisputeId && (
-                      <span className="text-[10px] font-bold text-red-400">⚠ Dispute</span>
+                      <span className="text-[10px] font-bold" style={{ color: "#dc2626" }}>⚠ Dispute</span>
                     )}
-                    {s.pendingApprovals > 0 && <span className="text-[10px] font-bold text-purple-400">● Approval pending</span>}
+                    {s.pendingApprovals > 0 && <span className="text-[10px] font-bold" style={{ color: "#7c3aed" }}>● Approval pending</span>}
                   </div>
-                  <p className="mt-1 text-xs text-neutral-500">{s.nextAction}</p>
+                  <p className="mt-1 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{s.nextAction}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-white">{gbp.format(s.value)}</p>
+                  <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</p>
                   {s.certifiedAmount !== null && s.certifiedAmount !== s.value && (
-                    <p className="text-xs text-purple-300">Cert: {gbp.format(s.certifiedAmount)}</p>
+                    <p className="text-xs" style={{ color: "#7c3aed" }}>Cert: {gbp.format(s.certifiedAmount)}</p>
                   )}
                   {s.certifiedAmount !== null && s.certifiedAmount === s.value && (
-                    <p className="text-xs text-green-400">Certified ✓</p>
+                    <p className="text-xs" style={{ color: "#059669" }}>Certified ✓</p>
                   )}
                 </div>
               </button>
@@ -345,32 +354,32 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
         {/* Desktop-only: wallet sidebar */}
         <aside className="hidden md:flex md:flex-col md:w-72 md:shrink-0 gap-4 sticky top-6">
           {/* Wallet card */}
-          <div className="rounded-2xl p-4 space-y-3" style={{ border: "1px solid rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.05)" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Wallet</p>
+          <div className="rounded-2xl p-4 space-y-3" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Wallet</p>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-400">Total committed</span>
-                <span className="font-bold text-white">{gbp.format(summary.totalCommitted)}</span>
+                <span style={{ color: "rgba(13,17,68,0.55)" }}>Total committed</span>
+                <span className="font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(summary.totalCommitted)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-400">Drawn to date</span>
-                <span className="font-bold text-green-400">{gbp.format(summary.totalDrawn)}</span>
+                <span style={{ color: "rgba(13,17,68,0.55)" }}>Drawn to date</span>
+                <span className="font-bold" style={{ color: "#059669" }}>{gbp.format(summary.totalDrawn)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-400">Ringfenced</span>
-                <span className="font-bold text-blue-400">{gbp.format(wallet.ringfenced)}</span>
+                <span style={{ color: "rgba(13,17,68,0.55)" }}>Ringfenced</span>
+                <span className="font-bold" style={{ color: "#2563eb" }}>{gbp.format(wallet.ringfenced)}</span>
               </div>
-              <div className="border-t border-white/10 pt-2 flex justify-between text-sm">
-                <span className="text-neutral-400">Available</span>
-                <span className={`font-bold ${wallet.available < summary.projectedDraw30d ? "text-red-400" : "text-white"}`}>
+              <div className="pt-2 flex justify-between text-sm" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
+                <span style={{ color: "rgba(13,17,68,0.55)" }}>Available</span>
+                <span className="font-bold" style={{ color: wallet.available < summary.projectedDraw30d ? "#dc2626" : "#059669" }}>
                   {gbp.format(wallet.available)}
                 </span>
               </div>
             </div>
             <Link
               href={`/projects/${projectId}/wallet`}
-              className="block w-full text-center rounded-xl py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-              style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+              className="block w-full text-center rounded-xl py-2 text-xs font-semibold transition hover:opacity-90"
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
             >
               Wallet & transactions
             </Link>
@@ -382,8 +391,8 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
               {summary.pendingApprovals > 0 && (
                 <Link
                   href={`/projects/${projectId}/stages/${firstAwaitingStage?.id ?? ""}/approve`}
-                  className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                  style={{ backgroundColor: "rgba(192,132,252,0.2)", border: "1px solid rgba(192,132,252,0.3)" }}
+                  className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                  style={{ backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#7c3aed" }}
                 >
                   <span>Pending approvals</span>
                   <Badge count={summary.pendingApprovals} color="#c084fc" />
@@ -396,8 +405,8 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                       ? `/projects/${projectId}/stages/${firstDisputedStage.id}/disputes/${firstDisputedStage.activeDisputeId}`
                       : `/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`
                   }
-                  className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                  style={{ backgroundColor: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.25)" }}
+                  className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                  style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
                 >
                   <span>Active disputes</span>
                   <Badge count={summary.activeDisputes} color="#f87171" />
@@ -408,13 +417,13 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
 
           {/* 30-day projection */}
           {summary.projectedDraw30d > 0 && (
-            <div className="rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
-              <p className="text-xs text-neutral-500">Projected draw — next 30 days</p>
-              <p className={`mt-1 text-lg font-bold ${summary.fundingGapWarning ? "text-red-400" : "text-white"}`}>
+            <div className="rounded-2xl px-4 py-3" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+              <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Projected draw — next 30 days</p>
+              <p className="mt-1 text-lg font-bold" style={{ color: summary.fundingGapWarning ? "#dc2626" : "var(--brand-navy, #0D1144)" }}>
                 {gbp.format(summary.projectedDraw30d)}
               </p>
               {summary.fundingGapWarning && (
-                <p className="mt-0.5 text-[10px] text-red-400">Funds short — top up wallet</p>
+                <p className="mt-0.5 text-[10px]" style={{ color: "#dc2626" }}>Funds short — top up wallet</p>
               )}
             </div>
           )}
@@ -454,8 +463,8 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricCard label="In progress" value={String(summary.stagesInProgress)} tone="text-amber-400" />
           <MetricCard label="Awaiting approval" value={String(summary.stagesAwaiting)} tone="text-purple-400" />
-          <MetricCard label="Evidence to review" value={String(summary.pendingEvidence)} tone={summary.pendingEvidence > 0 ? "text-orange-400" : "text-white"} />
-          <MetricCard label="Variations pending" value={String(summary.pendingVariations)} tone={summary.pendingVariations > 0 ? "text-blue-400" : "text-white"} />
+          <MetricCard label="Evidence to review" value={String(summary.pendingEvidence)} tone={summary.pendingEvidence > 0 ? "text-orange-400" : undefined} />
+          <MetricCard label="Variations pending" value={String(summary.pendingVariations)} tone={summary.pendingVariations > 0 ? "text-blue-400" : undefined} />
         </div>
       </div>
 
@@ -471,12 +480,12 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                 tabIndex={0}
                 onClick={() => router.push(`/projects/${projectId}/stages/${s.id}`)}
                 onKeyDown={(e) => e.key === "Enter" && router.push(`/projects/${projectId}/stages/${s.id}`)}
-                className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
-                style={{ border: "1px solid rgba(251,191,36,0.2)", backgroundColor: "rgba(251,191,36,0.05)" }}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-neutral-50"
+                style={{ border: "1px solid rgba(251,191,36,0.25)", backgroundColor: "rgba(251,191,36,0.06)" }}
               >
                 <div>
-                  <p className="text-sm font-semibold text-white">{s.name}</p>
-                  <p className="text-xs text-neutral-400">{s.contractorName}</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                  <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{s.contractorName}</p>
                   <div className="mt-1 flex gap-2 flex-wrap">
                     {s.pendingEvidence > 0 && <span className="text-[10px] text-orange-400 font-semibold">{s.pendingEvidence} evidence pending</span>}
                     {s.pendingVariations > 0 && <span className="text-[10px] text-blue-400 font-semibold">{s.pendingVariations} variation(s)</span>}
@@ -503,10 +512,10 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
         <SectionHeader title="Full programme" sub="All stages · spend vs budget" />
 
         {/* Desktop: programme table */}
-        <div className="hidden md:block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
+        <div className="hidden md:block overflow-x-auto rounded-2xl" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-neutral-500 border-b border-white/8">
+              <tr className="text-left text-xs" style={{ color: "rgba(13,17,68,0.45)", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
                 <th className="px-4 py-3 font-medium">Stage</th>
                 <th className="px-4 py-3 font-medium">Contractor</th>
                 <th className="px-4 py-3 font-medium">Start</th>
@@ -516,31 +525,32 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                 <th className="px-4 py-3 font-medium">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody>
               {allStages.map((s) => {
                 const progressPct = stageProgress(s.status);
                 const drawn = s.status === "released" ? s.value : 0;
                 return (
                   <tr
                     key={s.id}
-                    className="hover:bg-white/5 cursor-pointer transition-colors"
+                    className="cursor-pointer transition-colors hover:bg-neutral-50"
+                    style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}
                     onClick={() => setSelectedStageId(s.id)}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-white">{s.name}</p>
+                      <p className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-neutral-400">{s.contractorName}</td>
-                    <td className="px-4 py-3 text-xs text-neutral-400">{dateStr(s.startDate)}</td>
-                    <td className="px-4 py-3 text-xs text-neutral-400">{dateStr(s.endDate)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-white">{gbp.format(s.value)}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{s.contractorName}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{dateStr(s.startDate)}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{dateStr(s.endDate)}</td>
+                    <td className="px-4 py-3 text-right font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</td>
                     <td className="px-4 py-3">
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(13,17,68,0.08)" }}>
                         <div
                           className="h-full rounded-full transition-all"
                           style={{ width: `${progressPct}%`, backgroundColor: STATUS_COLOR[s.status] ?? "#94a3b8" }}
                         />
                       </div>
-                      <p className="text-[10px] text-neutral-600 mt-0.5">
+                      <p className="text-[10px] mt-0.5" style={{ color: "rgba(13,17,68,0.35)" }}>
                         {drawn > 0 ? `${gbp.format(drawn)} drawn` : `${progressPct}%`}
                       </p>
                     </td>
@@ -549,12 +559,12 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                 );
               })}
             </tbody>
-            <tfoot className="border-t border-white/10">
+            <tfoot style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
               <tr className="text-sm font-bold">
-                <td className="px-4 py-3 text-white" colSpan={4}>Total</td>
-                <td className="px-4 py-3 text-right text-white">{gbp.format(summary.totalCommitted)}</td>
-                <td className="px-4 py-3 text-xs text-neutral-500">{gbp.format(summary.totalDrawn)} released</td>
-                <td className="px-4 py-3 text-xs text-neutral-500">{gbp.format(summary.totalRemaining)} left</td>
+                <td className="px-4 py-3" style={{ color: "var(--brand-navy, #0D1144)" }} colSpan={4}>Total</td>
+                <td className="px-4 py-3 text-right" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(summary.totalCommitted)}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{gbp.format(summary.totalDrawn)} released</td>
+                <td className="px-4 py-3 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{gbp.format(summary.totalRemaining)} left</td>
               </tr>
             </tfoot>
           </table>
@@ -565,8 +575,8 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
           {contracts.map((c) => (
             <div key={c.id}>
               <div className="mb-1 flex items-center justify-between px-1">
-                <p className="text-xs font-semibold text-neutral-400">{c.contractorName}</p>
-                <Link href={`/projects/${projectId}/contracts/${c.id}`} className="text-[10px] font-medium text-blue-400 hover:text-blue-200 transition">
+                <p className="text-xs font-semibold" style={{ color: "rgba(13,17,68,0.55)" }}>{c.contractorName}</p>
+                <Link href={`/projects/${projectId}/contracts/${c.id}`} className="text-[10px] font-medium transition hover:opacity-70" style={{ color: "var(--brand-navy, #0D1144)" }}>
                   View contract →
                 </Link>
               </div>
@@ -578,13 +588,13 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                   <button
                     key={s.id}
                     onClick={() => setSelectedStageId(s.id)}
-                    className="mb-2 w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5 text-left"
-                    style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                    className="mb-2 w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-neutral-50 text-left"
+                    style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{s.name}</p>
-                      <p className="text-xs text-neutral-500">{dateStr(s.startDate)} – {dateStr(s.endDate)}</p>
-                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{dateStr(s.startDate)} – {dateStr(s.endDate)}</p>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(13,17,68,0.08)" }}>
                         <div
                           className="h-full rounded-full"
                           style={{ width: `${progressPct}%`, backgroundColor: STATUS_COLOR[s.status] ?? "#94a3b8" }}
@@ -592,8 +602,8 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-white">{gbp.format(s.value)}</p>
-                      <p className="text-xs text-neutral-500">Drawn: {pctDrawn}</p>
+                      <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Drawn: {pctDrawn}</p>
                       <StatusPill status={s.status} />
                     </div>
                   </button>
@@ -618,8 +628,8 @@ function ContractorView({ data, projectId, contractorId }: { data: DashboardData
 
   if (myContracts.length === 0) {
     return (
-      <div className="rounded-2xl px-4 py-8 text-center" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-        <p className="text-neutral-400">No stages assigned to you on this project.</p>
+      <div className="rounded-2xl px-4 py-8 text-center" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+        <p style={{ color: "rgba(13,17,68,0.5)" }}>No stages assigned to you on this project.</p>
       </div>
     );
   }
@@ -636,14 +646,14 @@ function ContractorView({ data, projectId, contractorId }: { data: DashboardData
                 key={s.id}
                 href={`/projects/${projectId}/stages/${s.id}/action`}
                 className="flex items-center justify-between gap-3 rounded-2xl px-4 py-4 transition"
-                style={{ backgroundColor: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)" }}
+                style={{ backgroundColor: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)" }}
               >
                 <div>
-                  <p className="text-sm font-bold text-white">{s.name}</p>
-                  <p className="mt-0.5 text-xs text-amber-300">Upload completion evidence to proceed</p>
-                  <p className="mt-0.5 text-xs text-neutral-500">{gbp.format(s.value)}</p>
+                  <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                  <p className="mt-0.5 text-xs" style={{ color: "#d97706" }}>Upload completion evidence to proceed</p>
+                  <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{gbp.format(s.value)}</p>
                 </div>
-                <span className="shrink-0 rounded-2xl px-3 py-1.5 text-xs font-bold text-amber-200" style={{ backgroundColor: "rgba(251,191,36,0.2)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                <span className="shrink-0 rounded-2xl px-3 py-1.5 text-xs font-bold" style={{ backgroundColor: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", color: "#92400e" }}>
                   Upload →
                 </span>
               </Link>
@@ -655,11 +665,12 @@ function ContractorView({ data, projectId, contractorId }: { data: DashboardData
       {/* All my stages with evidence status */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">My stages</p>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>My stages</p>
           {myContracts.length === 1 && (
             <Link
               href={`/projects/${projectId}/contracts/${myContracts[0].id}`}
-              className="text-[10px] font-medium text-blue-400 hover:text-blue-200 transition"
+              className="text-[10px] font-medium transition hover:opacity-70"
+              style={{ color: "#2563eb" }}
             >
               View contract →
             </Link>
@@ -670,20 +681,20 @@ function ContractorView({ data, projectId, contractorId }: { data: DashboardData
             <Link
               key={s.id}
               href={`/projects/${projectId}/stages/${s.id}`}
-              className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+              className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-neutral-50"
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-white truncate">{s.name}</p>
+                <p className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
                 <StatusPill status={s.status} />
                 {s.pendingEvidence > 0 && (
-                  <p className="mt-1 text-xs text-orange-400">{s.pendingEvidence} evidence under review</p>
+                  <p className="mt-1 text-xs" style={{ color: "#ea580c" }}>{s.pendingEvidence} evidence under review</p>
                 )}
                 {s.status === "returned" && (
-                  <p className="mt-1 text-xs text-orange-400">Returned — action required</p>
+                  <p className="mt-1 text-xs" style={{ color: "#ea580c" }}>Returned — action required</p>
                 )}
               </div>
-              <p className="shrink-0 text-sm font-bold text-white">{gbp.format(s.value)}</p>
+              <p className="shrink-0 text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</p>
             </Link>
           ))}
         </div>
@@ -701,56 +712,56 @@ function StageDetailPanel({
 }) {
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl p-5" style={{ border: "1px solid rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+      <div className="rounded-2xl p-5" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-lg font-bold text-white">{stage.name}</h3>
-            <p className="text-sm text-neutral-400">{stage.contractorName}</p>
+            <h3 className="text-lg font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage.name}</h3>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>{stage.contractorName}</p>
           </div>
           <StatusPill status={stage.status} />
         </div>
 
         <div className="grid grid-cols-3 gap-4 mb-5">
           <div>
-            <p className="text-xs text-neutral-500">Contracted value</p>
-            <p className="text-xl font-bold text-white mt-1">{gbp.format(stage.value)}</p>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Contracted value</p>
+            <p className="text-xl font-bold mt-1" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(stage.value)}</p>
           </div>
           <div>
-            <p className="text-xs text-neutral-500">Certified amount</p>
-            <p className="text-xl font-bold text-purple-300 mt-1">
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Certified amount</p>
+            <p className="text-xl font-bold mt-1" style={{ color: "#7c3aed" }}>
               {stage.certifiedAmount !== null ? gbp.format(stage.certifiedAmount) : "—"}
             </p>
           </div>
           <div>
-            <p className="text-xs text-neutral-500">Approvals pending</p>
-            <p className={`text-xl font-bold mt-1 ${stage.pendingApprovals > 0 ? "text-purple-400" : "text-neutral-600"}`}>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Approvals pending</p>
+            <p className="text-xl font-bold mt-1" style={{ color: stage.pendingApprovals > 0 ? "#7c3aed" : "rgba(13,17,68,0.3)" }}>
               {stage.pendingApprovals}
             </p>
           </div>
         </div>
 
-        <p className="text-xs text-neutral-500 mb-4">Next: {stage.nextAction}</p>
+        <p className="text-xs mb-4" style={{ color: "rgba(13,17,68,0.45)" }}>Next: {stage.nextAction}</p>
 
         <div className="flex gap-2 flex-wrap">
           <Link
             href={`/projects/${projectId}/stages/${stage.id}/approve`}
             className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-            style={{ backgroundColor: "rgba(192,132,252,0.25)", border: "1px solid rgba(192,132,252,0.4)" }}
+            style={{ backgroundColor: "#7c3aed" }}
           >
             Review &amp; sign off →
           </Link>
           <Link
             href={`/projects/${projectId}/stages/${stage.id}`}
-            className="rounded-xl px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:text-white"
-            style={{ border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.06)" }}
+            className="rounded-xl px-4 py-2 text-sm font-semibold transition hover:opacity-70"
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.6)" }}
           >
             Full stage detail
           </Link>
           {stage.activeDisputes > 0 && stage.activeDisputeId && (
             <Link
               href={`/projects/${projectId}/stages/${stage.id}/disputes/${stage.activeDisputeId}`}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-red-300 transition hover:opacity-90"
-              style={{ border: "1px solid rgba(248,113,113,0.3)", backgroundColor: "rgba(248,113,113,0.1)" }}
+              className="rounded-xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+              style={{ border: "1px solid rgba(220,38,38,0.25)", backgroundColor: "rgba(220,38,38,0.06)", color: "#dc2626" }}
             >
               ⚠ View dispute
             </Link>
@@ -759,9 +770,9 @@ function StageDetailPanel({
       </div>
 
       {stage.variationImpact !== 0 && (
-        <div className="rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(96,165,250,0.2)", backgroundColor: "rgba(96,165,250,0.05)" }}>
-          <p className="text-xs text-neutral-500">Approved variation impact</p>
-          <p className={`text-sm font-bold mt-0.5 ${stage.variationImpact > 0 ? "text-green-400" : "text-red-400"}`}>
+        <div className="rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(37,99,235,0.15)", backgroundColor: "rgba(37,99,235,0.04)" }}>
+          <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Approved variation impact</p>
+          <p className="text-sm font-bold mt-0.5" style={{ color: stage.variationImpact > 0 ? "#059669" : "#dc2626" }}>
             {stage.variationImpact > 0 ? "+" : ""}{gbp.format(stage.variationImpact)}
           </p>
         </div>
@@ -800,45 +811,45 @@ function StageDrawer({
       <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
       <div
         className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md overflow-y-auto"
-        style={{ backgroundColor: "#0f172a", borderLeft: "1px solid rgba(255,255,255,0.1)" }}
+        style={{ backgroundColor: "#fff", borderLeft: "1px solid var(--surface-border, #e4e7f0)" }}
       >
         {/* Header */}
-        <div className="sticky top-0 flex items-start justify-between px-5 py-4 border-b border-white/10" style={{ backgroundColor: "#0f172a" }}>
+        <div className="sticky top-0 flex items-start justify-between px-5 py-4" style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{stage.contractorName}</p>
-            <h2 className="mt-1 text-lg font-bold text-white leading-tight">{stage.name}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.4)" }}>{stage.contractorName}</p>
+            <h2 className="mt-1 text-lg font-bold leading-tight" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage.name}</h2>
           </div>
-          <button onClick={onClose} className="ml-3 mt-1 shrink-0 text-2xl leading-none text-neutral-400 hover:text-white transition">×</button>
+          <button onClick={onClose} className="ml-3 mt-1 shrink-0 text-2xl leading-none transition hover:opacity-50" style={{ color: "rgba(13,17,68,0.5)" }}>×</button>
         </div>
 
         <div className="px-5 py-5 space-y-4">
           {/* Status + value */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
-              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5">Status</p>
+            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "rgba(13,17,68,0.04)", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+              <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "rgba(13,17,68,0.4)" }}>Status</p>
               <span className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ backgroundColor: statusColor + "22", color: statusColor }}>
                 {stage.status.replace(/_/g, " ")}
               </span>
             </div>
-            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
-              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1">Value</p>
-              <p className="text-lg font-bold text-white">{gbp.format(stage.value)}</p>
+            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "rgba(13,17,68,0.04)", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+              <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "rgba(13,17,68,0.4)" }}>Value</p>
+              <p className="text-lg font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(stage.value)}</p>
             </div>
           </div>
 
           {/* Certified */}
           {stage.certifiedAmount !== null && (
-            <div className="flex items-center justify-between rounded-xl px-4 py-2.5" style={{ backgroundColor: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.18)" }}>
-              <p className="text-xs text-neutral-400">Certified amount</p>
-              <p className="text-sm font-bold text-green-400">{gbp.format(stage.certifiedAmount)}</p>
+            <div className="flex items-center justify-between rounded-xl px-4 py-2.5" style={{ backgroundColor: "rgba(5,150,105,0.05)", border: "1px solid rgba(5,150,105,0.15)" }}>
+              <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>Certified amount</p>
+              <p className="text-sm font-bold" style={{ color: "#059669" }}>{gbp.format(stage.certifiedAmount)}</p>
             </div>
           )}
 
           {/* Description */}
           {description && (
-            <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5">Description</p>
-              <p className="text-sm text-neutral-300 leading-relaxed">{description}</p>
+            <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+              <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: "rgba(13,17,68,0.4)" }}>Description</p>
+              <p className="text-sm leading-relaxed" style={{ color: "rgba(13,17,68,0.7)" }}>{description}</p>
             </div>
           )}
 
@@ -846,12 +857,12 @@ function StageDrawer({
           {(stage.startDate || stage.endDate) && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-neutral-500">Start</p>
-                <p className="mt-0.5 text-sm text-white">{dateStr(stage.startDate)}</p>
+                <p className="text-[10px] uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.4)" }}>Start</p>
+                <p className="mt-0.5 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{dateStr(stage.startDate)}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-neutral-500">End</p>
-                <p className="mt-0.5 text-sm text-white">{dateStr(stage.endDate)}</p>
+                <p className="text-[10px] uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.4)" }}>End</p>
+                <p className="mt-0.5 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{dateStr(stage.endDate)}</p>
               </div>
             </div>
           )}
@@ -859,47 +870,47 @@ function StageDrawer({
           {/* Counters */}
           <div className="grid grid-cols-2 gap-2">
             {[
-              { label: "Evidence pending", count: stage.pendingEvidence, color: "#f97316" },
-              { label: "Approvals", count: stage.pendingApprovals, color: "#c084fc" },
-              { label: "Variations", count: stage.pendingVariations, color: "#60a5fa" },
-              { label: "Disputes", count: stage.activeDisputes, color: "#f87171" },
+              { label: "Evidence pending", count: stage.pendingEvidence, color: "#ea580c" },
+              { label: "Approvals", count: stage.pendingApprovals, color: "#7c3aed" },
+              { label: "Variations", count: stage.pendingVariations, color: "#2563eb" },
+              { label: "Disputes", count: stage.activeDisputes, color: "#dc2626" },
             ].map(({ label, count, color }) => (
-              <div key={label} className="rounded-xl px-3 py-2.5 text-center" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <p className="text-xl font-bold" style={{ color: count > 0 ? color : "#374151" }}>{count}</p>
-                <p className="text-[9px] uppercase tracking-wider text-neutral-600 mt-0.5">{label}</p>
+              <div key={label} className="rounded-xl px-3 py-2.5 text-center" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+                <p className="text-xl font-bold" style={{ color: count > 0 ? color : "rgba(13,17,68,0.2)" }}>{count}</p>
+                <p className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: "rgba(13,17,68,0.35)" }}>{label}</p>
               </div>
             ))}
           </div>
 
           {/* Next action */}
-          <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-1">Next action</p>
-            <p className="text-sm text-neutral-300">{stage.nextAction || "No action required"}</p>
+          <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+            <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "rgba(13,17,68,0.4)" }}>Next action</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>{stage.nextAction || "No action required"}</p>
           </div>
 
           {/* Role-appropriate action buttons */}
           <div className="space-y-2 pt-1">
             {role === "contractor" && (
-              <Link href={`/projects/${projectId}/stages/${stage.id}/action`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
+              <Link href={`/projects/${projectId}/stages/${stage.id}/action`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-90" style={{ backgroundColor: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", color: "#92400e" }}>
                 Upload evidence
               </Link>
             )}
             {(role === "commercial" || role === "admin") && stage.pendingApprovals > 0 && (
-              <Link href={`/projects/${projectId}/stages/${stage.id}/approve`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(192,132,252,0.2)", border: "1px solid rgba(192,132,252,0.35)" }}>
+              <Link href={`/projects/${projectId}/stages/${stage.id}/approve`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90" style={{ backgroundColor: "#7c3aed" }}>
                 Review &amp; approve
               </Link>
             )}
             {(role === "funder" || role === "admin") && stage.status === "available_to_release" && (
-              <Link href={`/projects/${projectId}/stages/${stage.id}/release`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(52,211,153,0.2)", border: "1px solid rgba(52,211,153,0.35)" }}>
+              <Link href={`/projects/${projectId}/stages/${stage.id}/release`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90" style={{ backgroundColor: "#059669" }}>
                 Release payment
               </Link>
             )}
             {stage.activeDisputes > 0 && stage.activeDisputeId && (
-              <Link href={`/projects/${projectId}/stages/${stage.id}/disputes/${stage.activeDisputeId}`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)" }}>
+              <Link href={`/projects/${projectId}/stages/${stage.id}/disputes/${stage.activeDisputeId}`} className="flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-90" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)", color: "#dc2626" }}>
                 ⚠ View dispute
               </Link>
             )}
-            <Link href={`/projects/${projectId}/stages/${stage.id}`} className="flex w-full items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+            <Link href={`/projects/${projectId}/stages/${stage.id}`} className="flex w-full items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium transition hover:opacity-70" style={{ border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.55)" }}>
               Full stage details →
             </Link>
           </div>
@@ -928,7 +939,7 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
           <div>
             <SectionHeader title="Approvals required" />
             {approvalStages.length === 0 ? (
-              <p className="text-xs text-neutral-500 px-1">No stages awaiting approval</p>
+              <p className="text-xs px-1" style={{ color: "rgba(13,17,68,0.45)" }}>No stages awaiting approval</p>
             ) : (
               <div className="space-y-1">
                 {approvalStages.map((s) => (
@@ -938,13 +949,13 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
                     className="w-full text-left rounded-xl px-3 py-2.5 transition"
                     style={
                       selectedStageId === s.id
-                        ? { backgroundColor: "rgba(192,132,252,0.2)", border: "1px solid rgba(192,132,252,0.4)" }
+                        ? { backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.25)" }
                         : { backgroundColor: "transparent", border: "1px solid transparent" }
                     }
                   >
-                    <p className="text-sm font-semibold text-white">{s.name}</p>
-                    <p className="text-xs text-purple-300">{s.pendingApprovals} pending · {gbp.format(s.value)}</p>
-                    <p className="text-xs text-neutral-500">{s.contractorName}</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                    <p className="text-xs" style={{ color: "#7c3aed" }}>{s.pendingApprovals} pending · {gbp.format(s.value)}</p>
+                    <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{s.contractorName}</p>
                   </button>
                 ))}
               </div>
@@ -958,15 +969,15 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
                 <button
                   key={s.id}
                   onClick={() => setSelectedStageId(s.id)}
-                  className="w-full text-left rounded-xl px-3 py-2 transition hover:bg-white/5"
+                  className="w-full text-left rounded-xl px-3 py-2 transition hover:bg-neutral-50"
                   style={
                     selectedStageId === s.id
-                      ? { backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }
+                      ? { backgroundColor: "rgba(13,17,68,0.05)", border: "1px solid rgba(13,17,68,0.12)" }
                       : { backgroundColor: "transparent", border: "1px solid transparent" }
                   }
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-neutral-300 truncate">{s.name}</p>
+                    <p className="text-xs font-medium truncate" style={{ color: "rgba(13,17,68,0.7)" }}>{s.name}</p>
                     <StatusPill status={s.status} />
                   </div>
                 </button>
@@ -976,7 +987,7 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
 
           <div className="grid grid-cols-2 gap-2">
             <MetricCard label="Pending approvals" value={String(summary.pendingApprovals)} tone="text-purple-400" />
-            <MetricCard label="Active disputes" value={String(summary.activeDisputes)} tone={summary.activeDisputes > 0 ? "text-red-400" : "text-white"} />
+            <MetricCard label="Active disputes" value={String(summary.activeDisputes)} tone={summary.activeDisputes > 0 ? "text-red-400" : undefined} />
           </div>
         </div>
 
@@ -987,11 +998,11 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
           ) : (
             <div
               className="rounded-2xl flex items-center justify-center h-56"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.02)" }}
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
             >
               <div className="text-center">
-                <p className="text-sm text-neutral-500">Select a stage to review</p>
-                <p className="text-xs text-neutral-600 mt-1">Pick from the approval queue or stage list on the left</p>
+                <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Select a stage to review</p>
+                <p className="text-xs mt-1" style={{ color: "rgba(13,17,68,0.3)" }}>Pick from the approval queue or stage list on the left</p>
               </div>
             </div>
           )}
@@ -1003,25 +1014,25 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
         <div>
           <SectionHeader title="Approvals required" />
           {approvalStages.length === 0 ? (
-            <p className="text-sm text-neutral-500">No stages currently awaiting your approval.</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No stages currently awaiting your approval.</p>
           ) : (
             <div className="space-y-2">
               {approvalStages.map((s) => (
                 <Link
                   key={s.id}
                   href={`/projects/${projectId}/stages/${s.id}/approve`}
-                  className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
-                  style={{ border: "1px solid rgba(192,132,252,0.3)", backgroundColor: "rgba(192,132,252,0.06)" }}
+                  className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-neutral-50"
+                  style={{ border: "1px solid rgba(124,58,237,0.2)", backgroundColor: "rgba(124,58,237,0.04)" }}
                 >
                   <div>
-                    <p className="text-sm font-semibold text-white">{s.name}</p>
-                    <p className="text-xs text-purple-300 mt-0.5">{s.pendingApprovals} approval(s) pending</p>
-                    <p className="text-xs text-neutral-500">{s.contractorName}</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#7c3aed" }}>{s.pendingApprovals} approval(s) pending</p>
+                    <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{s.contractorName}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-white">{gbp.format(s.value)}</p>
+                    <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</p>
                     {s.certifiedAmount !== null && s.certifiedAmount !== s.value && (
-                      <p className="text-xs text-purple-300">Cert: {gbp.format(s.certifiedAmount)}</p>
+                      <p className="text-xs" style={{ color: "#7c3aed" }}>Cert: {gbp.format(s.certifiedAmount)}</p>
                     )}
                   </div>
                 </Link>
@@ -1037,15 +1048,15 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
               <Link
                 key={s.id}
                 href={`/projects/${projectId}/stages/${s.id}`}
-                className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
-                style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-neutral-50"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
               >
                 <div>
-                  <p className="text-sm font-semibold text-white">{s.name}</p>
-                  <p className="text-xs text-neutral-500">{s.contractorName}</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                  <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{s.contractorName}</p>
                   <StatusPill status={s.status} />
                 </div>
-                <p className="text-sm font-bold text-white shrink-0">{gbp.format(s.value)}</p>
+                <p className="text-sm font-bold shrink-0" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</p>
               </Link>
             ))}
           </div>
@@ -1055,7 +1066,7 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
           <SectionHeader title="Summary" />
           <div className="grid grid-cols-2 gap-3">
             <MetricCard label="Pending approvals" value={String(summary.pendingApprovals)} tone="text-purple-400" />
-            <MetricCard label="Active disputes" value={String(summary.activeDisputes)} tone={summary.activeDisputes > 0 ? "text-red-400" : "text-white"} />
+            <MetricCard label="Active disputes" value={String(summary.activeDisputes)} tone={summary.activeDisputes > 0 ? "text-red-400" : undefined} />
           </div>
         </div>
       </div>
@@ -1094,7 +1105,7 @@ function ProjectSwitcher({ currentProjectId, currentProjectName }: { currentProj
 
   if (others.length === 0) {
     return (
-      <Link href="/projects" className="text-xs text-neutral-500 hover:text-white">← Projects</Link>
+      <Link href="/projects" className="text-xs transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>← Projects</Link>
     );
   }
 
@@ -1102,31 +1113,34 @@ function ProjectSwitcher({ currentProjectId, currentProjectName }: { currentProj
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition"
+        className="flex items-center gap-1.5 text-xs transition hover:opacity-70"
+        style={{ color: "rgba(13,17,68,0.55)" }}
       >
-        <span className="text-neutral-500">←</span>
+        <span>←</span>
         <span className="max-w-[140px] truncate font-medium">{currentProjectName}</span>
-        <span className="text-neutral-500" style={{ fontSize: 10 }}>{open ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 10 }}>{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
         <div
           className="absolute left-0 top-full z-50 mt-1.5 w-52 rounded-2xl py-1 shadow-xl"
-          style={{ backgroundColor: "#1a2060", border: "1px solid rgba(255,255,255,0.12)" }}
+          style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)" }}
         >
           <Link
             href="/projects"
             onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 text-xs text-neutral-400 hover:text-white transition"
+            className="block px-4 py-2.5 text-xs transition hover:opacity-70"
+            style={{ color: "rgba(13,17,68,0.55)" }}
           >
             All projects
           </Link>
-          <div className="my-1 border-t border-white/10" />
+          <div className="my-1" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }} />
           {others.map((p) => (
             <button
               key={p.id}
               onClick={() => { router.push(`/projects/${p.id}`); setOpen(false); }}
-              className="block w-full px-4 py-2.5 text-left text-xs text-neutral-300 hover:text-white transition"
+              className="block w-full px-4 py-2.5 text-left text-xs transition hover:opacity-70"
+              style={{ color: "rgba(13,17,68,0.7)" }}
             >
               {p.name}
             </button>
@@ -1215,8 +1229,8 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-neutral-500 text-sm">Loading project…</p>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading project…</p>
         </div>
       </AppShell>
     );
@@ -1225,9 +1239,9 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
   if (error || !data) {
     return (
       <AppShell>
-        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-          <Link href="/projects" className="text-xs text-neutral-400 hover:text-white">← Projects</Link>
-          <p className="mt-6 text-sm text-red-300">{error ?? "Project not found."}</p>
+        <div className="min-h-screen px-4 py-8">
+          <Link href="/projects" className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>← Projects</Link>
+          <p className="mt-6 text-sm" style={{ color: "#dc2626" }}>{error ?? "Project not found."}</p>
         </div>
       </AppShell>
     );
@@ -1239,13 +1253,13 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
 
   return (
     <AppShell>
-    <div className="min-h-full px-4 md:px-8 py-6 space-y-6 max-w-7xl mx-auto" style={{ backgroundColor: "#0d1144", minHeight: "100%" }}>
+    <div className="min-h-full px-4 md:px-8 py-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <ProjectSwitcher currentProjectId={projectId} currentProjectName={data.project.name} />
-          <h1 className="mt-1 text-2xl font-bold text-white">{data.project.name}</h1>
-          <p className="text-sm text-neutral-400">{data.project.address}</p>
+          <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{data.project.name}</h1>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.55)" }}>{data.project.address}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Role badge */}
@@ -1268,8 +1282,8 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
             <Link
               key={link.label}
               href={link.href(projectId)}
-              className="rounded-2xl px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:text-white"
-              style={{ border: "1px solid rgba(255,255,255,0.12)", backgroundColor: "rgba(255,255,255,0.05)" }}
+              className="rounded-2xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-70"
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "rgba(13,17,68,0.65)" }}
             >
               {link.label}
             </Link>

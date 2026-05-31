@@ -185,8 +185,8 @@ export default function WalletPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-sm text-neutral-500">Loading wallet…</p>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading wallet…</p>
         </div>
       </AppShell>
     );
@@ -194,13 +194,13 @@ export default function WalletPage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-8" style={{ backgroundColor: "#0d1144" }}>
-        <Link href={`/projects/${projectId}`} className="text-xs font-medium text-neutral-400 hover:text-white">
+      <div className="min-h-screen px-4 md:px-8 py-8">
+        <Link href={`/projects/${projectId}`} className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
           ← Back to project
         </Link>
 
         <div className="mt-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold text-white">Wallet</h1>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Wallet</h1>
           {canDeposit && (
             <button
               onClick={() => setShowTopUp((v) => !v)}
@@ -224,16 +224,16 @@ export default function WalletPage() {
           {wallet && (
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Total balance",   value: wallet.balance,           color: "#e5e5e5" },
-                { label: "Available",       value: wallet.available_amount,  color: "#34d399" },
-                { label: "Ring-fenced",     value: wallet.ringfenced_amount, color: "#60a5fa" },
+                { label: "Total balance",   value: wallet.balance,           color: "var(--brand-navy, #0D1144)" },
+                { label: "Available",       value: wallet.available_amount,  color: "#059669" },
+                { label: "Ring-fenced",     value: wallet.ringfenced_amount, color: "#2563eb" },
               ].map(({ label, value, color }) => (
                 <div
                   key={label}
                   className="rounded-2xl px-4 py-4"
-                  style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
+                  style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
                 >
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{label}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(13,17,68,0.45)" }}>{label}</p>
                   <p className="mt-1.5 text-lg font-bold" style={{ color }}>{gbp.format(Number(value))}</p>
                 </div>
               ))}
@@ -245,13 +245,13 @@ export default function WalletPage() {
             <form
               onSubmit={handleDeposit}
               className="rounded-[20px] p-5 space-y-4"
-              style={{ border: "1px solid rgba(52,211,153,0.25)", backgroundColor: "rgba(52,211,153,0.05)" }}
+              style={{ border: "1px solid rgba(5,150,105,0.2)", backgroundColor: "rgba(5,150,105,0.04)" }}
             >
-              <p className="text-xs font-semibold uppercase tracking-widest text-green-400">Add funds to wallet</p>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#059669" }}>Add funds to wallet</p>
 
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-neutral-400 mb-1">Amount (£)</label>
+                  <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Amount (£)</label>
                   <input
                     type="number"
                     min="1"
@@ -260,30 +260,30 @@ export default function WalletPage() {
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
                     required
-                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
-                    style={{ backgroundColor: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-400 mb-1">Payment reference</label>
+                  <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Payment reference</label>
                   <input
                     type="text"
                     placeholder="e.g. Bank transfer 14 May"
                     value={depositRef}
                     onChange={(e) => setDepositRef(e.target.value)}
                     required
-                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
-                    style={{ backgroundColor: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
                   />
                 </div>
               </div>
 
               {depositAmount && parseFloat(depositAmount) > 0 && (
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>
                   Adding{" "}
-                  <span className="font-semibold text-green-300">{gbp.format(parseFloat(depositAmount))}</span>
+                  <span className="font-semibold" style={{ color: "#059669" }}>{gbp.format(parseFloat(depositAmount))}</span>
                   {" "}— available balance will become{" "}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>
                     {gbp.format(Number(wallet?.available_amount ?? 0) + parseFloat(depositAmount))}
                   </span>.
                 </p>
@@ -305,7 +305,7 @@ export default function WalletPage() {
           {/* 3. Retention tracking */}
           {retention.length > 0 && (
             <div>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Retention held — {(RETENTION_PCT * 100).toFixed(0)}% withheld per released stage
               </p>
               <div
@@ -316,27 +316,27 @@ export default function WalletPage() {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-xs text-neutral-500 border-b border-white/8">
+                      <tr className="text-left text-xs" style={{ color: "rgba(13,17,68,0.45)", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
                         <th className="px-5 py-3 font-medium">Stage</th>
                         <th className="px-5 py-3 font-medium">Contractor</th>
                         <th className="px-5 py-3 font-medium text-right">Certified payment</th>
                         <th className="px-5 py-3 font-medium text-right">Retention ({(RETENTION_PCT * 100).toFixed(0)}%)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody>
                       {retention.map((r) => (
-                        <tr key={r.stageId} className="text-neutral-300">
-                          <td className="px-5 py-3 font-medium text-white">{r.stageName}</td>
-                          <td className="px-5 py-3 text-xs text-neutral-400">{r.contractorName}</td>
+                        <tr key={r.stageId} style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.7)" }}>
+                          <td className="px-5 py-3 font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{r.stageName}</td>
+                          <td className="px-5 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{r.contractorName}</td>
                           <td className="px-5 py-3 text-right">{gbp.format(r.certified)}</td>
-                          <td className="px-5 py-3 text-right font-semibold text-amber-300">{gbp.format(r.retention)}</td>
+                          <td className="px-5 py-3 text-right font-semibold" style={{ color: "#d97706" }}>{gbp.format(r.retention)}</td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t border-white/10">
+                    <tfoot style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
                       <tr className="font-bold">
-                        <td className="px-5 py-3 text-white" colSpan={3}>Total retention withheld</td>
-                        <td className="px-5 py-3 text-right text-amber-300 text-base">{gbp.format(totalRetention)}</td>
+                        <td className="px-5 py-3" style={{ color: "var(--brand-navy, #0D1144)" }} colSpan={3}>Total retention withheld</td>
+                        <td className="px-5 py-3 text-right text-base" style={{ color: "#d97706" }}>{gbp.format(totalRetention)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -367,27 +367,27 @@ export default function WalletPage() {
 
           {/* 4. Transaction history — bank statement format */}
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Transaction history</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Transaction history</p>
             {transactions.length === 0 ? (
-              <p className="text-sm text-neutral-500">No transactions yet.</p>
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No transactions yet.</p>
             ) : (
               <div
                 className="rounded-[20px] overflow-hidden"
-                style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)" }}
               >
                 {/* Desktop table */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr
-                        className="text-left text-[10px] font-semibold uppercase tracking-widest text-neutral-500"
-                        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                        className="text-left text-[10px] font-semibold uppercase tracking-widest"
+                        style={{ borderBottom: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "rgba(13,17,68,0.03)", color: "rgba(13,17,68,0.45)" }}
                       >
                         <th className="px-5 py-3">Date</th>
                         <th className="px-5 py-3">Description</th>
                         <th className="px-5 py-3">Type</th>
-                        <th className="px-5 py-3 text-right" style={{ color: "#f87171" }}>Money out</th>
-                        <th className="px-5 py-3 text-right" style={{ color: "#34d399" }}>Money in</th>
+                        <th className="px-5 py-3 text-right" style={{ color: "#dc2626" }}>Money out</th>
+                        <th className="px-5 py-3 text-right" style={{ color: "#059669" }}>Money in</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -397,10 +397,10 @@ export default function WalletPage() {
                         return (
                           <tr
                             key={tx.id}
-                            style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : undefined, backgroundColor: "rgba(255,255,255,0.02)" }}
+                            style={{ borderTop: i > 0 ? "1px solid var(--surface-border, #e4e7f0)" : undefined }}
                           >
-                            <td className="px-5 py-3 text-xs text-neutral-400 whitespace-nowrap">{fmt.format(new Date(tx.created_at))}</td>
-                            <td className="px-5 py-3 font-medium text-white max-w-xs truncate">{tx.reference}</td>
+                            <td className="px-5 py-3 text-xs whitespace-nowrap" style={{ color: "rgba(13,17,68,0.5)" }}>{fmt.format(new Date(tx.created_at))}</td>
+                            <td className="px-5 py-3 font-medium max-w-xs truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{tx.reference}</td>
                             <td className="px-5 py-3">
                               <span
                                 className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
@@ -409,10 +409,10 @@ export default function WalletPage() {
                                 {TX_TYPE_LABEL[tx.type] ?? tx.type.replace(/_/g, " ")}
                               </span>
                             </td>
-                            <td className="px-5 py-3 text-right font-bold" style={{ color: isOut ? "#f87171" : "transparent" }}>
+                            <td className="px-5 py-3 text-right font-bold" style={{ color: isOut ? "#dc2626" : "rgba(13,17,68,0.2)" }}>
                               {isOut ? gbp.format(amt) : "—"}
                             </td>
-                            <td className="px-5 py-3 text-right font-bold" style={{ color: !isOut ? "#34d399" : "transparent" }}>
+                            <td className="px-5 py-3 text-right font-bold" style={{ color: !isOut ? "#059669" : "rgba(13,17,68,0.2)" }}>
                               {!isOut ? gbp.format(amt) : "—"}
                             </td>
                           </tr>
@@ -423,29 +423,29 @@ export default function WalletPage() {
                 </div>
 
                 {/* Mobile — stacked with debit/credit side-by-side */}
-                <div className="md:hidden divide-y divide-white/5">
+                <div className="md:hidden divide-y" style={{ borderColor: "var(--surface-border, #e4e7f0)" }}>
                   {transactions.map((tx) => {
                     const isOut = TX_OUTBOUND.has(tx.type);
                     const amt = Math.abs(Number(tx.amount));
                     return (
-                      <div key={tx.id} className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
+                      <div key={tx.id} className="flex items-center justify-between px-4 py-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-white truncate">{tx.reference}</p>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: TX_TYPE_COLOR[tx.type] ?? "#94a3b8" }}>
+                          <p className="text-sm font-medium truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{tx.reference}</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: TX_TYPE_COLOR[tx.type] ?? "#6b7280" }}>
                             {TX_TYPE_LABEL[tx.type] ?? tx.type.replace(/_/g, " ")}
                           </p>
-                          <p className="text-xs text-neutral-500 mt-0.5">{fmt.format(new Date(tx.created_at))}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "rgba(13,17,68,0.45)" }}>{fmt.format(new Date(tx.created_at))}</p>
                         </div>
                         <div className="ml-4 text-right shrink-0">
                           {isOut ? (
                             <>
-                              <p className="text-xs text-neutral-500">out</p>
-                              <p className="text-sm font-bold" style={{ color: "#f87171" }}>−{gbp.format(amt)}</p>
+                              <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>out</p>
+                              <p className="text-sm font-bold" style={{ color: "#dc2626" }}>−{gbp.format(amt)}</p>
                             </>
                           ) : (
                             <>
-                              <p className="text-xs text-neutral-500">in</p>
-                              <p className="text-sm font-bold" style={{ color: "#34d399" }}>+{gbp.format(amt)}</p>
+                              <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>in</p>
+                              <p className="text-sm font-bold" style={{ color: "#059669" }}>+{gbp.format(amt)}</p>
                             </>
                           )}
                         </div>

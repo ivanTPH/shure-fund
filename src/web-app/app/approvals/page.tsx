@@ -122,8 +122,8 @@ export default async function ApprovalsPage() {
     return (
       <AppShell>
         <div className="px-4 py-10 max-w-xl mx-auto text-center">
-          <p className="text-2xl font-bold text-white mb-2">No projects</p>
-          <p className="text-sm text-neutral-400">You have no projects to review yet.</p>
+          <p className="text-2xl font-bold mb-2" style={{ color: "var(--brand-navy, #0D1144)" }}>No projects</p>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>You have no projects to review yet.</p>
         </div>
       </AppShell>
     );
@@ -156,15 +156,15 @@ export default async function ApprovalsPage() {
     return (
       <AppShell>
         <div className="px-4 py-8 max-w-xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1">Approvals</h1>
-          <p className="text-sm text-neutral-400 mb-8">Your pending sign-offs across all projects.</p>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--brand-navy, #0D1144)" }}>Approvals</h1>
+          <p className="text-sm mb-8" style={{ color: "rgba(13,17,68,0.5)" }}>Your pending sign-offs across all projects.</p>
           <div
             className="rounded-[20px] px-6 py-12 text-center"
-            style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.02)" }}
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
           >
             <p className="text-3xl mb-3">✓</p>
-            <p className="text-sm font-semibold text-white mb-1">All clear</p>
-            <p className="text-xs text-neutral-500">No stages are currently awaiting your sign-off.</p>
+            <p className="text-sm font-semibold mb-1" style={{ color: "var(--brand-navy, #0D1144)" }}>All clear</p>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>No stages are currently awaiting your sign-off.</p>
           </div>
         </div>
       </AppShell>
@@ -229,8 +229,8 @@ export default async function ApprovalsPage() {
 
         {/* Page header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white">Approvals</h1>
-          <p className="mt-1 text-sm text-neutral-400">
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Approvals</h1>
+          <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.55)" }}>
             {items.length} pending sign-off{items.length !== 1 ? "s" : ""} across your projects.
           </p>
         </div>
@@ -244,12 +244,13 @@ export default async function ApprovalsPage() {
                 <div>
                   <Link
                     href={`/projects/${projectId}`}
-                    className="text-sm font-semibold text-white hover:text-blue-300 transition"
+                    className="text-sm font-semibold transition hover:opacity-70"
+                    style={{ color: "var(--brand-navy, #0D1144)" }}
                   >
                     {group.name}
                   </Link>
                   {group.address && (
-                    <p className="text-xs text-neutral-500">{group.address}</p>
+                    <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{group.address}</p>
                   )}
                 </div>
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-bold"
@@ -268,11 +269,9 @@ export default async function ApprovalsPage() {
                       className="rounded-[20px] p-4"
                       style={{
                         border: item.isOverdue
-                          ? "1px solid rgba(248,113,113,0.3)"
-                          : "1px solid rgba(192,132,252,0.25)",
-                        backgroundColor: item.isOverdue
-                          ? "rgba(248,113,113,0.04)"
-                          : "rgba(192,132,252,0.04)",
+                          ? "1px solid rgba(220,38,38,0.2)"
+                          : "1px solid var(--surface-border, #e4e7f0)",
+                        backgroundColor: item.isOverdue ? "rgba(220,38,38,0.04)" : "#fff",
                       }}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -280,26 +279,23 @@ export default async function ApprovalsPage() {
                           {/* Role badge */}
                           <span
                             className="inline-block mb-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                            style={{ backgroundColor: "rgba(192,132,252,0.18)", color: "#c084fc" }}
+                            style={{ backgroundColor: "rgba(139,92,246,0.1)", color: "#7c3aed" }}
                           >
                             {ROLE_LABEL[item.approvalRole] ?? item.approvalRole} sign-off
                           </span>
 
-                          <p className="text-sm font-semibold text-white leading-snug">
+                          <p className="text-sm font-semibold leading-snug" style={{ color: "var(--brand-navy, #0D1144)" }}>
                             {item.stageName}
                           </p>
 
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             {item.isOverdue && (
-                              <span
-                                className="text-[10px] font-bold"
-                                style={{ color: "#f87171" }}
-                              >
+                              <span className="text-[10px] font-bold" style={{ color: "#dc2626" }}>
                                 ⚠ Overdue
                               </span>
                             )}
                             {endStr && (
-                              <span className="text-[10px] text-neutral-500">
+                              <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.45)" }}>
                                 Due {endStr}
                               </span>
                             )}
@@ -307,15 +303,14 @@ export default async function ApprovalsPage() {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-white mb-2">
+                          <p className="text-sm font-bold mb-2" style={{ color: "var(--brand-navy, #0D1144)" }}>
                             {gbp.format(item.stageValue)}
                           </p>
                           <Link
                             href={`/projects/${item.projectId}/stages/${item.stageId}/approve`}
-                            className="inline-block rounded-xl px-3 py-1.5 text-xs font-bold text-white transition"
+                            className="inline-block rounded-xl px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
                             style={{
-                              backgroundColor: "rgba(192,132,252,0.2)",
-                              border: "1px solid rgba(192,132,252,0.4)",
+                              backgroundColor: "var(--brand-navy, #0D1144)",
                             }}
                           >
                             Sign off →
@@ -332,8 +327,8 @@ export default async function ApprovalsPage() {
 
         {/* Admin: link to full audit log */}
         {role === "admin" && (
-          <div className="mt-10 pt-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <Link href="/audit-log" className="text-xs text-neutral-500 hover:text-white transition">
+          <div className="mt-10 pt-6" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
+            <Link href="/audit-log" className="text-xs transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.45)" }}>
               View full audit log →
             </Link>
           </div>
