@@ -91,10 +91,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
   // Record transaction
   await service.from("wallet_transactions").insert({
-    wallet_id: wallet.id,
-    type:      "deposit",
-    amount:    deposit,
-    reference: reference.trim(),
+    wallet_id:  wallet.id,
+    type:       "deposit",
+    amount:     deposit,
+    reference:  reference.trim(),
+    created_by: user.id,
   });
 
   // Return updated wallet

@@ -59,7 +59,7 @@ begin
        'Review dispute',
        'stage', '00000000-0000-0000-0000-000000000502',
        'Structural Frame — Aurora Civic Centre',
-       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502',
+       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502/disputes/00000000-0000-0000-0000-000000000d01',
        false, '2026-04-04T14:00:00Z'),
 
       -- Strip-Out disputed (Harbour)
@@ -71,7 +71,7 @@ begin
        'Review dispute',
        'stage', '00000000-0000-0000-0000-000000000506',
        'Strip-Out And Demolition — Harbour Exchange Retrofit',
-       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506',
+       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506/disputes/00000000-0000-0000-0000-000000000d02',
        false, '2026-04-06T09:15:00Z'),
 
       -- Shell And Core awaiting approval (Meridian) — read/informational for funder
@@ -116,7 +116,7 @@ begin
        'Respond to dispute',
        'stage', '00000000-0000-0000-0000-000000000502',
        'Structural Frame — Aurora Civic Centre',
-       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502',
+       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502/disputes/00000000-0000-0000-0000-000000000d01',
        false, '2026-04-04T14:00:00Z'),
 
       -- Strip-Out dispute (Harbour)
@@ -128,7 +128,7 @@ begin
        'Respond to dispute',
        'stage', '00000000-0000-0000-0000-000000000506',
        'Strip-Out And Demolition — Harbour Exchange Retrofit',
-       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506',
+       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506/disputes/00000000-0000-0000-0000-000000000d02',
        false, '2026-04-06T09:15:00Z'),
 
       -- Variation submitted confirmation (Harbour Facade) — already read
@@ -221,7 +221,7 @@ begin
        'Monitor dispute',
        'stage', '00000000-0000-0000-0000-000000000502',
        'Structural Frame — Aurora Civic Centre',
-       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502',
+       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502/disputes/00000000-0000-0000-0000-000000000d01',
        true, '2026-04-04T14:00:00Z');
   end if;
 
@@ -356,7 +356,7 @@ begin
        'Review dispute',
        'stage', '00000000-0000-0000-0000-000000000502',
        'Structural Frame — Aurora Civic Centre',
-       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502',
+       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502/disputes/00000000-0000-0000-0000-000000000d01',
        false, '2026-04-04T14:00:00Z'),
 
       -- Harbour Strip-Out dispute
@@ -368,7 +368,7 @@ begin
        'Review dispute',
        'stage', '00000000-0000-0000-0000-000000000506',
        'Strip-Out And Demolition — Harbour Exchange Retrofit',
-       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506',
+       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506/disputes/00000000-0000-0000-0000-000000000d02',
        false, '2026-04-06T09:15:00Z'),
 
       -- Foundation approved — read/informational
@@ -413,7 +413,7 @@ begin
        'Resolve dispute',
        'stage', '00000000-0000-0000-0000-000000000502',
        'Structural Frame — Aurora Civic Centre',
-       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502',
+       '/projects/00000000-0000-0000-0000-000000000301/stages/00000000-0000-0000-0000-000000000502/disputes/00000000-0000-0000-0000-000000000d01',
        false, '2026-04-04T14:00:00Z'),
 
       -- Envelope variation (Aurora)
@@ -449,7 +449,7 @@ begin
        'Resolve dispute',
        'stage', '00000000-0000-0000-0000-000000000506',
        'Strip-Out And Demolition — Harbour Exchange Retrofit',
-       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506',
+       '/projects/00000000-0000-0000-0000-000000000303/stages/00000000-0000-0000-0000-000000000506/disputes/00000000-0000-0000-0000-000000000d02',
        false, '2026-04-06T09:15:00Z'),
 
       -- Harbour Facade variation

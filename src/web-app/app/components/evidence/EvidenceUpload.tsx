@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import FileViewerModal from "../FileViewerModal";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,7 +73,7 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // Sub-component: single evidence row
 // ---------------------------------------------------------------------------
 
-function EvidenceRow({ item }: { item: EvidenceItem }) {
+function EvidenceRow({ item, onView }: { item: EvidenceItem; onView: (url: string, name: string) => void }) {
   const iconColor = fileIconColor(item.fileType);
   const uploaderName = item.uploadedBy?.full_name ?? "Unknown";
 
@@ -92,14 +93,12 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
       <div className="min-w-0 flex-1">
         {/* Filename — clickable if signed URL available */}
         {item.signedUrl ? (
-          <a
-            href={item.signedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block truncate text-sm font-medium text-white underline-offset-2 hover:underline"
+          <button
+            onClick={() => onView(item.signedUrl!, item.name)}
+            className="block truncate text-left text-sm font-medium text-white underline-offset-2 hover:underline"
           >
             {item.name}
-          </a>
+          </button>
         ) : (
           <p className="truncate text-sm font-medium text-white">{item.name}</p>
         )}
@@ -142,6 +141,7 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get current user role to gate upload UI
@@ -224,6 +224,7 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
   }
 
   return (
+    <>
     <div className="space-y-3">
       {/* Upload area — only shown when upload is permitted for this role + stage */}
       {uploadAllowed && (
@@ -291,10 +292,19 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
-            <EvidenceRow key={item.id} item={item} />
+            <EvidenceRow key={item.id} item={item} onView={(url, name) => setViewerFile({ url, name })} />
           ))}
         </div>
       )}
     </div>
+
+    {viewerFile && (
+      <FileViewerModal
+        url={viewerFile.url}
+        name={viewerFile.name}
+        onClose={() => setViewerFile(null)}
+      />
+    )}
+    </>
   );
 }

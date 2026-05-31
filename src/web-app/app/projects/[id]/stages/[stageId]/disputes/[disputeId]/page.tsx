@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../../components/AppShell";
+import FileViewerModal from "../../../../../../components/FileViewerModal";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -24,13 +25,25 @@ const STATUS_COLOR: Record<string, string> = {
   escalated:    "#f97316",
 };
 
-const CAN_RESPOND  = ["commercial", "developer", "admin"];
-const CAN_RESOLVE  = ["commercial", "developer", "admin"];
+const CAN_RESPOND  = ["funder", "commercial", "developer", "admin"];
+const CAN_RESOLVE  = ["funder", "commercial", "developer", "admin"];
 const CAN_ESCALATE = ["developer", "admin"];
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+type EvidenceItem = {
+  id: string;
+  name: string | null;
+  file_url: string;
+  file_type: string;
+  status: string;
+  notes: string | null;
+  uploaded_at: string;
+  signedUrl: string | null;
+  uploader: { id: string; full_name: string; role: string } | null;
+};
 
 type Dispute = {
   id: string;
@@ -45,6 +58,7 @@ type Dispute = {
     id: string;
     name: string;
     contracts: { project_id: string; projects: { name: string } }[];
+    evidence: EvidenceItem[];
   } | null;
 };
 
@@ -123,6 +137,7 @@ export default function DisputeDetailPage() {
   const { id: projectId, stageId, disputeId } = useParams<{ id: string; stageId: string; disputeId: string }>();
 
   const [dispute, setDispute]     = useState<Dispute | null>(null);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
   const [userRole, setUserRole]   = useState<AppRole | null>(null);
@@ -218,6 +233,7 @@ export default function DisputeDetailPage() {
 
   const statusColor = STATUS_COLOR[dispute.status] ?? "#94a3b8";
   const stage = Array.isArray(dispute.stage) ? dispute.stage[0] : dispute.stage;
+  const stageEvidence: EvidenceItem[] = Array.isArray(stage?.evidence) ? stage.evidence : [];
   const isTerminal = dispute.status === "resolved" || dispute.status === "escalated";
 
   const canRespond  = !isTerminal && !!userRole && CAN_RESPOND.includes(userRole)  && dispute.status === "raised";
@@ -231,6 +247,7 @@ export default function DisputeDetailPage() {
   // ---------------------------------------------------------------------------
 
   return (
+    <>
     <AppShell>
       <div className="min-h-screen px-4 md:px-8 py-8" style={{ backgroundColor: "#0d1144" }}>
         <Link
@@ -304,14 +321,12 @@ export default function DisputeDetailPage() {
             {dispute.evidence_url && (
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-500">Evidence</p>
-                <a
-                  href={dispute.evidence_url}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => setViewerFile({ url: dispute.evidence_url!, name: "Dispute evidence" })}
                   className="mt-1 inline-block text-sm text-blue-400 hover:text-blue-300 underline"
                 >
-                  View evidence →
-                </a>
+                  View evidence
+                </button>
               </div>
             )}
 
@@ -322,6 +337,72 @@ export default function DisputeDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Stage evidence — shown so reviewer can inspect submitted files */}
+          {stageEvidence.length > 0 && (
+            <div
+              className="rounded-[20px] p-5 space-y-3"
+              style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                Stage evidence ({stageEvidence.length} file{stageEvidence.length !== 1 ? "s" : ""})
+              </p>
+              <p className="text-xs text-neutral-500">
+                Review all submitted files before making a decision on this dispute.
+              </p>
+              <div className="space-y-2">
+                {stageEvidence.map((ev) => {
+                  const EVIDENCE_STATUS_COLOR: Record<string, string> = {
+                    accepted:      "#34d399",
+                    rejected:      "#f87171",
+                    requires_more: "#fbbf24",
+                    pending:       "#94a3b8",
+                  };
+                  const evColor = EVIDENCE_STATUS_COLOR[ev.status] ?? "#94a3b8";
+                  const label = ev.name || ev.file_url.split("/").pop() || "File";
+                  const isViewable = !!ev.signedUrl;
+
+                  return (
+                    <div
+                      key={ev.id}
+                      className="flex items-start justify-between gap-3 rounded-xl px-4 py-3"
+                      style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-white truncate">{label}</span>
+                          <span
+                            className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                            style={{ backgroundColor: evColor + "22", color: evColor, border: `1px solid ${evColor}44` }}
+                          >
+                            {ev.status.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        {ev.uploader && (
+                          <p className="mt-0.5 text-[11px] text-neutral-500">
+                            Uploaded by {ev.uploader.full_name} · {fmt.format(new Date(ev.uploaded_at))}
+                          </p>
+                        )}
+                        {ev.notes && (
+                          <p className="mt-1 text-xs text-neutral-400 italic">"{ev.notes}"</p>
+                        )}
+                      </div>
+                      {isViewable && (
+                        <button
+                          type="button"
+                          onClick={() => setViewerFile({ url: ev.signedUrl!, name: label })}
+                          className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-blue-400 transition hover:text-blue-300"
+                          style={{ border: "1px solid rgba(96,165,250,0.25)", backgroundColor: "rgba(96,165,250,0.08)" }}
+                        >
+                          View
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Terminal state banners */}
           {dispute.status === "resolved" && (
@@ -432,5 +513,14 @@ export default function DisputeDetailPage() {
         </div>
       </div>
     </AppShell>
+
+    {viewerFile && (
+      <FileViewerModal
+        url={viewerFile.url}
+        name={viewerFile.name}
+        onClose={() => setViewerFile(null)}
+      />
+    )}
+    </>
   );
 }

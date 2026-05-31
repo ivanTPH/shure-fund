@@ -19,6 +19,112 @@ type Project = {
   walletAvailable: number;
 };
 
+export type AttentionItems = {
+  stagesReadyToRelease: Array<{
+    stageId: string;
+    stageName: string;
+    projectId: string;
+    projectName: string;
+    value: number;
+  }>;
+  disputesNeedingAction: Array<{
+    disputeId: string;
+    stageId: string;
+    stageName: string;
+    projectId: string;
+    projectName: string;
+    status: string;
+    reason: string;
+  }>;
+};
+
+// ---------------------------------------------------------------------------
+// Attention panel — funder view
+// ---------------------------------------------------------------------------
+function AttentionPanel({ items }: { items: AttentionItems }) {
+  const total = items.stagesReadyToRelease.length + items.disputesNeedingAction.length;
+  if (total === 0) return null;
+
+  return (
+    <div
+      className="mb-6 rounded-[20px] overflow-hidden"
+      style={{ border: "1px solid rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.05)" }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-2.5 px-5 py-3.5"
+        style={{ borderBottom: "1px solid rgba(251,191,36,0.2)", backgroundColor: "rgba(251,191,36,0.08)" }}
+      >
+        <span
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+          style={{ backgroundColor: "#d97706" }}
+        >
+          {total}
+        </span>
+        <p className="text-sm font-semibold" style={{ color: "#92400e" }}>
+          {total === 1 ? "1 item needs your attention" : `${total} items need your attention`}
+        </p>
+      </div>
+
+      <div className="divide-y" style={{ borderColor: "rgba(251,191,36,0.15)" }}>
+        {/* Payments ready to release */}
+        {items.stagesReadyToRelease.map((s) => (
+          <Link
+            key={s.stageId}
+            href={`/projects/${s.projectId}/stages/${s.stageId}`}
+            className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-amber-50/60"
+          >
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold text-white"
+              style={{ backgroundColor: "#059669" }}
+            >
+              £
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium" style={{ color: "#0D1144" }}>
+                Payment ready to release — {gbp.format(s.value)}
+              </p>
+              <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
+                {s.stageName} · {s.projectName}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold" style={{ color: "#059669" }}>
+              Release →
+            </span>
+          </Link>
+        ))}
+
+        {/* Disputes needing review */}
+        {items.disputesNeedingAction.map((d) => (
+          <Link
+            key={d.disputeId}
+            href={`/projects/${d.projectId}/stages/${d.stageId}/disputes/${d.disputeId}`}
+            className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-amber-50/60"
+          >
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold text-white"
+              style={{ backgroundColor: "#dc2626" }}
+            >
+              !
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium" style={{ color: "#0D1144" }}>
+                Dispute {d.status === "raised" ? "raised" : "under review"} — {d.stageName}
+              </p>
+              <p className="truncate text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
+                {d.reason} · {d.projectName}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold" style={{ color: "#dc2626" }}>
+              Review →
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active:    { label: "Active",    color: "#34d399", bg: "rgba(52,211,153,0.1)" },
   on_hold:   { label: "On hold",   color: "#fbbf24", bg: "rgba(251,191,36,0.1)" },
@@ -31,9 +137,11 @@ const ALL_STATUSES = ["active", "on_hold", "completed", "archived"];
 export default function ProjectsClient({
   projects,
   canCreateProject,
+  attentionItems,
 }: {
   projects: Project[];
   canCreateProject: boolean;
+  attentionItems?: AttentionItems | null;
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -54,6 +162,9 @@ export default function ProjectsClient({
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-4 py-8">
+        {/* Funder attention panel */}
+        {attentionItems && <AttentionPanel items={attentionItems} />}
+
         {/* Page heading + actions */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>

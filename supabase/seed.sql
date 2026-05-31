@@ -36,8 +36,13 @@ on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- USERS
--- All users share placeholder emails for seeding purposes.
+-- Disable the notification-seeding trigger while inserting seed users because
+-- projects do not exist yet at this point — the trigger would raise an FK
+-- violation.  We call fn_seed_user_notifications manually after all data is
+-- loaded (at the bottom of this file).
 -- ---------------------------------------------------------------------------
+alter table users disable trigger trg_seed_user_notifications;
+
 insert into users (id, email, full_name, role, company_id) values
   ('00000000-0000-0000-0000-000000000201', 'maya.singh@shure.fund',      'Maya Singh',      'commercial',    '00000000-0000-0000-0000-000000000102'),
   ('00000000-0000-0000-0000-000000000202', 'owen.blake@shure.fund',       'Owen Blake',      'professional',  '00000000-0000-0000-0000-000000000102'),
@@ -78,6 +83,12 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 insert into contract_stages (id, contract_id, name, description, value, status, start_date, end_date) values
   -- Aurora stages
+  ('00000000-0000-0000-0000-000000000508',
+   '00000000-0000-0000-0000-000000000401',
+   'Site Preparation',
+   'Enabling works including site clearance, temporary access, welfare facilities and hoarding installation.',
+   80000.00, 'released', '2026-03-10', '2026-03-31'),
+
   ('00000000-0000-0000-0000-000000000501',
    '00000000-0000-0000-0000-000000000401',
    'Foundation Package',
@@ -94,7 +105,7 @@ insert into contract_stages (id, contract_id, name, description, value, status, 
    '00000000-0000-0000-0000-000000000401',
    'Envelope Works',
    'Facade and weatherproofing works including mock-up approval, sealing details, and envelope completion checks.',
-   120000.00, 'draft', '2026-05-10', '2026-06-04'),
+   120000.00, 'in_progress', '2026-05-10', '2026-06-04'),
 
   -- Meridian stages
   ('00000000-0000-0000-0000-000000000504',
@@ -107,7 +118,7 @@ insert into contract_stages (id, contract_id, name, description, value, status, 
    '00000000-0000-0000-0000-000000000402',
    'MEP First Fix',
    'First-fix mechanical, electrical, and public health installations with associated test and quality records.',
-   90000.00, 'draft', '2026-04-29', '2026-05-22'),
+   90000.00, 'accepted', '2026-04-29', '2026-05-22'),
 
   -- Harbour stages
   ('00000000-0000-0000-0000-000000000506',
@@ -120,79 +131,93 @@ insert into contract_stages (id, contract_id, name, description, value, status, 
    '00000000-0000-0000-0000-000000000403',
    'Facade Stabilisation',
    'Facade restraint and temporary works package covering stabilisation design coordination and site installation.',
-   150000.00, 'draft', '2026-04-20', '2026-05-16')
+   150000.00, 'accepted', '2026-04-20', '2026-05-16')
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- EVIDENCE
--- 'notes' column carries the display name used by the app's EvidenceRecord.
--- 'file_type' is used to distinguish file vs form evidence.
+-- file_url  = storage path within the 'evidence' bucket (stageId/filename)
+-- file_type = MIME type (application/pdf, image/jpeg, etc.)
+-- name      = display name shown in the UI
+-- Run scripts/seed-storage.mjs after db reset to upload the actual files.
 -- ---------------------------------------------------------------------------
-insert into evidence (id, stage_id, file_url, file_type, uploaded_by, uploaded_at, status, notes) values
+insert into evidence (id, stage_id, file_url, file_type, name, uploaded_by, uploaded_at, status, notes) values
   -- Foundation (stage-foundation → 501)
   ('00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000501',
-   '/uploads/foundation-inspection-photos.zip', 'file',
+   '00000000-0000-0000-0000-000000000501/foundation-inspection-photos.pdf', 'application/pdf',
+   'Foundation Inspection Photos',
    '00000000-0000-0000-0000-000000000206', '2026-04-02T08:20:00.000Z', 'accepted',
    'Foundation inspection photos'),
 
   ('00000000-0000-0000-0000-000000000602', '00000000-0000-0000-0000-000000000501',
-   '/uploads/foundation-pour-checklist.json', 'form',
+   '00000000-0000-0000-0000-000000000501/foundation-pour-checklist.pdf', 'application/pdf',
+   'Concrete Pour Checklist',
    '00000000-0000-0000-0000-000000000206', '2026-04-02T09:00:00.000Z', 'accepted',
    'Concrete pour checklist'),
 
   -- Frame (stage-frame → 502)
   ('00000000-0000-0000-0000-000000000603', '00000000-0000-0000-0000-000000000502',
-   '/uploads/steel-delivery-pack.pdf', 'file',
+   '00000000-0000-0000-0000-000000000502/steel-delivery-pack.pdf', 'application/pdf',
+   'Steel Delivery Pack',
    '00000000-0000-0000-0000-000000000206', '2026-04-03T10:15:00.000Z', 'requires_more',
    'Steel delivery pack'),
 
   ('00000000-0000-0000-0000-000000000604', '00000000-0000-0000-0000-000000000502',
-   '/uploads/frame-erection-checklist.json', 'form',
+   '00000000-0000-0000-0000-000000000502/frame-erection-checklist.pdf', 'application/pdf',
+   'Frame Erection Checklist',
    '00000000-0000-0000-0000-000000000206', '2026-04-03T10:45:00.000Z', 'pending',
    'Frame erection checklist'),
 
   -- Envelope (stage-envelope → 503)
   ('00000000-0000-0000-0000-000000000605', '00000000-0000-0000-0000-000000000503',
-   '/uploads/facade-mockup-approval.pdf', 'file',
+   '00000000-0000-0000-0000-000000000503/facade-mockup-approval.pdf', 'application/pdf',
+   'Facade Mock-up Approval',
    '00000000-0000-0000-0000-000000000206', '2026-04-03T13:00:00.000Z', 'pending',
    'Facade mock-up approval'),
 
   -- Meridian shell (504)
   ('00000000-0000-0000-0000-000000000606', '00000000-0000-0000-0000-000000000504',
-   '/uploads/shell-inspection-pack.pdf', 'file',
+   '00000000-0000-0000-0000-000000000504/shell-inspection-pack.pdf', 'application/pdf',
+   'Shell Inspection Pack',
    '00000000-0000-0000-0000-000000000206', '2026-04-03T08:10:00.000Z', 'accepted',
    'Shell inspection pack'),
 
   ('00000000-0000-0000-0000-000000000607', '00000000-0000-0000-0000-000000000504',
-   '/uploads/shell-quality-checklist.json', 'form',
+   '00000000-0000-0000-0000-000000000504/shell-quality-checklist.pdf', 'application/pdf',
+   'Shell Quality Checklist',
    '00000000-0000-0000-0000-000000000206', '2026-04-03T08:35:00.000Z', 'accepted',
    'Shell quality checklist'),
 
   -- Meridian MEP (505)
   ('00000000-0000-0000-0000-000000000608', '00000000-0000-0000-0000-000000000505',
-   '/uploads/mep-test-pack.pdf', 'file',
+   '00000000-0000-0000-0000-000000000505/mep-test-pack.pdf', 'application/pdf',
+   'MEP Test Pack',
    '00000000-0000-0000-0000-000000000206', '2026-04-04T14:00:00.000Z', 'accepted',
    'MEP test pack'),
 
   ('00000000-0000-0000-0000-000000000609', '00000000-0000-0000-0000-000000000505',
-   '/uploads/mep-quality-checklist.json', 'form',
+   '00000000-0000-0000-0000-000000000505/mep-quality-checklist.pdf', 'application/pdf',
+   'MEP Quality Checklist',
    '00000000-0000-0000-0000-000000000206', '2026-04-04T14:20:00.000Z', 'accepted',
    'MEP quality checklist'),
 
   -- Harbour demolition (506)
   ('00000000-0000-0000-0000-000000000610', '00000000-0000-0000-0000-000000000506',
-   '/uploads/demolition-completion-pack.pdf', 'file',
+   '00000000-0000-0000-0000-000000000506/demolition-completion-pack.pdf', 'application/pdf',
+   'Demolition Completion Pack',
    '00000000-0000-0000-0000-000000000206', '2026-04-05T07:30:00.000Z', 'accepted',
    'Demolition completion pack'),
 
   ('00000000-0000-0000-0000-000000000611', '00000000-0000-0000-0000-000000000506',
-   '/uploads/waste-segregation-checklist.json', 'form',
+   '00000000-0000-0000-0000-000000000506/waste-segregation-checklist.pdf', 'application/pdf',
+   'Waste Segregation Checklist',
    '00000000-0000-0000-0000-000000000206', '2026-04-05T07:45:00.000Z', 'accepted',
    'Waste segregation checklist'),
 
   -- Harbour facade (507)
   ('00000000-0000-0000-0000-000000000612', '00000000-0000-0000-0000-000000000507',
-   '/uploads/facade-stabilisation-pack.pdf', 'file',
+   '00000000-0000-0000-0000-000000000507/facade-stabilisation-pack.pdf', 'application/pdf',
+   'Facade Stabilisation Pack',
    '00000000-0000-0000-0000-000000000206', '2026-04-05T12:15:00.000Z', 'pending',
    'Facade stabilisation pack')
 on conflict (id) do nothing;
@@ -280,8 +305,8 @@ on conflict (id) do nothing;
 -- (from demoData: account-project-aurora balance = 240000, stage accounts = 160000+40000+0)
 -- ---------------------------------------------------------------------------
 insert into wallets (id, project_id, balance, ringfenced_amount, available_amount) values
-  -- Aurora: total deposited 600k, allocated 200k to stages, project balance 240k
-  ('00000000-0000-0000-0000-000000000901', '00000000-0000-0000-0000-000000000301', 600000.00, 200000.00, 240000.00),
+  -- Aurora: total deposited 600k, site prep released 80k → balance 520k; allocated 200k to stages, available 240k
+  ('00000000-0000-0000-0000-000000000901', '00000000-0000-0000-0000-000000000301', 520000.00, 200000.00, 240000.00),
   -- Meridian: deposited 250k, allocated 140k, project balance 110k
   ('00000000-0000-0000-0000-000000000902', '00000000-0000-0000-0000-000000000302', 250000.00, 140000.00, 110000.00),
   -- Harbour: deposited 190k, allocated 130k, project balance 60k
@@ -294,7 +319,8 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 insert into wallet_transactions (id, wallet_id, amount, type, reference, created_by, created_at) values
   -- Aurora
-  ('00000000-0000-0000-0000-00000000a001', '00000000-0000-0000-0000-000000000901',  600000.00, 'deposit',       'Initial deposit',            '00000000-0000-0000-0000-000000000205', '2026-04-01T09:00:00.000Z'),
+  ('00000000-0000-0000-0000-00000000a001', '00000000-0000-0000-0000-000000000901',  600000.00, 'deposit',       'Initial deposit',            '00000000-0000-0000-0000-000000000205', '2026-03-09T09:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000a01', '00000000-0000-0000-0000-000000000901',  -80000.00, 'release',       'Site Preparation — Stage Released 31 Mar 2026', '00000000-0000-0000-0000-000000000205', '2026-03-31T16:00:00.000Z'),
   ('00000000-0000-0000-0000-00000000a002', '00000000-0000-0000-0000-000000000901', -160000.00, 'allocation_out', 'Allocate foundation stage',  '00000000-0000-0000-0000-000000000203', '2026-04-02T11:00:00.000Z'),
   ('00000000-0000-0000-0000-00000000a003', '00000000-0000-0000-0000-000000000901',  160000.00, 'allocation_in',  'Allocate foundation stage',  '00000000-0000-0000-0000-000000000203', '2026-04-02T11:00:00.000Z'),
   ('00000000-0000-0000-0000-00000000a004', '00000000-0000-0000-0000-000000000901',  -40000.00, 'allocation_out', 'Allocate frame stage',       '00000000-0000-0000-0000-000000000203', '2026-04-03T14:20:00.000Z'),
@@ -312,3 +338,538 @@ insert into wallet_transactions (id, wallet_id, amount, type, reference, created
   ('00000000-0000-0000-0000-00000000a014', '00000000-0000-0000-0000-000000000903',  -50000.00, 'allocation_out', 'Allocate facade stabilisation','00000000-0000-0000-0000-000000000203','2026-04-05T10:50:00.000Z'),
   ('00000000-0000-0000-0000-00000000a015', '00000000-0000-0000-0000-000000000903',   50000.00, 'allocation_in',  'Allocate facade stabilisation','00000000-0000-0000-0000-000000000203','2026-04-05T10:50:00.000Z')
 on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- AUDIT EVENTS
+-- Moved here from migration 007 — migrations run before seed.sql so the FK
+-- references to projects/stages/users were not yet satisfied at migration time.
+-- ---------------------------------------------------------------------------
+insert into audit_events
+  (id, project_id, stage_id, actor_id, action, from_state, to_state, metadata, created_at)
+values
+
+  -- =========================================================================
+  -- AURORA CIVIC CENTRE  (project 301)
+  -- =========================================================================
+
+  ('00000000-0000-0000-0000-00000000b001',
+   '00000000-0000-0000-0000-000000000301', null,
+   '00000000-0000-0000-0000-000000000205',
+   'wallet_funded', null, null,
+   '{"amount": 600000, "reference": "Initial deposit"}',
+   '2026-04-01T09:05:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b002',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'draft', 'in_progress',
+   '{"stage_name": "Foundation Package"}',
+   '2026-04-01T10:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b003',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Foundation inspection photos", "file_type": "file"}',
+   '2026-04-02T08:20:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b004',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Concrete pour checklist", "file_type": "form"}',
+   '2026-04-02T09:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b005',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'in_progress', 'awaiting_approval',
+   '{"stage_name": "Foundation Package"}',
+   '2026-04-02T09:30:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b006',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000203',
+   'wallet_allocated', null, null,
+   '{"amount": 160000, "reference": "Allocate foundation stage"}',
+   '2026-04-02T11:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b007',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000201',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "commercial", "certified_amount": 160000}',
+   '2026-04-02T10:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b008',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000202',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "professional", "certified_amount": 160000}',
+   '2026-04-02T10:30:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b009',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000203',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "treasury", "certified_amount": 160000}',
+   '2026-04-02T11:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b010',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000501',
+   '00000000-0000-0000-0000-000000000203',
+   'all_approvals_complete', 'awaiting_approval', 'available_to_release',
+   '{"approval_count": 3, "completing_role": "treasury"}',
+   '2026-04-02T11:00:01Z'),
+
+  ('00000000-0000-0000-0000-00000000b011',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'draft', 'in_progress',
+   '{"stage_name": "Structural Frame"}',
+   '2026-04-03T08:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b012',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000203',
+   'wallet_allocated', null, null,
+   '{"amount": 40000, "reference": "Allocate frame stage"}',
+   '2026-04-03T14:20:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b013',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Steel delivery pack", "file_type": "file"}',
+   '2026-04-03T10:15:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b014',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Frame erection checklist", "file_type": "form"}',
+   '2026-04-03T10:45:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b015',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'in_progress', 'awaiting_approval',
+   '{"stage_name": "Structural Frame"}',
+   '2026-04-03T11:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b016',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000201',
+   'dispute_opened', 'awaiting_approval', 'disputed',
+   '{"reason": "Steel tonnage short — delivery pack does not reconcile with structural drawings. Payment held pending resolution.", "disputed_value": 240000}',
+   '2026-04-03T14:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b017',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000201',
+   'stage_status_changed', 'awaiting_approval', 'disputed',
+   '{"stage_name": "Structural Frame"}',
+   '2026-04-03T14:00:01Z'),
+
+  ('00000000-0000-0000-0000-00000000b018',
+   '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000503',
+   '00000000-0000-0000-0000-000000000206',
+   'variation_requested', null, null,
+   '{"description": "Weatherproofing detail variation — Additional sealing detail required for revised facade interface.", "value_change": 15000}',
+   '2026-04-04T12:00:00Z'),
+
+  -- =========================================================================
+  -- MERIDIAN LIFE SCIENCES HUB  (project 302)
+  -- =========================================================================
+
+  ('00000000-0000-0000-0000-00000000b019',
+   '00000000-0000-0000-0000-000000000302', null,
+   '00000000-0000-0000-0000-000000000205',
+   'wallet_funded', null, null,
+   '{"amount": 250000, "reference": "Sponsor deposit"}',
+   '2026-04-02T08:05:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b020',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000504',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'draft', 'in_progress',
+   '{"stage_name": "Shell And Core"}',
+   '2026-04-03T07:30:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b021',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000504',
+   '00000000-0000-0000-0000-000000000203',
+   'wallet_allocated', null, null,
+   '{"amount": 120000, "reference": "Allocate shell and core"}',
+   '2026-04-03T09:45:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b022',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000504',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Shell inspection pack", "file_type": "file"}',
+   '2026-04-03T08:10:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b023',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000504',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Shell quality checklist", "file_type": "form"}',
+   '2026-04-03T08:35:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b024',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000504',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'in_progress', 'awaiting_approval',
+   '{"stage_name": "Shell And Core"}',
+   '2026-04-03T09:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b025',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000504',
+   '00000000-0000-0000-0000-000000000201',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "commercial", "certified_amount": 180000}',
+   '2026-04-03T09:20:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b026',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000505',
+   '00000000-0000-0000-0000-000000000203',
+   'wallet_allocated', null, null,
+   '{"amount": 20000, "reference": "Allocate MEP first fix"}',
+   '2026-04-04T13:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b027',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000505',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "MEP test pack", "file_type": "file"}',
+   '2026-04-04T14:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b028',
+   '00000000-0000-0000-0000-000000000302',
+   '00000000-0000-0000-0000-000000000505',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "MEP quality checklist", "file_type": "form"}',
+   '2026-04-04T14:20:00Z'),
+
+  -- =========================================================================
+  -- HARBOUR EXCHANGE RETROFIT  (project 303)
+  -- =========================================================================
+
+  ('00000000-0000-0000-0000-00000000b029',
+   '00000000-0000-0000-0000-000000000303', null,
+   '00000000-0000-0000-0000-000000000205',
+   'wallet_funded', null, null,
+   '{"amount": 190000, "reference": "Bridge facility drawdown"}',
+   '2026-04-04T07:35:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b030',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'draft', 'in_progress',
+   '{"stage_name": "Strip-Out And Demolition"}',
+   '2026-04-05T07:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b031',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000203',
+   'wallet_allocated', null, null,
+   '{"amount": 80000, "reference": "Allocate demolition package"}',
+   '2026-04-05T08:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b032',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Demolition completion pack", "file_type": "file"}',
+   '2026-04-05T07:30:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b033',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Waste segregation checklist", "file_type": "form"}',
+   '2026-04-05T07:45:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b034',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000206',
+   'stage_status_changed', 'in_progress', 'awaiting_approval',
+   '{"stage_name": "Strip-Out And Demolition"}',
+   '2026-04-05T08:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b035',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000201',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "commercial", "certified_amount": 110000}',
+   '2026-04-05T08:05:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b036',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000202',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "professional", "certified_amount": 110000}',
+   '2026-04-05T08:10:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b037',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000203',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "treasury", "certified_amount": 110000}',
+   '2026-04-05T08:15:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b038',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000203',
+   'all_approvals_complete', 'awaiting_approval', 'available_to_release',
+   '{"approval_count": 3, "completing_role": "treasury"}',
+   '2026-04-05T08:15:01Z'),
+
+  ('00000000-0000-0000-0000-00000000b039',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000205',
+   'dispute_opened', 'available_to_release', 'disputed',
+   '{"reason": "Waste disposal certificates for hazardous materials not provided. Release blocked pending EA compliance sign-off.", "disputed_value": 110000}',
+   '2026-04-05T09:00:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b040',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000205',
+   'stage_status_changed', 'available_to_release', 'disputed',
+   '{"stage_name": "Strip-Out And Demolition"}',
+   '2026-04-05T09:00:01Z'),
+
+  ('00000000-0000-0000-0000-00000000b041',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000507',
+   '00000000-0000-0000-0000-000000000203',
+   'wallet_allocated', null, null,
+   '{"amount": 50000, "reference": "Allocate facade stabilisation"}',
+   '2026-04-05T10:50:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b042',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000507',
+   '00000000-0000-0000-0000-000000000201',
+   'approval_given', 'awaiting_approval', 'awaiting_approval',
+   '{"role": "commercial", "certified_amount": 150000}',
+   '2026-04-05T10:30:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b043',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000507',
+   '00000000-0000-0000-0000-000000000206',
+   'variation_requested', null, null,
+   '{"description": "Temporary works revision — Additional facade restraint detail required before progression.", "value_change": 22000}',
+   '2026-04-05T11:20:00Z'),
+
+  ('00000000-0000-0000-0000-00000000b044',
+   '00000000-0000-0000-0000-000000000303',
+   '00000000-0000-0000-0000-000000000507',
+   '00000000-0000-0000-0000-000000000206',
+   'evidence_submitted', null, null,
+   '{"file_name": "Facade stabilisation pack", "file_type": "file"}',
+   '2026-04-05T12:15:00Z')
+
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- DISPUTES
+-- Concrete dispute records for the two stages that are seeded as 'disputed'.
+-- Stage 502 (Structural Frame, Aurora) — raised by commercial reviewer.
+-- Stage 506 (Strip-Out And Demolition, Harbour) — raised by funder after all approvals.
+-- ---------------------------------------------------------------------------
+insert into disputes (id, stage_id, raised_by, disputed_value, reason, status, created_at) values
+  ('00000000-0000-0000-0000-000000000d01',
+   '00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000201',
+   240000.00,
+   'Steel tonnage short — delivery pack does not reconcile with structural drawings. Payment held pending resolution.',
+   'raised',
+   '2026-04-03T14:00:00Z'),
+
+  ('00000000-0000-0000-0000-000000000d02',
+   '00000000-0000-0000-0000-000000000506',
+   '00000000-0000-0000-0000-000000000205',
+   110000.00,
+   'Waste disposal certificates for hazardous materials not provided. Release blocked pending EA compliance sign-off.',
+   'raised',
+   '2026-04-05T09:00:00Z')
+
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- AUTH USERS
+-- Create auth.users entries with the SAME UUIDs as public.users so that
+-- RLS checks (projects.funder_id, projects.developer_id, etc.) resolve
+-- correctly against auth.uid().
+-- Password for every account: password123
+-- The on_auth_user_created trigger will upsert public.users and seed
+-- project_members for all active projects.
+-- ---------------------------------------------------------------------------
+insert into auth.users (
+  instance_id, id, aud, role, email,
+  encrypted_password,
+  email_confirmed_at, last_sign_in_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+) values
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000201',
+   'authenticated', 'authenticated',
+   'maya.singh@shure.fund',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"commercial","full_name":"Maya Singh"}',
+   now(), now(), '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000202',
+   'authenticated', 'authenticated',
+   'owen.blake@shure.fund',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"professional","full_name":"Owen Blake"}',
+   now(), now(), '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000203',
+   'authenticated', 'authenticated',
+   'leah.mercer@shure.fund',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"treasury","full_name":"Leah Mercer"}',
+   now(), now(), '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000204',
+   'authenticated', 'authenticated',
+   'helen.grant@shure.fund',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"commercial","full_name":"Helen Grant"}',
+   now(), now(), '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000205',
+   'authenticated', 'authenticated',
+   'admin@harbourcapital.co.uk',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"funder","full_name":"Harbour Capital"}',
+   now(), now(), '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000206',
+   'authenticated', 'authenticated',
+   'contracts@hawthornebuild.co.uk',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"contractor","full_name":"Hawthorne Build"}',
+   now(), now(), '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '00000000-0000-0000-0000-000000000207',
+   'authenticated', 'authenticated',
+   'admin@pinnaclefacades.co.uk',
+   crypt('password123', gen_salt('bf')),
+   now(), now(),
+   '{"provider":"email","providers":["email"]}',
+   '{"role":"subcontractor","full_name":"Pinnacle Facades"}',
+   now(), now(), '', '', '', '')
+
+on conflict (id) do nothing;
+
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+values
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000201', 'maya.singh@shure.fund',
+   '{"sub":"00000000-0000-0000-0000-000000000201","email":"maya.singh@shure.fund"}'::jsonb,
+   'email', now(), now(), now()),
+
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000202', 'owen.blake@shure.fund',
+   '{"sub":"00000000-0000-0000-0000-000000000202","email":"owen.blake@shure.fund"}'::jsonb,
+   'email', now(), now(), now()),
+
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000203', 'leah.mercer@shure.fund',
+   '{"sub":"00000000-0000-0000-0000-000000000203","email":"leah.mercer@shure.fund"}'::jsonb,
+   'email', now(), now(), now()),
+
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000204', 'helen.grant@shure.fund',
+   '{"sub":"00000000-0000-0000-0000-000000000204","email":"helen.grant@shure.fund"}'::jsonb,
+   'email', now(), now(), now()),
+
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000205', 'admin@harbourcapital.co.uk',
+   '{"sub":"00000000-0000-0000-0000-000000000205","email":"admin@harbourcapital.co.uk"}'::jsonb,
+   'email', now(), now(), now()),
+
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000206', 'contracts@hawthornebuild.co.uk',
+   '{"sub":"00000000-0000-0000-0000-000000000206","email":"contracts@hawthornebuild.co.uk"}'::jsonb,
+   'email', now(), now(), now()),
+
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000207', 'admin@pinnaclefacades.co.uk',
+   '{"sub":"00000000-0000-0000-0000-000000000207","email":"admin@pinnaclefacades.co.uk"}'::jsonb,
+   'email', now(), now(), now())
+
+on conflict (provider_id, provider) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATIONS
+-- Re-enable the trigger and seed notifications for all seed users now that
+-- projects, stages, and variations are all present.
+-- ---------------------------------------------------------------------------
+alter table users enable trigger trg_seed_user_notifications;
+
+do $$
+declare
+  r record;
+begin
+  for r in select id, role from users loop
+    perform fn_seed_user_notifications(r.id, r.role);
+  end loop;
+end;
+$$;

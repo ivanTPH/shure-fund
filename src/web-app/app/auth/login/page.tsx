@@ -6,12 +6,12 @@ import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 
 const DEV_PROFILES = [
-  { role: "funder",      label: "Funder",      email: "funder@test.com",      color: "#0D1144" },
-  { role: "developer",   label: "Developer",   email: "developer@test.com",   color: "#1a3a6b" },
-  { role: "contractor",  label: "Contractor",  email: "contractor@test.com",  color: "#1e5c3a" },
-  { role: "commercial",  label: "Commercial",  email: "commercial@test.com",  color: "#7c3a00" },
-  { role: "consultant",  label: "Consultant",  email: "consultant@test.com",  color: "#5b2a8a" },
-  { role: "admin",       label: "Admin",       email: "admin@test.com",       color: "#8a0000" },
+  { role: "funder",       label: "Funder",      email: "admin@harbourcapital.co.uk",    color: "#0D1144" },
+  { role: "commercial",   label: "Commercial",  email: "maya.singh@shure.fund",         color: "#7c3a00" },
+  { role: "contractor",   label: "Contractor",  email: "contracts@hawthornebuild.co.uk",color: "#1e5c3a" },
+  { role: "professional", label: "Professional",email: "owen.blake@shure.fund",         color: "#1a3a6b" },
+  { role: "treasury",     label: "Treasury",    email: "leah.mercer@shure.fund",        color: "#5b2a8a" },
+  { role: "commercial",   label: "Developer Co",email: "helen.grant@shure.fund",        color: "#7c5a00" },
 ] as const;
 
 // Suspense wrapper required by Next.js 16 for pages using useSearchParams
@@ -252,7 +252,7 @@ function LoginForm() {
           <div className="grid grid-cols-3 gap-2">
             {DEV_PROFILES.map((p) => (
               <button
-                key={p.role}
+                key={p.email}
                 onClick={() => handleDevLogin(p.email, p.role)}
                 disabled={devLoading !== null}
                 className="rounded-xl px-3 py-2.5 text-xs font-semibold transition-opacity disabled:opacity-50"

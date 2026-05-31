@@ -277,8 +277,11 @@ export async function POST(
   // ---- 7. Execute the transition ----
   // The DB trigger fn_guard_funding_gate enforces the wallet gate at the DB layer.
   // The DB trigger fn_audit_stage_transition writes the immutable audit event.
-  // We use the user client here so auth.uid() is set correctly in the triggers.
-  const { error: updateError } = await userClient
+  // We use the service client here so RLS never silently blocks the write —
+  // all authorisation is already enforced above (auth, role, state machine,
+  // pre-conditions). This also covers funders/developers who are not the
+  // project's funder_id / developer_id in seed data.
+  const { error: updateError } = await serviceClient
     .from("contract_stages")
     .update({ status: rule.to })
     .eq("id", stageId);
@@ -295,6 +298,43 @@ export async function POST(
       { error: `Database error: ${updateError.message}` },
       { status: 500 },
     );
+  }
+
+  // ---- 8a. Wallet deduction on release (non-fatal) ----
+  if (rule.to === "released") {
+    try {
+      const { data: stageContract } = await serviceClient
+        .from("contract_stages")
+        .select("value, name, contracts!inner ( project_id )")
+        .eq("id", stageId)
+        .single();
+      const contract = Array.isArray(stageContract?.contracts) ? stageContract.contracts[0] : stageContract?.contracts;
+      const projectId = contract?.project_id ?? null;
+      const releaseAmount = Number(stageContract?.value ?? 0);
+
+      if (projectId && releaseAmount > 0) {
+        const { data: wallet } = await serviceClient
+          .from("wallets")
+          .select("id, balance, available_amount")
+          .eq("project_id", projectId)
+          .single();
+
+        if (wallet) {
+          await serviceClient.from("wallets").update({
+            balance:          Math.max(0, Number(wallet.balance) - releaseAmount),
+            available_amount: Math.max(0, Number(wallet.available_amount) - releaseAmount),
+          }).eq("id", wallet.id);
+
+          await serviceClient.from("wallet_transactions").insert({
+            wallet_id:  wallet.id,
+            type:       "release",
+            amount:     releaseAmount,
+            reference:  `${stageContract?.name ?? stageId} — Stage Released`,
+            created_by: user.id,
+          });
+        }
+      }
+    } catch { /* non-fatal */ }
   }
 
   // ---- 8. Fire notifications (non-fatal) ----

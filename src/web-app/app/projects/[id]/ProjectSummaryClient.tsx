@@ -200,7 +200,11 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
             )}
             {summary.activeDisputes > 0 && (
               <Link
-                href={`/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`}
+                href={
+                  firstDisputedStage?.activeDisputeId
+                    ? `/projects/${projectId}/stages/${firstDisputedStage.id}/disputes/${firstDisputedStage.activeDisputeId}`
+                    : `/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`
+                }
                 className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold text-white"
                 style={{ backgroundColor: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.25)" }}
               >
@@ -387,7 +391,11 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
               )}
               {summary.activeDisputes > 0 && (
                 <Link
-                  href={`/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`}
+                  href={
+                    firstDisputedStage?.activeDisputeId
+                      ? `/projects/${projectId}/stages/${firstDisputedStage.id}/disputes/${firstDisputedStage.activeDisputeId}`
+                      : `/projects/${projectId}/stages/${firstDisputedStage?.id ?? ""}`
+                  }
                   className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   style={{ backgroundColor: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.25)" }}
                 >
@@ -422,6 +430,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
 
 function DeveloperView({ data, projectId, role }: { data: DashboardData; projectId: string; role: AppRole }) {
   const { summary, contracts } = data;
+  const router = useRouter();
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const allStages = contracts.flatMap((c) => c.stages.map((s) => ({ ...s, contractorName: c.contractorName })));
   const selectedStage = selectedStageId ? allStages.find((s) => s.id === selectedStageId) ?? null : null;
@@ -456,10 +465,13 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
           <SectionHeader title="Needs attention" />
           <div className="space-y-2">
             {allStages.filter((s) => s.pendingEvidence > 0 || s.pendingVariations > 0 || s.activeDisputes > 0).map((s) => (
-              <Link
+              <div
                 key={s.id}
-                href={`/projects/${projectId}/stages/${s.id}`}
-                className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`/projects/${projectId}/stages/${s.id}`)}
+                onKeyDown={(e) => e.key === "Enter" && router.push(`/projects/${projectId}/stages/${s.id}`)}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/5"
                 style={{ border: "1px solid rgba(251,191,36,0.2)", backgroundColor: "rgba(251,191,36,0.05)" }}
               >
                 <div>
@@ -480,7 +492,7 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                   </div>
                 </div>
                 <StatusPill status={s.status} />
-              </Link>
+              </div>
             ))}
           </div>
         </div>

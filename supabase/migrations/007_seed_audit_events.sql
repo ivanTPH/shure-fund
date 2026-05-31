@@ -23,9 +23,12 @@
 --   303 = Harbour Exchange Retrofit(contract 403, stages 506–507)
 -- =============================================================================
 
--- Use explicit UUIDs in the b-range so they never clash with other seeds.
--- We skip inserting events that are not supported by the current enum to stay safe.
+-- NOTE: This INSERT has been moved to seed.sql.
+-- Migrations run before seed.sql, so inserting here caused FK violations
+-- because the projects/stages/users did not exist yet.
+-- The data below is kept for reference only and is NOT executed.
 
+/*
 insert into audit_events
   (id, project_id, stage_id, actor_id, action, from_state, to_state, metadata, created_at)
 values
@@ -429,3 +432,4 @@ values
    '2026-04-05T12:15:00Z')
 
 on conflict (id) do nothing;
+*/

@@ -12,10 +12,11 @@
  *   • Role-appropriate action buttons
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../components/AppShell";
+import FileViewerModal from "../../../../components/FileViewerModal";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -122,21 +123,41 @@ function relativeTime(iso: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Section wrapper
+// Accordion section — collapsible, defaults open
 // ---------------------------------------------------------------------------
 
-function Section({ title, badge, children }: { title: string; badge?: number; children: React.ReactNode }) {
+function Section({
+  title,
+  badge,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  badge?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{title}</h2>
+      <button
+        type="button"
+        className="mb-3 flex w-full items-center gap-2 text-left group"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-300 transition-colors">
+          {title}
+        </h2>
         {badge !== undefined && badge > 0 && (
           <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-neutral-300">
             {badge}
           </span>
         )}
-      </div>
-      {children}
+        <span className="ml-auto text-[10px] text-neutral-600 group-hover:text-neutral-400 transition-colors select-none">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && children}
     </div>
   );
 }
@@ -156,6 +177,16 @@ export default function StageOverviewPage() {
   const [userRole, setUserRole]   = useState<AppRole | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
+
+  // Evidence inline review
+  const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewSubmitting, setReviewSubmitting] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // File viewer modal — must be declared before any early returns
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -239,6 +270,30 @@ export default function StageOverviewPage() {
     load();
   }, [load]);
 
+  async function reviewEvidence(evidenceId: string, status: "accepted" | "rejected" | "requires_more") {
+    setReviewSubmitting(evidenceId);
+    setReviewError(null);
+    try {
+      const res = await fetch(`/api/evidence/${evidenceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, notes: reviewNotes[evidenceId]?.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        setReviewError(d.error ?? "Failed to update evidence.");
+        return;
+      }
+      setEvidence((prev) => prev.map((e) => e.id === evidenceId ? { ...e, status } : e));
+      setExpandedEvidenceId(null);
+      setReviewNotes((prev) => ({ ...prev, [evidenceId]: "" }));
+    } catch {
+      setReviewError("Network error.");
+    } finally {
+      setReviewSubmitting(null);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Loading / error
   // ---------------------------------------------------------------------------
@@ -301,6 +356,7 @@ export default function StageOverviewPage() {
   // ---------------------------------------------------------------------------
 
   return (
+    <>
     <AppShell>
       <div className="min-h-screen px-4 md:px-8 py-6 max-w-2xl mx-auto space-y-6" style={{ backgroundColor: "#0d1144" }}>
 
@@ -363,9 +419,32 @@ export default function StageOverviewPage() {
           </div>
         </div>
 
-        {/* ── Action buttons ────────────────────────────────────────────────── */}
+        {/* ── Action buttons — context-aware per status + role ─────────────── */}
         <div className="flex flex-wrap gap-2">
-          {/* Primary action */}
+
+          {/* DISPUTED: primary = view/resolve dispute */}
+          {stage.status === "disputed" && disputes.length > 0 && (
+            <Link
+              href={`/projects/${projectId}/stages/${stageId}/disputes/${disputes[0].id}`}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold text-white transition"
+              style={{ backgroundColor: "rgba(249,115,22,0.18)", border: "1px solid rgba(249,115,22,0.4)", color: "#f97316" }}
+            >
+              ⚠ View dispute
+            </Link>
+          )}
+
+          {/* DISPUTED + all approvals done + funder/admin: offer release override */}
+          {stage.status === "disputed" && allApproved && (canRelease || isAdmin) && (
+            <Link
+              href={`/projects/${projectId}/stages/${stageId}/release`}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold text-white transition"
+              style={{ backgroundColor: "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.4)" }}
+            >
+              Release payment →
+            </Link>
+          )}
+
+          {/* AVAILABLE_TO_RELEASE: primary release button */}
           {canRelease && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/release`}
@@ -376,7 +455,8 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {isApprover && (
+          {/* AWAITING_APPROVAL: review & approve (not shown when disputed) */}
+          {isApprover && stage.status !== "disputed" && stage.status !== "released" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/approve`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition"
@@ -390,7 +470,8 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {isContractor && (
+          {/* Contractor: upload evidence (only when in progress / returned) */}
+          {isContractor && (stage.status === "in_progress" || stage.status === "returned" || stage.status === "draft") && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/action`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition"
@@ -400,7 +481,8 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {canVariation && (
+          {/* Variation request — not when released */}
+          {canVariation && stage.status !== "released" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/variations/new`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-neutral-300 transition"
@@ -410,14 +492,18 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          <Link
-            href={`/projects/${projectId}/stages/${stageId}/disputes/new`}
-            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
-            style={{ backgroundColor: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)", color: "#f97316" }}
-          >
-            Raise dispute
-          </Link>
+          {/* Raise dispute — only when NOT already disputed or released */}
+          {stage.status !== "disputed" && stage.status !== "released" && stage.status !== "draft" && (
+            <Link
+              href={`/projects/${projectId}/stages/${stageId}/disputes/new`}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
+              style={{ backgroundColor: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)", color: "#f97316" }}
+            >
+              Raise dispute
+            </Link>
+          )}
 
+          {/* Admin override */}
           {isAdmin && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/override`}
@@ -457,6 +543,11 @@ export default function StageOverviewPage() {
             </div>
           )}
 
+          {reviewError && (
+            <p className="mb-2 rounded-xl px-3 py-2 text-xs text-red-300" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+              {reviewError}
+            </p>
+          )}
           {evidence.length === 0 ? (
             <p className="text-sm text-neutral-500">No evidence uploaded yet.</p>
           ) : (
@@ -466,24 +557,136 @@ export default function StageOverviewPage() {
                   : item.status === "rejected" ? "#f87171"
                   : item.status === "requires_more" ? "#fbbf24"
                   : "#94a3b8";
+                const isReviewable = item.status === "pending" || item.status === "requires_more";
+                const isExpanded = expandedEvidenceId === item.id;
+                const isReviewing = reviewSubmitting === item.id;
+                const canExpand = isApprover && isReviewable;
+                const fileIcon = item.fileType === "form" ? "📋"
+                  : item.fileType.includes("pdf") ? "📄"
+                  : item.fileType.startsWith("image") ? "🖼" : "📎";
                 return (
                   <div
                     key={item.id}
-                    className="flex items-start gap-3 rounded-2xl px-4 py-3"
-                    style={{ border: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                    className="rounded-2xl overflow-hidden"
+                    style={{ border: `1px solid ${isExpanded ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.07)"}`, backgroundColor: isExpanded ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)" }}
                   >
-                    <span className="mt-0.5 text-lg">
-                      {item.fileType === "form" ? "📋" : item.fileType.includes("pdf") ? "📄" : item.fileType.startsWith("image") ? "🖼" : "📎"}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{item.name}</p>
-                      <p className="text-[11px] text-neutral-500">
-                        {item.uploadedBy?.full_name ?? "Unknown"} · {relativeTime(item.uploadedAt)}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-bold uppercase" style={{ color: sc }}>
-                      {item.status.replace(/_/g, " ")}
-                    </span>
+                    {/* Main row — button only when expandable to avoid nested button error */}
+                    {canExpand ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left"
+                        onClick={() => {
+                          setExpandedEvidenceId(isExpanded ? null : item.id);
+                          setReviewError(null);
+                          setTimeout(() => notesRef.current?.focus(), 50);
+                        }}
+                      >
+                        <span className="mt-0.5 text-lg shrink-0">{fileIcon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">{item.name}</p>
+                          <p className="text-[11px] text-neutral-500">
+                            {item.uploadedBy?.full_name ?? "Unknown"} · {relativeTime(item.uploadedAt)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase" style={{ color: sc }}>
+                            {item.status.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-[10px] text-neutral-600">{isExpanded ? "▲" : "▼"}</span>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="flex w-full items-start gap-3 px-4 py-3 text-left">
+                        <span className="mt-0.5 text-lg shrink-0">{fileIcon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">{item.name}</p>
+                          <p className="text-[11px] text-neutral-500">
+                            {item.uploadedBy?.full_name ?? "Unknown"} · {relativeTime(item.uploadedAt)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase" style={{ color: sc }}>
+                            {item.status.replace(/_/g, " ")}
+                          </span>
+                          {item.signedUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setViewerFile({ url: item.signedUrl!, name: item.name })}
+                              className="rounded-lg px-2 py-1 text-[10px] font-semibold text-neutral-400 hover:text-white transition"
+                              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                            >
+                              View
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Expanded review panel — only for pending / requires_more */}
+                    {isExpanded && canExpand && (
+                      <div className="border-t border-white/10 px-4 pb-4 pt-3 space-y-3">
+                        {/* View file button */}
+                        {item.signedUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setViewerFile({ url: item.signedUrl!, name: item.name })}
+                            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:text-white"
+                            style={{ border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.05)" }}
+                          >
+                            View file
+                          </button>
+                        )}
+
+                        {/* Notes */}
+                        <div>
+                          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
+                            Review notes (required for reject / more info)
+                          </label>
+                          <textarea
+                            ref={expandedEvidenceId === item.id ? notesRef : undefined}
+                            rows={2}
+                            placeholder="Add notes for the contractor…"
+                            value={reviewNotes[item.id] ?? ""}
+                            onChange={(e) => setReviewNotes((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none resize-none"
+                          />
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={isReviewing}
+                            onClick={() => reviewEvidence(item.id, "accepted")}
+                            className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
+                            style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}
+                          >
+                            ✓ Accept
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isReviewing || !reviewNotes[item.id]?.trim()}
+                            onClick={() => reviewEvidence(item.id, "requires_more")}
+                            className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
+                            style={{ backgroundColor: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
+                          >
+                            ↩ More info
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isReviewing || !reviewNotes[item.id]?.trim()}
+                            onClick={() => reviewEvidence(item.id, "rejected")}
+                            className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
+                            style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171" }}
+                          >
+                            ✗ Reject
+                          </button>
+                          {isReviewing && (
+                            <span className="flex items-center text-[11px] text-neutral-500">Saving…</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -619,5 +822,14 @@ export default function StageOverviewPage() {
 
       </div>
     </AppShell>
+
+    {viewerFile && (
+      <FileViewerModal
+        url={viewerFile.url}
+        name={viewerFile.name}
+        onClose={() => setViewerFile(null)}
+      />
+    )}
+    </>
   );
 }

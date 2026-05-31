@@ -12,8 +12,8 @@ import { notifyDisputeResolved } from "@/lib/notifications/notificationService";
 type RouteContext = { params: Promise<{ disputeId: string }> };
 
 const TRANSITIONS: Record<string, { to: string; allowedRoles: string[] }> = {
-  respond:  { to: "under_review", allowedRoles: ["commercial", "developer", "admin"] },
-  resolve:  { to: "resolved",     allowedRoles: ["commercial", "developer", "admin"] },
+  respond:  { to: "under_review", allowedRoles: ["funder", "commercial", "developer", "admin"] },
+  resolve:  { to: "resolved",     allowedRoles: ["funder", "commercial", "developer", "admin"] },
   escalate: { to: "escalated",    allowedRoles: ["developer", "admin"] },
 };
 
@@ -32,12 +32,33 @@ export async function GET(_req: NextRequest, context: RouteContext) {
              respondent:users!respondent_id ( id, full_name, role ),
              stage:contract_stages!stage_id (
                id, name,
-               contracts!inner ( id, project_id, projects!inner ( id, name ) )
+               contracts!inner ( id, project_id, projects!inner ( id, name ) ),
+               evidence ( id, name, file_url, file_type, status, notes, uploaded_at,
+                          uploader:users!uploaded_by ( id, full_name, role ) )
              )`)
     .eq("id", disputeId)
     .single();
 
   if (error || !data) return NextResponse.json({ error: "Dispute not found" }, { status: 404 });
+
+  // Generate signed URLs for stage evidence
+  const stage = Array.isArray(data.stage) ? data.stage[0] : data.stage;
+  if (stage && Array.isArray(stage.evidence)) {
+    const withSignedUrls = await Promise.all(
+      stage.evidence.map(async (ev: { id: string; file_url: string; [key: string]: unknown }) => {
+        const { data: signed } = await service.storage
+          .from("evidence")
+          .createSignedUrl(ev.file_url, 3600);
+        return { ...ev, signedUrl: signed?.signedUrl ?? null };
+      })
+    );
+    if (Array.isArray(data.stage)) {
+      (data as unknown as Record<string, unknown>).stage = [{ ...stage, evidence: withSignedUrls }];
+    } else {
+      (data as unknown as Record<string, unknown>).stage = { ...stage, evidence: withSignedUrls };
+    }
+  }
+
   return NextResponse.json({ dispute: data });
 }
 

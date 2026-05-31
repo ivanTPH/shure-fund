@@ -154,9 +154,9 @@ export default function UploadEvidenceClient({
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
 
   // Upload state
-  const [uploading, setUploading]     = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-  const [success, setSuccess]         = useState(false);
+  const [uploading, setUploading]       = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; type: string; label: string; previewUrl: string | null }[]>([]);
 
   // Online / offline
   const [isOnline, setIsOnline]               = useState(true);
@@ -286,36 +286,23 @@ export default function UploadEvidenceClient({
     // Online path — upload directly
     try {
       await postEvidence({ stageId, file: selectedFile, evidenceType, note });
-      setSuccess(true);
-      setTimeout(() => router.push(`/projects/${projectId}`), 1200);
+      setUploadedFiles((prev) => [...prev, {
+        name: selectedFile.name,
+        type: selectedFile.type,
+        label: EVIDENCE_LABELS[evidenceType],
+        previewUrl: selectedFile.type.startsWith("image/") ? previewUrl : null,
+      }]);
+      // Reset form for next file without navigating away
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setNote("");
+      if (cameraRef.current) cameraRef.current.value = "";
+      if (fileRef.current)   fileRef.current.value   = "";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed — try again.");
     } finally {
       setUploading(false);
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Success screen
-  // ---------------------------------------------------------------------------
-
-  if (success) {
-    return (
-      <AppShell>
-        <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#0d1144" }}>
-          <div className="text-center">
-            <div
-              className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
-              style={{ backgroundColor: "rgba(52,211,153,0.2)", border: "2px solid #34d399" }}
-            >
-              <span className="text-3xl text-green-400">✓</span>
-            </div>
-            <p className="text-lg font-bold text-white">Evidence submitted</p>
-            <p className="mt-1 text-sm text-neutral-400">Going back to your project…</p>
-          </div>
-        </div>
-      </AppShell>
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -345,6 +332,15 @@ export default function UploadEvidenceClient({
             <p className="text-sm font-bold text-white">Upload evidence</p>
             {stageName && <p className="text-xs text-neutral-400 truncate">{stageName}</p>}
           </div>
+          {uploadedFiles.length > 0 && (
+            <Link
+              href={`/projects/${projectId}`}
+              className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-green-400 transition hover:text-green-300"
+              style={{ border: "1px solid rgba(52,211,153,0.3)", backgroundColor: "rgba(52,211,153,0.08)" }}
+            >
+              Done ({uploadedFiles.length} uploaded)
+            </Link>
+          )}
           {/* Signal indicator */}
           <div className="flex items-center gap-1.5 shrink-0">
             <span
@@ -401,6 +397,42 @@ export default function UploadEvidenceClient({
           </div>
         )}
 
+        {/* Uploaded files list */}
+        {uploadedFiles.length > 0 && (
+          <div className="mx-4 mt-4 space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500 px-1">
+              Added this session
+            </p>
+            {uploadedFiles.map((f, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-2xl overflow-hidden"
+                style={{ border: "1px solid rgba(52,211,153,0.25)", backgroundColor: "rgba(52,211,153,0.06)" }}
+              >
+                {/* Thumbnail or file type block */}
+                {f.previewUrl ? (
+                  <img
+                    src={f.previewUrl}
+                    alt={f.name}
+                    className="h-14 w-14 shrink-0 object-cover"
+                  />
+                ) : (
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center text-[10px] font-bold text-white"
+                    style={{ backgroundColor: f.type === "application/pdf" ? "#dc2626" : f.type.includes("sheet") ? "#16a34a" : "#374151" }}
+                  >
+                    {f.type === "application/pdf" ? "PDF" : f.type.includes("sheet") ? "XLS" : "FILE"}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 py-2 pr-3">
+                  <p className="truncate text-sm font-medium text-white">{f.name}</p>
+                  <p className="text-[11px] text-green-400">✓ {f.label} — uploaded</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Upload form */}
         <form
           onSubmit={handleSubmit}
@@ -437,7 +469,7 @@ export default function UploadEvidenceClient({
           {/* File picker */}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              Attach file
+              {uploadedFiles.length > 0 ? "Add another document" : "Attach file"}
             </p>
 
             {/* Hidden inputs */}
@@ -568,6 +600,8 @@ export default function UploadEvidenceClient({
               ? "Uploading…"
               : !isOnline
               ? "Save to upload queue"
+              : uploadedFiles.length > 0
+              ? "Add another document"
               : "Submit evidence"}
           </button>
 
@@ -575,7 +609,7 @@ export default function UploadEvidenceClient({
             href={`/projects/${projectId}`}
             className="block py-2 text-center text-sm text-neutral-500 transition hover:text-white"
           >
-            Cancel
+            {uploadedFiles.length > 0 ? "Done — back to project" : "Cancel"}
           </Link>
         </form>
       </div>
