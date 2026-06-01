@@ -16,8 +16,11 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sendEmail, buildTransactionalEmail } from "@/lib/email/emailService";
 
 type Db = SupabaseClient;
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.shure.fund";
 
 // ---------------------------------------------------------------------------
 // Notification payload
@@ -144,7 +147,40 @@ async function insertNotification(db: Db, userId: string, payload: NotificationP
 
 async function notifyRecipients(db: Db, userIds: string[], payload: NotificationPayload) {
   if (!userIds.length) return;
+
+  // Insert DB notifications
   await Promise.all(userIds.map((uid) => insertNotification(db, uid, payload)));
+
+  // Fire transactional emails — non-fatal, never blocks the main flow
+  try {
+    const { data: users } = await db
+      .from("users")
+      .select("id, full_name, email")
+      .in("id", userIds);
+
+    if (users?.length) {
+      const notification = {
+        type:            payload.type,
+        required_action: payload.required_action,
+        message:         payload.message,
+        entity_name:     payload.entity_name,
+        action_url:      payload.action_url,
+        created_at:      new Date().toISOString(),
+      };
+      await Promise.all(
+        users.map((u) => {
+          const { subject, html, text } = buildTransactionalEmail(
+            u.full_name ?? u.email,
+            notification,
+            SITE_URL,
+          );
+          return sendEmail({ to: u.email, subject, html, text });
+        }),
+      );
+    }
+  } catch (err) {
+    console.error("[notificationService] Email send failed (non-fatal):", err);
+  }
 }
 
 async function notifyRoles(

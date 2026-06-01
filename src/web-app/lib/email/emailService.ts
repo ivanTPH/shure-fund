@@ -22,7 +22,7 @@ export type EmailMessage = {
   text?: string;
 };
 
-type DigestNotification = {
+export type DigestNotification = {
   type: string;
   required_action: string | null;
   message: string;
@@ -50,15 +50,15 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const TYPE_COLOR: Record<string, string> = {
-  payment_ready:       "#34d399",
-  approval_required:   "#60a5fa",
-  evidence_required:   "#fbbf24",
-  funding_gap:         "#f87171",
-  variation_submitted: "#a78bfa",
-  dispute_raised:      "#f97316",
-  variation_approved:  "#34d399",
-  variation_rejected:  "#f87171",
-  dispute_resolved:    "#34d399",
+  payment_ready:       "#16a34a",
+  approval_required:   "#2563eb",
+  evidence_required:   "#d97706",
+  funding_gap:         "#dc2626",
+  variation_submitted: "#7c3aed",
+  dispute_raised:      "#ea580c",
+  variation_approved:  "#059669",
+  variation_rejected:  "#dc2626",
+  dispute_resolved:    "#059669",
 };
 
 const fmtDate = new Intl.DateTimeFormat("en-GB", {
@@ -232,6 +232,80 @@ export function buildDigestEmail(
     "",
     `Open inbox: ${siteUrl}/inbox`,
   ].join("\n");
+
+  return { subject, html, text };
+}
+
+// ---------------------------------------------------------------------------
+// Transactional email builder — single notification, sent immediately
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a focused single-action HTML email for one user.
+ * Used for immediate transactional sends (not batched digest).
+ */
+export function buildTransactionalEmail(
+  recipientName: string,
+  notification: DigestNotification,
+  siteUrl: string,
+): { subject: string; html: string; text: string } {
+  const label = TYPE_LABEL[notification.type] ?? (notification.required_action ?? "Update");
+  const color = TYPE_COLOR[notification.type] ?? "#64748b";
+  const url   = notification.action_url ? `${siteUrl}${notification.action_url}` : null;
+  const subject = notification.entity_name
+    ? `${label} — ${notification.entity_name}`
+    : label;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>${escHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f6fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6fa;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:560px;background:#fff;border-radius:20px;border:1px solid #e8eaf0;overflow:hidden;">
+        <tr>
+          <td style="background:#0d1144;padding:24px 28px;">
+            <p style="margin:0;font-size:20px;font-weight:700;color:#fff;">Shure.Fund</p>
+            <p style="margin:4px 0 0;font-size:13px;color:rgba(255,255,255,0.6);">For ${escHtml(recipientName)}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <p style="margin:0 0 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${color};">${escHtml(label)}</p>
+            ${notification.entity_name
+              ? `<p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0d1144;">${escHtml(notification.entity_name)}</p>`
+              : ""}
+            <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">${escHtml(notification.message)}</p>
+            ${url
+              ? `<a href="${url}" style="display:inline-block;padding:12px 24px;background:#0d1144;border-radius:10px;color:#fff;font-size:13px;font-weight:600;text-decoration:none;">${escHtml(notification.required_action ?? "View")} →</a>`
+              : ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 28px 24px;border-top:1px solid #e8eaf0;">
+            <p style="margin:0;font-size:11px;color:#9ca3af;">
+              You're receiving this because you have a pending action on Shure.Fund. &nbsp;
+              <a href="${siteUrl}/inbox" style="color:#0d1144;font-weight:600;">View all notifications →</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `Shure.Fund — ${label}`,
+    notification.entity_name ?? "",
+    notification.message,
+    url ?? "",
+    `View inbox: ${siteUrl}/inbox`,
+  ].filter(Boolean).join("\n");
 
   return { subject, html, text };
 }
