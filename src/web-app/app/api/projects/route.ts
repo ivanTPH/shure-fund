@@ -58,5 +58,14 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Auto-assign the creator as a primary team member
+  await service.from("project_members").insert({
+    project_id: data.id,
+    user_id:    user.id,
+    role:       role as string,
+    is_primary: true,
+  });
+
   return NextResponse.json({ project: data }, { status: 201 });
 }
