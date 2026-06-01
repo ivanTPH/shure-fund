@@ -24,12 +24,12 @@ type User = {
 const ROLES = ["funder", "developer", "commercial", "contractor", "consultant", "admin"];
 
 const ROLE_COLOR: Record<string, string> = {
-  funder:     "#34d399",
-  developer:  "#60a5fa",
-  commercial: "#fbbf24",
-  contractor: "#f97316",
-  consultant: "#a78bfa",
-  admin:      "#f87171",
+  funder:     "#059669",
+  developer:  "#2563eb",
+  commercial: "#d97706",
+  contractor: "#ea580c",
+  consultant: "#7c3aed",
+  admin:      "#dc2626",
 };
 
 const fmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -47,6 +47,14 @@ export default function AdminUsersPage() {
   // Filters
   const [search, setSearch]         = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  // Invite form
+  const [showInvite, setShowInvite]     = useState(false);
+  const [inviteEmail, setInviteEmail]   = useState("");
+  const [inviteRole, setInviteRole]     = useState("commercial");
+  const [inviting, setInviting]         = useState(false);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [inviteError, setInviteError]   = useState<string | null>(null);
 
   async function load() {
     try {
@@ -66,6 +74,29 @@ export default function AdminUsersPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteError(null);
+    setInviteSuccess(null);
+    setInviting(true);
+    try {
+      const r = await fetch("/api/admin/invite", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setInviteError(d.error ?? "Failed to send invite."); return; }
+      setInviteSuccess(`Invite sent to ${inviteEmail}`);
+      setInviteEmail("");
+      setInviteRole("commercial");
+    } catch {
+      setInviteError("Network error — please try again.");
+    } finally {
+      setInviting(false);
+    }
+  }
 
   async function updateUser(userId: string, patch: { role?: string; active?: boolean }) {
     setSaving(userId);
@@ -116,7 +147,62 @@ export default function AdminUsersPage() {
               {users.length} user{users.length !== 1 ? "s" : ""} · {users.filter((u) => u.active).length} active
             </p>
           </div>
+          <button
+            onClick={() => { setShowInvite((v) => !v); setInviteError(null); setInviteSuccess(null); }}
+            className="rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+            style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
+          >
+            {showInvite ? "Cancel" : "+ Invite user"}
+          </button>
         </div>
+
+        {/* Invite form */}
+        {showInvite && (
+          <form
+            onSubmit={sendInvite}
+            className="mb-6 max-w-lg rounded-[20px] p-5 space-y-3"
+            style={{ border: "1px solid rgba(37,99,235,0.2)", backgroundColor: "rgba(37,99,235,0.04)" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#2563eb" }}>
+              Invite new user
+            </p>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>
+              They&apos;ll receive an email with a link to set up their account. Role is assigned immediately.
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-3">
+              <input
+                type="email"
+                placeholder="email@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                required
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
+              >
+                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            {inviteError && <p className="text-xs" style={{ color: "#dc2626" }}>{inviteError}</p>}
+            {inviteSuccess && <p className="text-xs font-semibold" style={{ color: "#059669" }}>✓ {inviteSuccess}</p>}
+
+            <button
+              type="submit"
+              disabled={inviting}
+              className="w-full rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
+            >
+              {inviting ? "Sending invite…" : "Send invite"}
+            </button>
+          </form>
+        )}
 
         {/* Summary strip */}
         <div className="mb-6 grid grid-cols-3 md:grid-cols-6 gap-2">
