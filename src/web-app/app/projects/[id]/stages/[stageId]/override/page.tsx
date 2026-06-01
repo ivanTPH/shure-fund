@@ -21,17 +21,17 @@ import { STAGE_STATUSES, type StageStatus } from "@/lib/workflow/stateMachine";
 // ---------------------------------------------------------------------------
 
 const STATUS_COLOR: Record<string, string> = {
-  draft:                "#94a3b8",
-  sent:                 "#60a5fa",
-  accepted:             "#34d399",
-  in_progress:          "#a78bfa",
-  awaiting_approval:    "#fbbf24",
-  returned:             "#f97316",
-  disputed:             "#f87171",
-  available_to_release: "#34d399",
-  released:             "#34d399",
-  funding_gap:          "#ef4444",
-  part_funded:          "#fb923c",
+  draft:                "#64748b",
+  sent:                 "#2563eb",
+  accepted:             "#7c3aed",
+  in_progress:          "#2563eb",
+  awaiting_approval:    "#7c3aed",
+  returned:             "#ea580c",
+  disputed:             "#dc2626",
+  available_to_release: "#059669",
+  released:             "#16a34a",
+  funding_gap:          "#dc2626",
+  part_funded:          "#d97706",
 };
 
 // ---------------------------------------------------------------------------
@@ -110,8 +110,8 @@ export default function AdminOverridePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-sm text-neutral-500">Loading…</p>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading…</p>
         </div>
       </AppShell>
     );
@@ -120,13 +120,17 @@ export default function AdminOverridePage() {
   if (accessError) {
     return (
       <AppShell>
-        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-          <Link href={`/projects/${projectId}`} className="text-xs text-neutral-400 hover:text-white">
+        <div className="min-h-screen px-4 py-8">
+          <Link
+            href={`/projects/${projectId}`}
+            className="text-xs font-medium transition hover:opacity-70"
+            style={{ color: "rgba(13,17,68,0.5)" }}
+          >
             ← Back to project
           </Link>
-          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm font-semibold text-red-400">Access denied</p>
-            <p className="mt-1 text-sm text-red-300">{accessError}</p>
+          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm font-semibold" style={{ color: "#dc2626" }}>Access denied</p>
+            <p className="mt-1 text-sm" style={{ color: "#dc2626", opacity: 0.8 }}>{accessError}</p>
           </div>
         </div>
       </AppShell>
@@ -136,22 +140,22 @@ export default function AdminOverridePage() {
   if (done && result) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#0d1144" }}>
+        <div className="min-h-screen flex items-center justify-center px-6">
           <div className="text-center max-w-xs">
             <div
               className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full"
-              style={{ backgroundColor: "rgba(251,191,36,0.15)", border: "2px solid #fbbf24" }}
+              style={{ backgroundColor: "rgba(220,38,38,0.08)", border: "2px solid rgba(220,38,38,0.3)" }}
             >
-              <span className="text-3xl text-amber-400">⚡</span>
+              <span className="text-3xl">⚡</span>
             </div>
-            <p className="text-xl font-bold text-white">Override applied</p>
-            <p className="mt-2 text-sm text-neutral-400">
+            <p className="text-xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Override applied</p>
+            <p className="mt-2 text-sm" style={{ color: "rgba(13,17,68,0.6)" }}>
               Status changed from{" "}
-              <span className="font-semibold text-white">{result.from.replace(/_/g, " ")}</span>
+              <span className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{result.from.replace(/_/g, " ")}</span>
               {" "}to{" "}
-              <span className="font-semibold text-white">{result.to.replace(/_/g, " ")}</span>.
+              <span className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{result.to.replace(/_/g, " ")}</span>.
             </p>
-            <p className="mt-4 text-xs text-neutral-600">Returning to stage…</p>
+            <p className="mt-4 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Returning to stage…</p>
           </div>
         </div>
       </AppShell>
@@ -167,10 +171,11 @@ export default function AdminOverridePage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-8" style={{ backgroundColor: "#0d1144" }}>
+      <div className="min-h-screen px-4 md:px-8 py-8 max-w-lg mx-auto">
         <Link
           href={`/projects/${projectId}/stages/${stageId}`}
-          className="text-xs font-medium text-neutral-400 hover:text-white"
+          className="text-xs font-medium transition hover:opacity-70"
+          style={{ color: "rgba(13,17,68,0.5)" }}
         >
           ← Back to stage
         </Link>
@@ -178,31 +183,35 @@ export default function AdminOverridePage() {
         {/* Warning banner */}
         <div
           className="mt-4 rounded-2xl px-4 py-3"
-          style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}
+          style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}
         >
-          <p className="text-xs font-bold uppercase tracking-wider text-red-400">Admin override — use with caution</p>
-          <p className="mt-1 text-sm text-neutral-300">
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#dc2626" }}>
+            Admin override — use with caution
+          </p>
+          <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>
             This bypasses all workflow validation and pre-condition checks. The change is permanent and
             recorded in the immutable audit trail.
           </p>
         </div>
 
         <div className="mt-4 mb-6">
-          <h1 className="text-2xl font-bold text-white">Force stage status</h1>
-          <p className="mt-1 text-sm text-neutral-400">{stageName}</p>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Force stage status</h1>
+          <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>{stageName}</p>
         </div>
 
-        <div className="max-w-lg space-y-5">
+        <div className="space-y-5">
 
           {/* Current status */}
           <div
             className="rounded-[20px] p-5"
-            style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
           >
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Current status</p>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(13,17,68,0.45)" }}>
+              Current status
+            </p>
             <span
               className="rounded-full px-3 py-1 text-sm font-bold capitalize"
-              style={{ backgroundColor: currentColor + "22", color: currentColor, border: `1px solid ${currentColor}44` }}
+              style={{ backgroundColor: currentColor + "18", color: currentColor, border: `1px solid ${currentColor}33` }}
             >
               {currentStatus.replace(/_/g, " ")}
             </span>
@@ -212,23 +221,23 @@ export default function AdminOverridePage() {
           <form onSubmit={handleOverride} className="space-y-4">
             {/* Target status */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Force to status
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {STAGE_STATUSES.filter((s) => s !== currentStatus).map((s) => {
-                  const color = STATUS_COLOR[s] ?? "#94a3b8";
+                  const color = STATUS_COLOR[s] ?? "#64748b";
                   const isSelected = targetStatus === s;
                   return (
                     <button
                       key={s}
                       type="button"
                       onClick={() => { setTargetStatus(s); setConfirmed(false); }}
-                      className="rounded-2xl px-3 py-2.5 text-sm font-medium text-left transition"
+                      className="rounded-2xl px-3 py-2.5 text-sm font-medium text-left transition hover:opacity-80"
                       style={{
-                        border: `1px solid ${isSelected ? color + "66" : "rgba(255,255,255,0.08)"}`,
-                        backgroundColor: isSelected ? color + "15" : "rgba(255,255,255,0.03)",
-                        color: isSelected ? color : "#9ca3af",
+                        border: `1px solid ${isSelected ? color + "44" : "var(--surface-border, #e4e7f0)"}`,
+                        backgroundColor: isSelected ? color + "10" : "#f7f8fc",
+                        color: isSelected ? color : "rgba(13,17,68,0.5)",
                       }}
                     >
                       {s.replace(/_/g, " ")}
@@ -240,8 +249,8 @@ export default function AdminOverridePage() {
 
             {/* Reason */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">
-                Reason (required for audit trail)
+              <label className="block text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "rgba(13,17,68,0.45)" }}>
+                Reason <span style={{ color: "#dc2626" }}>*</span> (required for audit trail)
               </label>
               <textarea
                 rows={3}
@@ -249,7 +258,12 @@ export default function AdminOverridePage() {
                 placeholder="Explain why this override is necessary…"
                 value={reason}
                 onChange={(e) => { setReason(e.target.value); setConfirmed(false); }}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
+                className="w-full rounded-2xl px-4 py-3 text-sm outline-none resize-none"
+                style={{
+                  border: "1px solid var(--surface-border, #e4e7f0)",
+                  backgroundColor: "#fff",
+                  color: "var(--brand-navy, #0D1144)",
+                }}
               />
             </div>
 
@@ -257,12 +271,12 @@ export default function AdminOverridePage() {
             {reason.trim() && (
               <div
                 className="rounded-2xl px-4 py-3 flex items-center gap-3"
-                style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc" }}
               >
                 <span className="text-xs font-bold capitalize" style={{ color: currentColor }}>
                   {currentStatus.replace(/_/g, " ")}
                 </span>
-                <span className="text-neutral-600">→</span>
+                <span style={{ color: "rgba(13,17,68,0.35)" }}>→</span>
                 <span className="text-xs font-bold capitalize" style={{ color: targetColor }}>
                   {targetStatus.replace(/_/g, " ")}
                 </span>
@@ -274,20 +288,20 @@ export default function AdminOverridePage() {
               <label
                 className="flex cursor-pointer items-start gap-3 rounded-2xl px-4 py-4"
                 style={{
-                  border: `1px solid ${confirmed ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  backgroundColor: confirmed ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${confirmed ? "rgba(220,38,38,0.3)" : "var(--surface-border, #e4e7f0)"}`,
+                  backgroundColor: confirmed ? "rgba(220,38,38,0.05)" : "#fff",
                 }}
               >
                 <input
                   type="checkbox"
                   checked={confirmed}
                   onChange={(e) => setConfirmed(e.target.checked)}
-                  className="mt-0.5 h-5 w-5 shrink-0 accent-red-500"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-red-600"
                 />
-                <p className="text-sm text-neutral-200">
+                <p className="text-sm" style={{ color: "rgba(13,17,68,0.75)" }}>
                   I understand this override bypasses all workflow checks and is permanently recorded in the audit trail.
                   I am forcing{" "}
-                  <span className="font-bold text-white">{stageName}</span>{" "}
+                  <span className="font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{stageName}</span>{" "}
                   to{" "}
                   <span className="font-bold" style={{ color: targetColor }}>{targetStatus.replace(/_/g, " ")}</span>.
                 </p>
@@ -295,9 +309,8 @@ export default function AdminOverridePage() {
             )}
 
             {submitError && (
-              <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                <p className="text-xs font-bold uppercase tracking-wider text-red-400">Failed</p>
-                <p className="mt-1 text-sm text-red-300">{submitError}</p>
+              <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+                <p className="text-sm" style={{ color: "#dc2626" }}>{submitError}</p>
               </div>
             )}
 
@@ -305,8 +318,8 @@ export default function AdminOverridePage() {
               <button
                 type="submit"
                 disabled={submitting || !reason.trim()}
-                className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-40"
-                style={{ backgroundColor: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)" }}
+                className="w-full rounded-2xl py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+                style={{ backgroundColor: "#dc2626" }}
               >
                 {submitting ? "Applying override…" : `Force to "${targetStatus.replace(/_/g, " ")}"`}
               </button>
