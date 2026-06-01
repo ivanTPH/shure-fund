@@ -57,12 +57,12 @@ const fmt = new Intl.DateTimeFormat("en-GB", {
 const RETENTION_PCT = 0.05;
 
 const TX_TYPE_COLOR: Record<string, string> = {
-  deposit:           "#34d399",
-  allocation_in:     "#60a5fa",
-  allocation_out:    "#fbbf24",
-  release:           "#f87171",
-  reversal:          "#a78bfa",
-  buffer_adjustment: "#94a3b8",
+  deposit:           "#059669",
+  allocation_in:     "#2563eb",
+  allocation_out:    "#d97706",
+  release:           "#dc2626",
+  reversal:          "#7c3aed",
+  buffer_adjustment: "#64748b",
 };
 
 const TX_TYPE_LABEL: Record<string, string> = {
@@ -205,7 +205,7 @@ export default function WalletPage() {
             <button
               onClick={() => setShowTopUp((v) => !v)}
               className="rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-              style={{ backgroundColor: "rgba(52,211,153,0.2)", border: "1px solid rgba(52,211,153,0.35)" }}
+              style={{ backgroundColor: "#059669", border: "1px solid #059669" }}
             >
               {showTopUp ? "Cancel" : "+ Add funds"}
             </button>
@@ -213,8 +213,8 @@ export default function WalletPage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm text-red-300">{error}</p>
+          <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
@@ -295,7 +295,7 @@ export default function WalletPage() {
                 type="submit"
                 disabled={depositing}
                 className="w-full rounded-2xl py-3 text-sm font-bold text-white transition disabled:opacity-50"
-                style={{ backgroundColor: "rgba(52,211,153,0.25)", border: "1px solid rgba(52,211,153,0.4)" }}
+                style={{ backgroundColor: "#059669", border: "1px solid #059669" }}
               >
                 {depositing ? "Processing…" : "Confirm deposit"}
               </button>
@@ -343,23 +343,23 @@ export default function WalletPage() {
                 </div>
 
                 {/* Mobile cards */}
-                <div className="md:hidden divide-y divide-white/5">
+                <div className="md:hidden divide-y" style={{ borderColor: "var(--surface-border, #e4e7f0)" }}>
                   {retention.map((r) => (
                     <div key={r.stageId} className="flex items-center justify-between px-4 py-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{r.stageName}</p>
-                        <p className="text-xs text-neutral-500">{r.contractorName} · {gbp.format(r.certified)} certified</p>
+                        <p className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{r.stageName}</p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{r.contractorName} · {gbp.format(r.certified)} certified</p>
                       </div>
-                      <p className="ml-3 shrink-0 font-bold text-amber-300">{gbp.format(r.retention)}</p>
+                      <p className="ml-3 shrink-0 font-bold" style={{ color: "#d97706" }}>{gbp.format(r.retention)}</p>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-white/10">
-                    <p className="text-sm font-bold text-white">Total withheld</p>
-                    <p className="font-bold text-amber-300 text-base">{gbp.format(totalRetention)}</p>
+                  <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
+                    <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Total withheld</p>
+                    <p className="font-bold text-base" style={{ color: "#d97706" }}>{gbp.format(totalRetention)}</p>
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-neutral-600">
+              <p className="mt-2 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Retention is typically released at practical completion and expiry of the defects period.
               </p>
             </div>

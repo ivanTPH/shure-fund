@@ -41,33 +41,36 @@ function actionLabel(action: string) {
 }
 
 function stateChip(value: string | null) {
-  if (!value) return <span className="text-neutral-500">—</span>;
+  if (!value) return <span style={{ color: "rgba(13,17,68,0.35)" }}>—</span>;
   return (
-    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs">
+    <span
+      className="rounded-full px-2 py-0.5 text-xs"
+      style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.65)" }}
+    >
       {value.replaceAll("_", " ")}
     </span>
   );
 }
 
 const ACTION_COLORS: Record<string, string> = {
-  stage_status_changed: "#60a5fa",
-  evidence_submitted: "#4ade80",
-  evidence_reviewed: "#86efac",
-  approval_given: "#34d399",
-  approval_rejected: "#f87171",
-  approval_returned: "#fbbf24",
-  all_approvals_complete: "#a3e635",
-  release_initiated: "#c084fc",
-  release_completed: "#a855f7",
-  release_failed: "#ef4444",
-  dispute_opened: "#f97316",
-  dispute_resolved: "#fb923c",
-  variation_requested: "#38bdf8",
-  variation_approved: "#34d399",
-  variation_activated: "#a3e635",
-  wallet_funded: "#38bdf8",
-  wallet_allocated: "#7dd3fc",
-  override_applied: "#e879f9",
+  stage_status_changed: "#2563eb",
+  evidence_submitted: "#059669",
+  evidence_reviewed: "#16a34a",
+  approval_given: "#059669",
+  approval_rejected: "#dc2626",
+  approval_returned: "#d97706",
+  all_approvals_complete: "#16a34a",
+  release_initiated: "#7c3aed",
+  release_completed: "#6d28d9",
+  release_failed: "#dc2626",
+  dispute_opened: "#ea580c",
+  dispute_resolved: "#c2410c",
+  variation_requested: "#0284c7",
+  variation_approved: "#059669",
+  variation_activated: "#16a34a",
+  wallet_funded: "#0284c7",
+  wallet_allocated: "#0369a1",
+  override_applied: "#9333ea",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -168,37 +171,42 @@ export default function GlobalAuditClient({
   }
 
   const selectClass =
-    "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
-  const inputClass =
-    "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
+    "rounded-xl px-3 py-2 text-xs outline-none";
+  const selectStyle = {
+    border: "1px solid var(--surface-border, #e4e7f0)",
+    backgroundColor: "#fff",
+    color: "var(--brand-navy, #0D1144)",
+  };
 
   return (
-    <div className="min-h-screen px-4 py-6" style={{ backgroundColor: "#0d1144" }}>
+    <div className="min-h-screen px-4 py-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-white">Global audit trail</h1>
-        <p className="mt-1 text-sm text-neutral-400">
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--brand-navy, #0D1144)" }}>
+          Global audit trail
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>
           Immutable record of every governed event across all projects.
         </p>
       </div>
 
       {/* Filters */}
       <div className="mb-4 flex flex-wrap gap-2">
-        <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={selectClass}>
+        <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={selectClass} style={selectStyle}>
           <option value="all">All projects</option>
           {projects.map(([id, name]) => (
             <option key={id} value={id}>{name}</option>
           ))}
         </select>
 
-        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectClass}>
+        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectClass} style={selectStyle}>
           <option value="all">All actions</option>
           {actions.map((action) => (
             <option key={action} value={action}>{actionLabel(action)}</option>
           ))}
         </select>
 
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass} style={selectStyle}>
           <option value="all">All roles</option>
           {roles.map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role] ?? role}</option>
@@ -209,38 +217,40 @@ export default function GlobalAuditClient({
           type="date"
           value={dateFrom}
           onChange={(e) => setDateFrom(e.target.value)}
-          className={inputClass}
+          className={selectClass}
+          style={selectStyle}
           title="From date"
-          style={{ colorScheme: "dark" }}
         />
 
         <input
           type="date"
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
-          className={inputClass}
+          className={selectClass}
+          style={selectStyle}
           title="To date"
-          style={{ colorScheme: "dark" }}
         />
 
         {hasFilters && (
           <button
             type="button"
             onClick={clearFilters}
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 hover:text-white"
+            className="rounded-xl px-3 py-2 text-xs transition hover:opacity-70"
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "rgba(13,17,68,0.55)" }}
           >
             Clear filters
           </button>
         )}
 
-        <span className="ml-auto self-center text-xs text-neutral-500">
+        <span className="ml-auto self-center text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
           {filtered.length} event{filtered.length !== 1 ? "s" : ""}
         </span>
 
         <button
           type="button"
           onClick={exportCSV}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 hover:text-white"
+          className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-80"
+          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
         >
           Export CSV
         </button>
@@ -250,11 +260,11 @@ export default function GlobalAuditClient({
       {filtered.length === 0 ? (
         <div
           className="rounded-[20px] px-6 py-8 text-center"
-          style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
         >
-          <p className="text-sm text-neutral-400">No events match the current filters.</p>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No events match the current filters.</p>
           {initialEvents.length === 0 && (
-            <p className="mt-2 text-xs text-neutral-600">
+            <p className="mt-2 text-xs" style={{ color: "rgba(13,17,68,0.3)" }}>
               Audit events appear here as actions are taken on projects.
             </p>
           )}
@@ -262,14 +272,14 @@ export default function GlobalAuditClient({
       ) : (
         <div className="space-y-2">
           {filtered.map((ev) => {
-            const dotColor = ACTION_COLORS[ev.action] ?? "#94a3b8";
+            const dotColor = ACTION_COLORS[ev.action] ?? "#64748b";
             return (
               <div
                 key={ev.id}
                 className="rounded-[18px] px-4 py-4"
                 style={{
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  backgroundColor: "rgba(255,255,255,0.04)",
+                  border: "1px solid var(--surface-border, #e4e7f0)",
+                  backgroundColor: "#fff",
                 }}
               >
                 {/* Top row: action | role pill | timestamp */}
@@ -285,21 +295,22 @@ export default function GlobalAuditClient({
                     {ev.actor?.role && (
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                        style={{ backgroundColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}
+                        style={{ backgroundColor: "#f7f8fc", color: "rgba(13,17,68,0.5)", border: "1px solid var(--surface-border, #e4e7f0)" }}
                       >
                         {ROLE_LABELS[ev.actor.role] ?? ev.actor.role}
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-neutral-500">{formatTs(ev.createdAt)}</span>
+                  <span className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>{formatTs(ev.createdAt)}</span>
                 </div>
 
                 {/* Project link */}
-                <p className="mt-1.5 text-xs text-neutral-500">
+                <p className="mt-1.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                   Project:{" "}
                   <Link
                     href={`/projects/${ev.projectId}`}
-                    className="font-medium text-neutral-300 hover:text-white"
+                    className="font-medium hover:underline"
+                    style={{ color: "var(--brand-navy, #0D1144)" }}
                   >
                     {ev.projectName}
                   </Link>
@@ -307,21 +318,21 @@ export default function GlobalAuditClient({
 
                 {/* Actor */}
                 {ev.actor && (
-                  <p className="mt-0.5 text-xs text-neutral-500">
-                    By: <span className="font-medium text-neutral-300">{ev.actor.full_name}</span>
+                  <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                    By: <span className="font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{ev.actor.full_name}</span>
                   </p>
                 )}
 
                 {/* Stage name */}
                 {ev.stageName && (
-                  <p className="mt-0.5 text-xs text-neutral-400">
-                    Stage: <span className="font-medium text-neutral-200">{ev.stageName}</span>
+                  <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                    Stage: <span className="font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{ev.stageName}</span>
                   </p>
                 )}
 
                 {/* State transition */}
                 {(ev.fromState || ev.toState) && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>
                     {stateChip(ev.fromState)}
                     <span>→</span>
                     {stateChip(ev.toState)}
@@ -330,7 +341,7 @@ export default function GlobalAuditClient({
 
                 {/* Metadata notes */}
                 {ev.metadata?.reason !== undefined && (
-                  <p className="mt-2 text-xs italic text-neutral-500">
+                  <p className="mt-2 text-xs italic" style={{ color: "rgba(13,17,68,0.5)" }}>
                     &ldquo;{String(ev.metadata.reason)}&rdquo;
                   </p>
                 )}

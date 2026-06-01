@@ -33,10 +33,26 @@ type Wallet = {
   ringfenced_amount: number;
 } | null;
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: "#94a3b8", submitted: "#60a5fa", under_review: "#fbbf24",
-  approved: "#34d399", pending_funding: "#f97316", rejected: "#f87171",
-  active: "#a3e635", cancelled: "#6b7280",
+const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  draft:           { bg: "#f1f5f9", text: "#64748b", border: "#cbd5e1" },
+  submitted:       { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
+  under_review:    { bg: "#fffbeb", text: "#d97706", border: "#fde68a" },
+  approved:        { bg: "#f0fdf4", text: "#059669", border: "#a7f3d0" },
+  pending_funding: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa" },
+  rejected:        { bg: "#fef2f2", text: "#dc2626", border: "#fecaca" },
+  active:          { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
+  cancelled:       { bg: "#f8fafc", text: "#64748b", border: "#e2e8f0" },
+};
+
+const ACTION_STYLE: Record<string, { bg: string; border: string; text: string }> = {
+  begin_review:    { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+  approve:         { bg: "#f0fdf4", border: "#a7f3d0", text: "#059669" },
+  confirm_funding: { bg: "#f0fdf4", border: "#a7f3d0", text: "#059669" },
+  retry_funding:   { bg: "#f0fdf4", border: "#a7f3d0", text: "#059669" },
+  mark_pending:    { bg: "#fff7ed", border: "#fed7aa", text: "#ea580c" },
+  reject:          { bg: "#fef2f2", border: "#fecaca", text: "#dc2626" },
+  cancel:          { bg: "#fef2f2", border: "#fecaca", text: "#dc2626" },
+  submit:          { bg: "#0D1144", border: "#0D1144", text: "#ffffff" },
 };
 
 const ACTIONS_FOR_STATUS: Record<string, { action: VariationAction; label: string; roles: AppRole[] }[]> = {
@@ -102,7 +118,6 @@ export default function VariationDetailPage() {
     setActing(false);
     if (!res.ok) {
       setActionError(data.error ?? "Action failed.");
-      // Reload to reflect auto-transitions (e.g. pending_funding / funding_gap)
       const r2 = await fetch(`/api/variations/${variationId}`);
       const d2 = await r2.json();
       setVariation(d2.variation);
@@ -119,20 +134,20 @@ export default function VariationDetailPage() {
 
   if (loading) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-        <p className="text-neutral-400">Loading…</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
       </div>
     </AppShell>
   );
   if (error || !variation) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-        <p className="text-red-400">{error ?? "Not found"}</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-sm text-red-500">{error ?? "Not found"}</p>
       </div>
     </AppShell>
   );
 
-  const statusColor = STATUS_COLORS[variation.status] ?? "#94a3b8";
+  const statusStyle = STATUS_COLORS[variation.status] ?? STATUS_COLORS.draft;
   const availableActions = (ACTIONS_FOR_STATUS[variation.status] ?? []).filter(
     (a) => userRole && a.roles.includes(userRole),
   );
@@ -154,19 +169,20 @@ export default function VariationDetailPage() {
 
   return (
     <AppShell>
-    <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
+    <div className="min-h-screen px-4 py-8">
       <Link
         href={`/projects/${projectId}/stages/${stageId}`}
-        className="text-xs font-medium text-neutral-400 hover:text-white"
+        className="text-xs font-medium hover:underline"
+        style={{ color: "rgba(13,17,68,0.55)" }}
       >
         ← Back to stage
       </Link>
 
       <div className="mt-4 flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-white">Variation</h1>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Variation</h1>
         <span
           className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
-          style={{ backgroundColor: statusColor + "33", color: statusColor, border: `1px solid ${statusColor}55` }}
+          style={{ backgroundColor: statusStyle.bg, color: statusStyle.text, border: `1px solid ${statusStyle.border}` }}
         >
           {variation.status.replace(/_/g, " ")}
         </span>
@@ -176,33 +192,33 @@ export default function VariationDetailPage() {
         {/* Description + metadata */}
         <div
           className="rounded-[20px] p-5 space-y-3"
-          style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
+          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
         >
           <div>
-            <p className="text-xs uppercase tracking-widest text-neutral-500">Description</p>
-            <p className="mt-1 text-sm text-white">{variation.description}</p>
+            <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Description</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{variation.description}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Value change</p>
-              <p className="mt-1 text-lg font-bold" style={{ color: valueChange >= 0 ? "#4ade80" : "#f87171" }}>
+              <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Value change</p>
+              <p className="mt-1 text-lg font-bold" style={{ color: valueChange >= 0 ? "#059669" : "#dc2626" }}>
                 {valueChange >= 0 ? "+" : ""}{gbp.format(valueChange)}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Stage</p>
-              <p className="mt-1 text-sm text-white">{stage?.name ?? "—"}</p>
+              <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Stage</p>
+              <p className="mt-1 text-sm font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage?.name ?? "—"}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Requested by</p>
-              <p className="mt-1 text-sm text-white">{variation.requester?.full_name ?? "—"}</p>
+              <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Requested by</p>
+              <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{variation.requester?.full_name ?? "—"}</p>
             </div>
             {variation.approver && (
               <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Approved by</p>
-                <p className="mt-1 text-sm text-white">{variation.approver.full_name}</p>
+                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Approved by</p>
+                <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{variation.approver.full_name}</p>
               </div>
             )}
           </div>
@@ -214,35 +230,33 @@ export default function VariationDetailPage() {
             className="rounded-[20px] p-5 space-y-4"
             style={{
               border: hasFundingShortfall
-                ? "1px solid rgba(249,115,22,0.4)"
-                : "1px solid rgba(255,255,255,0.08)",
-              backgroundColor: hasFundingShortfall
-                ? "rgba(249,115,22,0.05)"
-                : "rgba(255,255,255,0.04)",
+                ? "1px solid #fed7aa"
+                : "1px solid var(--surface-border, #e4e7f0)",
+              backgroundColor: hasFundingShortfall ? "#fff7ed" : "#fff",
             }}
           >
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
               Financial impact
             </p>
 
             {/* Stage value breakdown */}
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
-                <p className="text-[10px] uppercase tracking-widest text-neutral-500">Original</p>
-                <p className="mt-1 text-sm font-bold text-white">{gbp.format(originalValue)}</p>
+              <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Original</p>
+                <p className="mt-1 text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(originalValue)}</p>
               </div>
-              <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
-                <p className="text-[10px] uppercase tracking-widest text-neutral-500">Change</p>
+              <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Change</p>
                 <p
                   className="mt-1 text-sm font-bold"
-                  style={{ color: valueChange >= 0 ? "#4ade80" : "#f87171" }}
+                  style={{ color: valueChange >= 0 ? "#059669" : "#dc2626" }}
                 >
                   {valueChange >= 0 ? "+" : ""}{gbp.format(valueChange)}
                 </p>
               </div>
-              <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
-                <p className="text-[10px] uppercase tracking-widest text-neutral-500">New total</p>
-                <p className="mt-1 text-sm font-bold text-white">{gbp.format(newStageValue)}</p>
+              <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)" }}>
+                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>New total</p>
+                <p className="mt-1 text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(newStageValue)}</p>
               </div>
             </div>
 
@@ -250,17 +264,17 @@ export default function VariationDetailPage() {
             {wallet && valueChange > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-400">Wallet available</span>
-                  <span className="font-semibold text-white">{gbp.format(walletAvailable)}</span>
+                  <span style={{ color: "rgba(13,17,68,0.55)" }}>Wallet available</span>
+                  <span className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(walletAvailable)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-400">Variation needed</span>
-                  <span className="font-semibold text-white">{gbp.format(valueChange)}</span>
+                  <span style={{ color: "rgba(13,17,68,0.55)" }}>Variation needed</span>
+                  <span className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(valueChange)}</span>
                 </div>
                 {hasFundingShortfall ? (
                   <div
                     className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold"
-                    style={{ backgroundColor: "rgba(249,115,22,0.15)", color: "#f97316" }}
+                    style={{ backgroundColor: "#fff7ed", color: "#ea580c", border: "1px solid #fed7aa" }}
                   >
                     <span>Shortfall</span>
                     <span>{gbp.format(shortfall)}</span>
@@ -268,7 +282,7 @@ export default function VariationDetailPage() {
                 ) : (
                   <div
                     className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold"
-                    style={{ backgroundColor: "rgba(52,211,153,0.1)", color: "#34d399" }}
+                    style={{ backgroundColor: "#f0fdf4", color: "#059669", border: "1px solid #a7f3d0" }}
                   >
                     <span>Wallet covers increase</span>
                     <span>✓</span>
@@ -279,17 +293,23 @@ export default function VariationDetailPage() {
           </div>
         )}
 
-        {/* Funding confirmation checkbox for funder actions */}
+        {/* Funding confirmation checkbox */}
         {availableActions.some((a) => FUNDING_ACTIONS.has(a.action)) && !hasFundingShortfall && (
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label
+            className="flex items-start gap-3 cursor-pointer rounded-2xl px-4 py-4"
+            style={{
+              border: `1px solid ${fundingConfirmed ? "#a7f3d0" : "var(--surface-border, #e4e7f0)"}`,
+              backgroundColor: fundingConfirmed ? "#f0fdf4" : "#fff",
+            }}
+          >
             <input
               type="checkbox"
               checked={fundingConfirmed}
               onChange={(e) => setFundingConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded accent-emerald-400"
+              className="mt-0.5 h-4 w-4 rounded accent-emerald-600"
             />
-            <span className="text-xs text-neutral-300 leading-relaxed">
-              I confirm that the wallet has sufficient funds to cover this variation and authorise the stage value to be updated by {gbp.format(valueChange)}.
+            <span className="text-xs leading-relaxed" style={{ color: "rgba(13,17,68,0.7)" }}>
+              I confirm the wallet has sufficient funds to cover this variation and authorise the stage value to be updated by {gbp.format(valueChange)}.
             </span>
           </label>
         )}
@@ -297,17 +317,18 @@ export default function VariationDetailPage() {
         {/* Actions */}
         {availableActions.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-widest text-neutral-500">Actions</p>
+            <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Actions</p>
             {availableActions.map((a) => {
               const needsConfirmation = FUNDING_ACTIONS.has(a.action) && valueChange > 0;
               const isDisabled = acting || (needsConfirmation && !fundingConfirmed);
+              const style = ACTION_STYLE[a.action] ?? { bg: "#f7f8fc", border: "#e4e7f0", text: "#0D1144" };
               return (
                 <button
                   key={a.action}
                   onClick={() => doAction(a.action)}
                   disabled={isDisabled}
-                  className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-40"
-                  style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:opacity-40"
+                  style={{ backgroundColor: style.bg, border: `1px solid ${style.border}`, color: style.text }}
                 >
                   {acting ? "Processing…" : a.label}
                 </button>
@@ -317,12 +338,13 @@ export default function VariationDetailPage() {
         )}
 
         {actionError && (
-          <p
-            className="rounded-xl px-3 py-2 text-xs"
-            style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
+          <div
+            className="rounded-xl px-3 py-2"
+            style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}
           >
-            {actionError}
-          </p>
+            <p className="text-xs font-bold uppercase tracking-wider">Error</p>
+            <p className="mt-0.5 text-xs">{actionError}</p>
+          </div>
         )}
       </div>
     </div>
