@@ -77,25 +77,25 @@ const pct = (a: number, b: number) => b === 0 ? "—" : `${Math.round((a / b) * 
 
 const STATUS_COLOR: Record<string, string> = {
   draft:                "#94a3b8",
-  sent:                 "#60a5fa",
-  accepted:             "#818cf8",
-  in_progress:          "#fbbf24",
-  awaiting_approval:    "#c084fc",
-  returned:             "#fb923c",
-  disputed:             "#f87171",
-  available_to_release: "#34d399",
-  released:             "#4ade80",
-  funding_gap:          "#f87171",
-  part_funded:          "#fbbf24",
+  sent:                 "#2563eb",
+  accepted:             "#7c3aed",
+  in_progress:          "#d97706",
+  awaiting_approval:    "#7c3aed",
+  returned:             "#ea580c",
+  disputed:             "#dc2626",
+  available_to_release: "#059669",
+  released:             "#16a34a",
+  funding_gap:          "#dc2626",
+  part_funded:          "#d97706",
 };
 
 const ROLE_COLOR: Record<string, string> = {
-  funder:     "#34d399",
-  developer:  "#60a5fa",
-  contractor: "#fbbf24",
-  commercial: "#a78bfa",
-  consultant: "#fb923c",
-  admin:      "#f87171",
+  funder:     "#059669",
+  developer:  "#2563eb",
+  contractor: "#d97706",
+  commercial: "#7c3aed",
+  consultant: "#ea580c",
+  admin:      "#dc2626",
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -135,7 +135,7 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
-function Badge({ count, color = "#f87171" }: { count: number; color?: string }) {
+function Badge({ count, color = "#dc2626" }: { count: number; color?: string }) {
   if (count === 0) return null;
   return (
     <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white" style={{ backgroundColor: color }}>
@@ -168,13 +168,13 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
     <div className="space-y-6">
       {/* Funding gap warning */}
       {summary.fundingGapWarning && (
-        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
-          <p className="text-xs font-bold uppercase tracking-wider text-red-400">Funding gap warning</p>
-          <p className="mt-1 text-sm text-red-200">
+        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#dc2626" }}>Funding gap warning</p>
+          <p className="mt-1 text-sm" style={{ color: "#b91c1c" }}>
             Wallet available ({gbp.format(wallet.available)}) is less than the projected 30-day draw ({gbp.format(summary.projectedDraw30d)}).
             Add funds to avoid blocking work.
           </p>
-          <Link href={`/projects/${projectId}/wallet`} className="mt-2 inline-block text-xs font-semibold text-red-300 hover:text-red-100">
+          <Link href={`/projects/${projectId}/wallet`} className="mt-2 inline-block text-xs font-semibold transition hover:opacity-70" style={{ color: "#dc2626" }}>
             Add funds →
           </Link>
         </div>
@@ -201,7 +201,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                 style={{ backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#7c3aed" }}
               >
                 Pending approvals
-                <Badge count={summary.pendingApprovals} color="#c084fc" />
+                <Badge count={summary.pendingApprovals} color="#7c3aed" />
               </Link>
             )}
             {summary.activeDisputes > 0 && (
@@ -215,7 +215,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                 style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
               >
                 Active disputes
-                <Badge count={summary.activeDisputes} color="#f87171" />
+                <Badge count={summary.activeDisputes} color="#dc2626" />
               </Link>
             )}
             <Link
@@ -263,7 +263,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                         <Link
                           href={`/projects/${projectId}/stages/${s.id}/disputes/${s.activeDisputeId}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] font-bold text-red-400 underline underline-offset-2 hover:text-red-300"
+                          className="text-[10px] font-bold underline underline-offset-2 hover:opacity-70" style={{ color: "#dc2626" }}
                         >
                           ⚠ View dispute
                         </Link>
@@ -395,7 +395,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                   style={{ backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#7c3aed" }}
                 >
                   <span>Pending approvals</span>
-                  <Badge count={summary.pendingApprovals} color="#c084fc" />
+                  <Badge count={summary.pendingApprovals} color="#7c3aed" />
                 </Link>
               )}
               {summary.activeDisputes > 0 && (
@@ -409,7 +409,7 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
                   style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
                 >
                   <span>Active disputes</span>
-                  <Badge count={summary.activeDisputes} color="#f87171" />
+                  <Badge count={summary.activeDisputes} color="#dc2626" />
                 </Link>
               )}
             </div>
@@ -487,13 +487,13 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
                   <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
                   <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{s.contractorName}</p>
                   <div className="mt-1 flex gap-2 flex-wrap">
-                    {s.pendingEvidence > 0 && <span className="text-[10px] text-orange-400 font-semibold">{s.pendingEvidence} evidence pending</span>}
-                    {s.pendingVariations > 0 && <span className="text-[10px] text-blue-400 font-semibold">{s.pendingVariations} variation(s)</span>}
+                    {s.pendingEvidence > 0 && <span className="text-[10px] font-semibold" style={{ color: "#ea580c" }}>{s.pendingEvidence} evidence pending</span>}
+                    {s.pendingVariations > 0 && <span className="text-[10px] font-semibold" style={{ color: "#2563eb" }}>{s.pendingVariations} variation(s)</span>}
                     {s.activeDisputes > 0 && s.activeDisputeId && (
                       <Link
                         href={`/projects/${projectId}/stages/${s.id}/disputes/${s.activeDisputeId}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[10px] font-semibold text-red-400 underline underline-offset-2"
+                        className="text-[10px] font-semibold underline underline-offset-2 hover:opacity-70" style={{ color: "#dc2626" }}
                       >
                         ⚠ View dispute
                       </Link>
