@@ -19,10 +19,10 @@ const fmt = new Intl.DateTimeFormat("en-GB", {
 });
 
 const STATUS_COLOR: Record<string, string> = {
-  raised:       "#fbbf24",
-  under_review: "#60a5fa",
-  resolved:     "#34d399",
-  escalated:    "#f97316",
+  raised:       "#d97706",
+  under_review: "#3b82f6",
+  resolved:     "#059669",
+  escalated:    "#ea580c",
 };
 
 const CAN_RESPOND  = ["funder", "commercial", "developer", "admin"];
@@ -82,17 +82,16 @@ function StatusTimeline({ current }: { current: string }) {
   return (
     <div className="flex items-center gap-0">
       {steps.map((step, idx) => {
-        const done  = idx < currentIdx;
+        const done   = idx < currentIdx;
         const active = idx === currentIdx && !isEscalated;
-        const color = done || active ? (STATUS_COLOR[step] ?? "#94a3b8") : "#374151";
+        const color  = done || active ? (STATUS_COLOR[step] ?? "#6b7280") : "rgba(13,17,68,0.2)";
 
         return (
           <div key={step} className="flex items-center">
-            {/* Connector line (not before first) */}
             {idx > 0 && (
               <div
                 className="h-px w-8 shrink-0"
-                style={{ backgroundColor: done ? STATUS_COLOR[steps[idx - 1]] ?? "#34d399" : "rgba(255,255,255,0.1)" }}
+                style={{ backgroundColor: done ? (STATUS_COLOR[steps[idx - 1]] ?? "#059669") : "rgba(13,17,68,0.12)" }}
               />
             )}
             <div className="flex flex-col items-center gap-1">
@@ -103,7 +102,7 @@ function StatusTimeline({ current }: { current: string }) {
                   backgroundColor: done || active ? color : "transparent",
                 }}
               />
-              <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: done || active ? color : "#4b5563" }}>
+              <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: done || active ? color : "rgba(13,17,68,0.3)" }}>
                 {STEP_LABEL[step]}
               </span>
             </div>
@@ -136,14 +135,14 @@ function StatusTimeline({ current }: { current: string }) {
 export default function DisputeDetailPage() {
   const { id: projectId, stageId, disputeId } = useParams<{ id: string; stageId: string; disputeId: string }>();
 
-  const [dispute, setDispute]     = useState<Dispute | null>(null);
-  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [userRole, setUserRole]   = useState<AppRole | null>(null);
-  const [acting, setActing]       = useState(false);
+  const [dispute, setDispute]         = useState<Dispute | null>(null);
+  const [viewerFile, setViewerFile]   = useState<{ url: string; name: string } | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [userRole, setUserRole]       = useState<AppRole | null>(null);
+  const [acting, setActing]           = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [notes, setNotes]         = useState("");
+  const [notes, setNotes]             = useState("");
   const [stageOutcome, setStageOutcome] = useState<"continue" | "return">("continue");
 
   useEffect(() => {
@@ -179,7 +178,6 @@ export default function DisputeDetailPage() {
       const data = await res.json();
       if (!res.ok) { setActionError(data.error ?? "Action failed."); return; }
 
-      // If resolving, also trigger the stage transition
       if (action === "resolve") {
         const transitionAction = stageOutcome === "continue"
           ? "resolve_dispute_continue"
@@ -205,8 +203,8 @@ export default function DisputeDetailPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-sm text-neutral-500">Loading dispute…</p>
+        <div className="flex min-h-full items-center justify-center py-20">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading dispute…</p>
         </div>
       </AppShell>
     );
@@ -215,12 +213,12 @@ export default function DisputeDetailPage() {
   if (error || !dispute) {
     return (
       <AppShell>
-        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-          <Link href={`/projects/${projectId}`} className="text-xs text-neutral-400 hover:text-white">
+        <div className="min-h-full px-4 py-8">
+          <Link href={`/projects/${projectId}`} className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
             ← Back to project
           </Link>
-          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm text-red-300">{error ?? "Dispute not found."}</p>
+          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{error ?? "Dispute not found."}</p>
           </div>
         </div>
       </AppShell>
@@ -231,7 +229,7 @@ export default function DisputeDetailPage() {
   // Derived state
   // ---------------------------------------------------------------------------
 
-  const statusColor = STATUS_COLOR[dispute.status] ?? "#94a3b8";
+  const statusColor = STATUS_COLOR[dispute.status] ?? "#6b7280";
   const stage = Array.isArray(dispute.stage) ? dispute.stage[0] : dispute.stage;
   const stageEvidence: EvidenceItem[] = Array.isArray(stage?.evidence) ? stage.evidence : [];
   const isTerminal = dispute.status === "resolved" || dispute.status === "escalated";
@@ -249,20 +247,21 @@ export default function DisputeDetailPage() {
   return (
     <>
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-8" style={{ backgroundColor: "#0d1144" }}>
+      <div className="min-h-full px-4 md:px-8 py-8">
         <Link
           href={`/projects/${projectId}/stages/${stageId}`}
-          className="text-xs font-medium text-neutral-400 hover:text-white"
+          className="text-xs font-medium transition hover:opacity-70"
+          style={{ color: "rgba(13,17,68,0.5)" }}
         >
           ← Back to stage
         </Link>
 
         {/* Header */}
         <div className="mt-4 mb-6 flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold text-white">Dispute</h1>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Dispute</h1>
           <span
             className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
-            style={{ backgroundColor: statusColor + "22", color: statusColor, border: `1px solid ${statusColor}44` }}
+            style={{ backgroundColor: statusColor + "18", color: statusColor, border: `1px solid ${statusColor}44` }}
           >
             {dispute.status.replace(/_/g, " ")}
           </span>
@@ -273,57 +272,58 @@ export default function DisputeDetailPage() {
           {/* Status timeline */}
           <div
             className="rounded-[20px] px-5 py-4"
-            style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
           >
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Timeline</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Timeline</p>
             <StatusTimeline current={dispute.status} />
           </div>
 
           {/* Dispute detail */}
           <div
             className="rounded-[20px] p-5 space-y-4"
-            style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
           >
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Reason</p>
-              <p className="mt-1 text-sm text-white leading-relaxed">{dispute.reason}</p>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Reason</p>
+              <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.reason}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Raised by</p>
-                <p className="mt-1 text-sm text-white">{dispute.raiser?.full_name ?? "—"}</p>
+                <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Raised by</p>
+                <p className="mt-1 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.raiser?.full_name ?? "—"}</p>
                 {dispute.raiser?.role && (
-                  <p className="text-[10px] text-neutral-500 capitalize">{dispute.raiser.role}</p>
+                  <p className="text-[10px] capitalize" style={{ color: "rgba(13,17,68,0.45)" }}>{dispute.raiser.role}</p>
                 )}
               </div>
               <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Stage</p>
-                <p className="mt-1 text-sm text-white">{stage?.name ?? "—"}</p>
+                <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Stage</p>
+                <p className="mt-1 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage?.name ?? "—"}</p>
               </div>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Raised</p>
-              <p className="mt-1 text-sm text-white">{fmt.format(new Date(dispute.created_at))}</p>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Raised</p>
+              <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{fmt.format(new Date(dispute.created_at))}</p>
             </div>
 
             {dispute.respondent && (
               <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Respondent</p>
-                <p className="mt-1 text-sm text-white">{dispute.respondent.full_name}</p>
+                <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Respondent</p>
+                <p className="mt-1 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.respondent.full_name}</p>
                 {dispute.respondent.role && (
-                  <p className="text-[10px] text-neutral-500 capitalize">{dispute.respondent.role}</p>
+                  <p className="text-[10px] capitalize" style={{ color: "rgba(13,17,68,0.45)" }}>{dispute.respondent.role}</p>
                 )}
               </div>
             )}
 
             {dispute.evidence_url && (
               <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Evidence</p>
+                <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Evidence</p>
                 <button
                   onClick={() => setViewerFile({ url: dispute.evidence_url!, name: "Dispute evidence" })}
-                  className="mt-1 inline-block text-sm text-blue-400 hover:text-blue-300 underline"
+                  className="mt-1 inline-block text-sm font-semibold underline transition hover:opacity-70"
+                  style={{ color: "var(--brand-navy, #0D1144)" }}
                 >
                   View evidence
                 </button>
@@ -332,33 +332,33 @@ export default function DisputeDetailPage() {
 
             {dispute.resolution_notes && (
               <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Resolution notes</p>
-                <p className="mt-1 text-sm text-white leading-relaxed">{dispute.resolution_notes}</p>
+                <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Resolution notes</p>
+                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.resolution_notes}</p>
               </div>
             )}
           </div>
 
-          {/* Stage evidence — shown so reviewer can inspect submitted files */}
+          {/* Stage evidence */}
           {stageEvidence.length > 0 && (
             <div
               className="rounded-[20px] p-5 space-y-3"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
             >
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Stage evidence ({stageEvidence.length} file{stageEvidence.length !== 1 ? "s" : ""})
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Review all submitted files before making a decision on this dispute.
               </p>
               <div className="space-y-2">
                 {stageEvidence.map((ev) => {
                   const EVIDENCE_STATUS_COLOR: Record<string, string> = {
-                    accepted:      "#34d399",
-                    rejected:      "#f87171",
-                    requires_more: "#fbbf24",
-                    pending:       "#94a3b8",
+                    accepted:      "#059669",
+                    rejected:      "#dc2626",
+                    requires_more: "#d97706",
+                    pending:       "#6b7280",
                   };
-                  const evColor = EVIDENCE_STATUS_COLOR[ev.status] ?? "#94a3b8";
+                  const evColor = EVIDENCE_STATUS_COLOR[ev.status] ?? "#6b7280";
                   const label = ev.name || ev.file_url.split("/").pop() || "File";
                   const isViewable = !!ev.signedUrl;
 
@@ -366,33 +366,33 @@ export default function DisputeDetailPage() {
                     <div
                       key={ev.id}
                       className="flex items-start justify-between gap-3 rounded-xl px-4 py-3"
-                      style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                      style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)" }}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-white truncate">{label}</span>
+                          <span className="text-sm font-medium truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{label}</span>
                           <span
                             className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                            style={{ backgroundColor: evColor + "22", color: evColor, border: `1px solid ${evColor}44` }}
+                            style={{ backgroundColor: evColor + "18", color: evColor, border: `1px solid ${evColor}44` }}
                           >
                             {ev.status.replace(/_/g, " ")}
                           </span>
                         </div>
                         {ev.uploader && (
-                          <p className="mt-0.5 text-[11px] text-neutral-500">
+                          <p className="mt-0.5 text-[11px]" style={{ color: "rgba(13,17,68,0.45)" }}>
                             Uploaded by {ev.uploader.full_name} · {fmt.format(new Date(ev.uploaded_at))}
                           </p>
                         )}
                         {ev.notes && (
-                          <p className="mt-1 text-xs text-neutral-400 italic">"{ev.notes}"</p>
+                          <p className="mt-1 text-xs italic" style={{ color: "rgba(13,17,68,0.5)" }}>"{ev.notes}"</p>
                         )}
                       </div>
                       {isViewable && (
                         <button
                           type="button"
                           onClick={() => setViewerFile({ url: ev.signedUrl!, name: label })}
-                          className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-blue-400 transition hover:text-blue-300"
-                          style={{ border: "1px solid rgba(96,165,250,0.25)", backgroundColor: "rgba(96,165,250,0.08)" }}
+                          className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+                          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
                         >
                           View
                         </button>
@@ -408,10 +408,10 @@ export default function DisputeDetailPage() {
           {dispute.status === "resolved" && (
             <div
               className="rounded-2xl px-4 py-4"
-              style={{ backgroundColor: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}
+              style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}
             >
-              <p className="text-xs font-bold uppercase tracking-wider text-green-400">Dispute resolved</p>
-              <p className="mt-1 text-sm text-neutral-300">
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#059669" }}>Dispute resolved</p>
+              <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.6)" }}>
                 This dispute has been closed. The stage has continued through the workflow.
               </p>
             </div>
@@ -420,10 +420,10 @@ export default function DisputeDetailPage() {
           {dispute.status === "escalated" && (
             <div
               className="rounded-2xl px-4 py-4"
-              style={{ backgroundColor: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.25)" }}
+              style={{ backgroundColor: "rgba(234,88,12,0.06)", border: "1px solid rgba(234,88,12,0.2)" }}
             >
-              <p className="text-xs font-bold uppercase tracking-wider text-orange-400">Escalated</p>
-              <p className="mt-1 text-sm text-neutral-300">
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#ea580c" }}>Escalated</p>
+              <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.6)" }}>
                 This dispute has been escalated for senior review. No further actions are available here.
               </p>
             </div>
@@ -432,22 +432,23 @@ export default function DisputeDetailPage() {
           {/* Actions */}
           {hasActions && (
             <div className="space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Actions</p>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Actions</p>
 
-              {/* Stage outcome picker (only when resolving) */}
+              {/* Stage outcome picker */}
               {canResolve && (
                 <div>
-                  <p className="mb-2 text-xs text-neutral-400">What happens to the stage after resolution?</p>
+                  <p className="mb-2 text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>What happens to the stage after resolution?</p>
                   <div className="grid grid-cols-2 gap-2">
                     {(["continue", "return"] as const).map((opt) => (
                       <button
                         key={opt}
                         type="button"
                         onClick={() => setStageOutcome(opt)}
-                        className="rounded-2xl px-4 py-3 text-sm font-semibold text-white transition"
+                        className="rounded-2xl px-4 py-3 text-sm font-semibold transition"
                         style={{
-                          border: `1px solid ${stageOutcome === opt ? "rgba(96,165,250,0.5)" : "rgba(255,255,255,0.1)"}`,
-                          backgroundColor: stageOutcome === opt ? "rgba(96,165,250,0.12)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${stageOutcome === opt ? "rgba(13,17,68,0.25)" : "var(--surface-border, #e4e7f0)"}`,
+                          backgroundColor: stageOutcome === opt ? "rgba(13,17,68,0.06)" : "#fff",
+                          color: "var(--brand-navy, #0D1144)",
                         }}
                       >
                         {opt === "continue" ? "Continue to approval" : "Return for rework"}
@@ -458,7 +459,8 @@ export default function DisputeDetailPage() {
               )}
 
               <textarea
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
+                className="w-full rounded-2xl px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-100"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
                 rows={3}
                 placeholder="Add notes or resolution details… (optional)"
                 value={notes}
@@ -470,8 +472,8 @@ export default function DisputeDetailPage() {
                   <button
                     onClick={() => doAction("respond")}
                     disabled={acting}
-                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)" }}
+                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "#3b82f6" }}
                   >
                     {acting ? "Processing…" : "Begin review"}
                   </button>
@@ -480,8 +482,8 @@ export default function DisputeDetailPage() {
                   <button
                     onClick={() => doAction("resolve")}
                     disabled={acting}
-                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)" }}
+                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "#059669" }}
                   >
                     {acting ? "Processing…" : "Mark resolved"}
                   </button>
@@ -490,8 +492,8 @@ export default function DisputeDetailPage() {
                   <button
                     onClick={() => doAction("escalate")}
                     disabled={acting}
-                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.3)" }}
+                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "#ea580c" }}
                   >
                     {acting ? "Processing…" : "Escalate"}
                   </button>
@@ -503,10 +505,10 @@ export default function DisputeDetailPage() {
           {actionError && (
             <div
               className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
+              style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}
             >
-              <p className="text-xs font-bold uppercase tracking-wider text-red-400">Action failed</p>
-              <p className="mt-1 text-sm text-red-300">{actionError}</p>
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#dc2626" }}>Action failed</p>
+              <p className="mt-1 text-sm" style={{ color: "#dc2626" }}>{actionError}</p>
             </div>
           )}
 

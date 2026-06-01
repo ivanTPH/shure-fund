@@ -372,7 +372,7 @@ export default function StageOverviewPage() {
         {/* ── Stage header ─────────────────────────────────────────────────── */}
         <div
           className="rounded-[24px] p-5"
-          style={{ border: `1px solid ${statusStyle.border}`, backgroundColor: statusStyle.bg }}
+          style={{ border: `1px solid ${statusStyle.border}`, backgroundColor: "#fff", borderLeft: `4px solid ${statusStyle.text}` }}
         >
           {/* Status + sequence */}
           <div className="mb-3 flex items-center gap-2">
@@ -459,11 +459,11 @@ export default function StageOverviewPage() {
           {isApprover && stage.status !== "disputed" && stage.status !== "released" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/approve`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition"
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
               style={{
-                backgroundColor: pendingApprovals > 0 ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.06)",
-                border: `1px solid ${pendingApprovals > 0 ? "rgba(251,191,36,0.35)" : "rgba(255,255,255,0.12)"}`,
-                color: pendingApprovals > 0 ? "#fbbf24" : "#d4d4d4",
+                backgroundColor: pendingApprovals > 0 ? "rgba(217,119,6,0.1)" : "rgba(13,17,68,0.05)",
+                border: `1px solid ${pendingApprovals > 0 ? "rgba(217,119,6,0.35)" : "var(--surface-border, #e4e7f0)"}`,
+                color: pendingApprovals > 0 ? "#d97706" : "var(--brand-navy, #0D1144)",
               }}
             >
               {pendingApprovals > 0 ? `Review & approve (${pendingApprovals} pending)` : "View approvals"}
@@ -485,8 +485,8 @@ export default function StageOverviewPage() {
           {canVariation && stage.status !== "released" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/variations/new`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-neutral-300 transition"
-              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
+              style={{ backgroundColor: "rgba(13,17,68,0.05)", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
             >
               + Variation
             </Link>
@@ -612,8 +612,8 @@ export default function StageOverviewPage() {
                             <button
                               type="button"
                               onClick={() => setViewerFile({ url: item.signedUrl!, name: item.name })}
-                              className="rounded-lg px-2 py-1 text-[10px] font-semibold text-neutral-400 hover:text-white transition"
-                              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                              className="rounded-lg px-2 py-1 text-[10px] font-semibold transition hover:opacity-80"
+                              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc", color: "var(--brand-navy, #0D1144)" }}
                             >
                               View
                             </button>
@@ -722,6 +722,7 @@ export default function StageOverviewPage() {
                         <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.65)" }}>Certified {gbp.format(ap.certifiedAmount)}</p>
                       )}
                       {ap.notes && <p className="mt-0.5 text-xs italic" style={{ color: "rgba(13,17,68,0.45)" }}>{ap.notes}</p>}
+                      <p className="mt-1 text-[10px]" style={{ color: "rgba(13,17,68,0.35)" }}>{relativeTime(ap.createdAt)}</p>
                     </div>
                     <span className="shrink-0 text-xs font-bold uppercase" style={{ color: ds.color }}>{ds.label}</span>
                   </div>

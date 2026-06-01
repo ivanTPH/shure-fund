@@ -69,22 +69,20 @@ function formatCurrency(n: number): string {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
 }
 
-function relativeTime(iso: string): string {
-  const diffMs = Date.parse(iso) - Date.now();
-  const diffMin = Math.round(diffMs / 60_000);
-  const diffHr  = Math.round(diffMs / 3_600_000);
-  const diffDay = Math.round(diffMs / 86_400_000);
-  const fmt = new Intl.RelativeTimeFormat("en-GB", { numeric: "auto" });
-  if (Math.abs(diffMin) < 60) return fmt.format(diffMin, "minute");
-  if (Math.abs(diffHr) < 24)  return fmt.format(diffHr, "hour");
-  return fmt.format(diffDay, "day");
+const dateTimeFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit", month: "short", year: "numeric",
+  hour: "2-digit", minute: "2-digit", hour12: false,
+});
+
+function formatDateTime(iso: string): string {
+  return dateTimeFmt.format(new Date(iso));
 }
 
 const DECISION_COLOR: Record<string, string> = {
-  approved: "#34d399",
-  rejected:  "#f87171",
-  returned:  "#fbbf24",
-  pending:   "#94a3b8",
+  approved: "#059669",
+  rejected:  "#dc2626",
+  returned:  "#d97706",
+  pending:   "#6b7280",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -148,12 +146,12 @@ export default function ApproveStagePage() {
   }
 
   // Form state
-  const [decision, setDecision]             = useState<"approved" | "returned">("approved");
-  const [notes, setNotes]                   = useState("");
+  const [decision, setDecision]               = useState<"approved" | "returned">("approved");
+  const [notes, setNotes]                     = useState("");
   const [certifiedAmount, setCertifiedAmount] = useState("");
-  const [submitting, setSubmitting]         = useState(false);
-  const [submitError, setSubmitError]       = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess]   = useState(false);
+  const [submitting, setSubmitting]           = useState(false);
+  const [submitError, setSubmitError]         = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess]     = useState(false);
 
   // ---- Load data ----
   const loadData = useCallback(async () => {
@@ -247,8 +245,8 @@ export default function ApproveStagePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-sm text-neutral-500">Loading approval screen…</p>
+        <div className="flex min-h-full items-center justify-center py-20">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading approval screen…</p>
         </div>
       </AppShell>
     );
@@ -257,12 +255,12 @@ export default function ApproveStagePage() {
   if (error) {
     return (
       <AppShell>
-        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-          <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs text-neutral-400 hover:text-white">
+        <div className="min-h-full px-4 py-8">
+          <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
             ← Back to stage
           </Link>
-          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm text-red-300">{error}</p>
+          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>
           </div>
         </div>
       </AppShell>
@@ -274,30 +272,30 @@ export default function ApproveStagePage() {
   return (
     <>
     <AppShell>
-    <div className="min-h-screen px-4 md:px-8 py-8 space-y-6 max-w-2xl mx-auto" style={{ backgroundColor: "#0d1144" }}>
+    <div className="min-h-full px-4 md:px-8 py-8 space-y-6 max-w-2xl mx-auto">
       {/* Back link */}
-      <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs font-medium text-neutral-400 hover:text-white">
+      <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs font-medium transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
         ← Back to stage overview
       </Link>
 
       {/* Stage summary */}
-      <div className="rounded-[20px] px-5 py-5" style={{ border: "1px solid rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.04)" }}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Stage under review</p>
-        <p className="mt-1 text-xl font-bold text-white">{stage?.name}</p>
+      <div className="rounded-[20px] px-5 py-5" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Stage under review</p>
+        <p className="mt-1 text-xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage?.name}</p>
         <div className="mt-3 flex items-center gap-4">
           <div>
-            <p className="text-xs text-neutral-500">Contracted value</p>
-            <p className="text-lg font-semibold text-white">{formatCurrency(stage?.value ?? 0)}</p>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Contracted value</p>
+            <p className="text-lg font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{formatCurrency(stage?.value ?? 0)}</p>
           </div>
           <div>
-            <p className="text-xs text-neutral-500">Status</p>
-            <p className="text-sm font-semibold" style={{ color: isAwaitingApproval ? "#60a5fa" : "#94a3b8" }}>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Status</p>
+            <p className="text-sm font-semibold capitalize" style={{ color: isAwaitingApproval ? "#d97706" : "rgba(13,17,68,0.55)" }}>
               {stage?.status?.replace(/_/g, " ")}
             </p>
           </div>
         </div>
         {!isAwaitingApproval && (
-          <p className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+          <p className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(217,119,6,0.06)", color: "#d97706", border: "1px solid rgba(217,119,6,0.2)" }}>
             This stage is not currently awaiting approval — approval actions are disabled.
           </p>
         )}
@@ -305,28 +303,28 @@ export default function ApproveStagePage() {
 
       {/* Evidence files */}
       <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
           Evidence submitted
           {evidence.length > 0 && (
-            <span className="ml-2 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-neutral-300">
+            <span className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: "rgba(13,17,68,0.08)", color: "var(--brand-navy, #0D1144)" }}>
               {evidence.length}
             </span>
           )}
         </h2>
         {reviewError && (
-          <p className="mb-2 rounded-xl px-3 py-2 text-xs text-red-300" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <p className="mb-2 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}>
             {reviewError}
           </p>
         )}
         {evidence.length === 0 ? (
-          <p className="text-sm text-neutral-500">No evidence files have been uploaded for this stage.</p>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No evidence files have been uploaded for this stage.</p>
         ) : (
           <div className="space-y-2">
             {evidence.map((item) => {
-              const sc = item.status === "accepted" ? "#34d399"
-                : item.status === "rejected" ? "#f87171"
-                : item.status === "requires_more" ? "#fbbf24"
-                : "#94a3b8";
+              const sc = item.status === "accepted" ? "#059669"
+                : item.status === "rejected" ? "#dc2626"
+                : item.status === "requires_more" ? "#d97706"
+                : "#6b7280";
               const isReviewable = item.status === "pending" || item.status === "requires_more";
               const isExpanded = expandedEvidenceId === item.id;
               const isReviewing = reviewSubmitting === item.id;
@@ -334,9 +332,9 @@ export default function ApproveStagePage() {
                 <div
                   key={item.id}
                   className="rounded-2xl overflow-hidden"
-                  style={{ border: `1px solid ${isExpanded ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)"}`, backgroundColor: isExpanded ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)" }}
+                  style={{ border: `1px solid ${isExpanded ? "rgba(13,17,68,0.14)" : "var(--surface-border, #e4e7f0)"}`, backgroundColor: isExpanded ? "rgba(13,17,68,0.02)" : "#fff" }}
                 >
-                  {/* Main row — click to expand (only for reviewable items) */}
+                  {/* Main row */}
                   <button
                     type="button"
                     className="flex w-full items-start gap-3 px-4 py-3 text-left"
@@ -349,26 +347,26 @@ export default function ApproveStagePage() {
                   >
                     <span className="shrink-0 text-xl">{fileIcon(item.fileType)}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{item.name}</p>
-                      <p className="text-xs text-neutral-500">
-                        {formatBytes(item.fileSize)} · {item.uploadedBy?.full_name ?? "Unknown"} · {relativeTime(item.uploadedAt)}
+                      <p className="truncate text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{item.name}</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                        {formatBytes(item.fileSize)} · {item.uploadedBy?.full_name ?? "Unknown"} · {formatDateTime(item.uploadedAt)}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                        style={{ backgroundColor: sc + "22", color: sc }}
+                        style={{ backgroundColor: sc + "18", color: sc }}
                       >
                         {item.status.replace(/_/g, " ")}
                       </span>
                       {isReviewable && (
-                        <span className="text-[10px] text-neutral-600">{isExpanded ? "▲" : "▼"}</span>
+                        <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.3)" }}>{isExpanded ? "▲" : "▼"}</span>
                       )}
                       {!isReviewable && item.signedUrl && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setViewerFile({ url: item.signedUrl!, name: item.name }); }}
-                          className="rounded-lg px-2 py-1 text-[10px] font-semibold text-neutral-400 hover:text-white transition"
-                          style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                          className="rounded-lg px-2 py-1 text-[10px] font-semibold transition hover:opacity-80"
+                          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc", color: "var(--brand-navy, #0D1144)" }}
                         >
                           View
                         </button>
@@ -376,21 +374,21 @@ export default function ApproveStagePage() {
                     </div>
                   </button>
 
-                  {/* Expanded review panel — only for pending / requires_more */}
+                  {/* Expanded review panel */}
                   {isExpanded && isReviewable && (
-                    <div className="border-t border-white/10 px-4 pb-4 pt-3 space-y-3">
+                    <div className="px-4 pb-4 pt-3 space-y-3" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
                       {item.signedUrl && (
                         <button
                           type="button"
                           onClick={() => setViewerFile({ url: item.signedUrl!, name: item.name })}
-                          className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:text-white"
-                          style={{ border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.05)" }}
+                          className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+                          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc", color: "var(--brand-navy, #0D1144)" }}
                         >
                           View file
                         </button>
                       )}
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
                           Review notes (required for reject / more info)
                         </label>
                         <textarea
@@ -399,7 +397,8 @@ export default function ApproveStagePage() {
                           placeholder="Add notes for the contractor…"
                           value={reviewNotes[item.id] ?? ""}
                           onChange={(e) => setReviewNotes((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none resize-none"
+                          className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+                          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
                         />
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -408,7 +407,7 @@ export default function ApproveStagePage() {
                           disabled={isReviewing}
                           onClick={() => reviewEvidence(item.id, "accepted")}
                           className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
-                          style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}
+                          style={{ backgroundColor: "rgba(5,150,105,0.12)", border: "1px solid rgba(5,150,105,0.3)", color: "#059669" }}
                         >
                           ✓ Accept
                         </button>
@@ -417,7 +416,7 @@ export default function ApproveStagePage() {
                           disabled={isReviewing || !reviewNotes[item.id]?.trim()}
                           onClick={() => reviewEvidence(item.id, "requires_more")}
                           className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
-                          style={{ backgroundColor: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
+                          style={{ backgroundColor: "rgba(217,119,6,0.1)", border: "1px solid rgba(217,119,6,0.3)", color: "#d97706" }}
                         >
                           ↩ More info
                         </button>
@@ -426,12 +425,12 @@ export default function ApproveStagePage() {
                           disabled={isReviewing || !reviewNotes[item.id]?.trim()}
                           onClick={() => reviewEvidence(item.id, "rejected")}
                           className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
-                          style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171" }}
+                          style={{ backgroundColor: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", color: "#dc2626" }}
                         >
                           ✗ Reject
                         </button>
                         {isReviewing && (
-                          <span className="flex items-center text-[11px] text-neutral-500">Saving…</span>
+                          <span className="flex items-center text-[11px]" style={{ color: "rgba(13,17,68,0.45)" }}>Saving…</span>
                         )}
                       </div>
                     </div>
@@ -445,13 +444,13 @@ export default function ApproveStagePage() {
 
       {/* Current approval records */}
       <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Approval chain</h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Approval chain</h2>
         {approvals.length === 0 ? (
-          <p className="text-sm text-neutral-500">No approval records yet for this stage.</p>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No approval records yet for this stage.</p>
         ) : (
           <div className="space-y-2">
             {approvals.map((ap) => {
-              const color = DECISION_COLOR[ap.decision] ?? "#94a3b8";
+              const color = DECISION_COLOR[ap.decision] ?? "#6b7280";
               return (
                 <div
                   key={ap.id}
@@ -459,19 +458,19 @@ export default function ApproveStagePage() {
                   style={{ border: `1px solid ${color}33`, backgroundColor: color + "0d" }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-white">{ROLE_LABEL[ap.role] ?? ap.role}</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{ROLE_LABEL[ap.role] ?? ap.role}</p>
                     <span className="text-xs font-bold uppercase" style={{ color }}>{ap.decision}</span>
                   </div>
-                  <p className="mt-0.5 text-xs text-neutral-400">{ap.approver?.full_name ?? "Unknown"}</p>
+                  <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{ap.approver?.full_name ?? "Unknown"}</p>
                   {ap.certifiedAmount !== null && (
-                    <p className="mt-1 text-xs text-neutral-300">
-                      Certified: <span className="font-semibold text-white">{formatCurrency(ap.certifiedAmount)}</span>
+                    <p className="mt-1 text-xs" style={{ color: "rgba(13,17,68,0.65)" }}>
+                      Certified: <span className="font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{formatCurrency(ap.certifiedAmount)}</span>
                     </p>
                   )}
                   {ap.notes && (
-                    <p className="mt-1 text-xs italic text-neutral-400">{ap.notes}</p>
+                    <p className="mt-1 text-xs italic" style={{ color: "rgba(13,17,68,0.45)" }}>{ap.notes}</p>
                   )}
-                  <p className="mt-1 text-[10px] text-neutral-600">{relativeTime(ap.createdAt)}</p>
+                  <p className="mt-1 text-[10px]" style={{ color: "rgba(13,17,68,0.35)" }}>{formatDateTime(ap.createdAt)}</p>
                 </div>
               );
             })}
@@ -482,23 +481,23 @@ export default function ApproveStagePage() {
       {/* Action form */}
       {isAwaitingApproval && (
         <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Your decision</h2>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Your decision</h2>
 
           {submitSuccess && (
-            <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)" }}>
-              <p className="text-sm font-semibold text-green-300">Decision recorded.</p>
-              <p className="text-xs text-neutral-400 mt-0.5">Your approval has been saved. The stage will advance to payment release once all required approvals are granted.</p>
+            <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.2)" }}>
+              <p className="text-sm font-semibold" style={{ color: "#059669" }}>Decision recorded.</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(13,17,68,0.5)" }}>Your approval has been saved. The stage will advance to payment release once all required approvals are granted.</p>
             </div>
           )}
 
           {submitError && (
-            <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <p className="text-xs font-semibold uppercase text-red-400">Error</p>
-              <p className="text-sm text-red-300 mt-0.5">{submitError}</p>
+            <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+              <p className="text-xs font-semibold uppercase" style={{ color: "#dc2626" }}>Error</p>
+              <p className="text-sm mt-0.5" style={{ color: "#dc2626" }}>{submitError}</p>
             </div>
           )}
 
-          <form onSubmit={submitDecision} className="rounded-[20px] p-5 space-y-4" style={{ border: "1px solid rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+          <form onSubmit={submitDecision} className="rounded-[20px] p-5 space-y-4" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             {/* Decision toggle */}
             <div className="flex gap-2">
               <button
@@ -506,9 +505,9 @@ export default function ApproveStagePage() {
                 onClick={() => setDecision("approved")}
                 className="flex-1 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
                 style={{
-                  backgroundColor: decision === "approved" ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${decision === "approved" ? "rgba(52,211,153,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  color: decision === "approved" ? "#34d399" : "#94a3b8",
+                  backgroundColor: decision === "approved" ? "rgba(5,150,105,0.1)" : "rgba(13,17,68,0.04)",
+                  border: `1px solid ${decision === "approved" ? "rgba(5,150,105,0.4)" : "var(--surface-border, #e4e7f0)"}`,
+                  color: decision === "approved" ? "#059669" : "rgba(13,17,68,0.55)",
                 }}
               >
                 Approve
@@ -518,18 +517,18 @@ export default function ApproveStagePage() {
                 onClick={() => setDecision("returned")}
                 className="flex-1 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
                 style={{
-                  backgroundColor: decision === "returned" ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${decision === "returned" ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  color: decision === "returned" ? "#fbbf24" : "#94a3b8",
+                  backgroundColor: decision === "returned" ? "rgba(217,119,6,0.1)" : "rgba(13,17,68,0.04)",
+                  border: `1px solid ${decision === "returned" ? "rgba(217,119,6,0.4)" : "var(--surface-border, #e4e7f0)"}`,
+                  color: decision === "returned" ? "#d97706" : "rgba(13,17,68,0.55)",
                 }}
               >
                 Return
               </button>
             </div>
 
-            {/* Certified amount — visible to all, optional except commercial convention */}
+            {/* Certified amount */}
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Certified amount (optional — leave blank to certify full contracted value)
               </label>
               <input
@@ -539,18 +538,19 @@ export default function ApproveStagePage() {
                 placeholder={`${stage?.value ?? 0}`}
                 value={certifiedAmount}
                 onChange={(e) => setCertifiedAmount(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-blue-100"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               />
               {certifiedAmount && parseFloat(certifiedAmount) !== (stage?.value ?? 0) && (
-                <p className="mt-1 text-xs text-amber-400">
+                <p className="mt-1 text-xs" style={{ color: "#d97706" }}>
                   Certified amount differs from contracted value ({formatCurrency(stage?.value ?? 0)})
                 </p>
               )}
             </div>
 
-            {/* Notes — required when returning */}
+            {/* Notes */}
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Notes{decision === "returned" ? " (required when returning)" : " (optional)"}
               </label>
               <textarea
@@ -559,7 +559,8 @@ export default function ApproveStagePage() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 required={decision === "returned"}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-blue-100"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               />
             </div>
 
@@ -567,17 +568,16 @@ export default function ApproveStagePage() {
             <button
               type="submit"
               disabled={submitting || (decision === "returned" && !notes.trim())}
-              className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+              className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               style={{
-                backgroundColor: decision === "approved" ? "rgba(52,211,153,0.2)" : "rgba(251,191,36,0.2)",
-                border: `1px solid ${decision === "approved" ? "rgba(52,211,153,0.3)" : "rgba(251,191,36,0.3)"}`,
+                backgroundColor: decision === "approved" ? "#059669" : "#d97706",
               }}
             >
               {submitting ? "Saving…" : decision === "approved" ? "Confirm approval" : "Return for revision"}
             </button>
           </form>
 
-          <p className="mt-3 text-xs text-neutral-600">
+          <p className="mt-3 text-xs" style={{ color: "rgba(13,17,68,0.35)" }}>
             Your decision is recorded in the immutable audit trail. Once all required approvals are granted, the stage automatically advances to payment release.
           </p>
         </div>
@@ -585,12 +585,12 @@ export default function ApproveStagePage() {
 
       {/* Navigate to release */}
       {stage?.status === "available_to_release" && (
-        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)" }}>
-          <p className="text-sm font-semibold text-green-300">All approvals granted — stage cleared for payment release.</p>
+        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+          <p className="text-sm font-semibold" style={{ color: "#059669" }}>All approvals granted — stage cleared for payment release.</p>
           <button
             onClick={() => router.push(`/projects/${projectId}/stages/${stageId}/release`)}
-            className="mt-3 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition"
-            style={{ backgroundColor: "rgba(52,211,153,0.2)", border: "1px solid rgba(52,211,153,0.3)" }}
+            className="mt-3 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+            style={{ backgroundColor: "#059669" }}
           >
             Release payment →
           </button>
@@ -599,12 +599,12 @@ export default function ApproveStagePage() {
 
       {/* Admin override link */}
       {userRole === "admin" && (
-        <div className="border-t border-white/5 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-600">Admin tools</p>
+        <div className="pt-4" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.35)" }}>Admin tools</p>
           <Link
             href={`/projects/${projectId}/stages/${stageId}/override`}
-            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-semibold text-red-400 transition hover:text-red-300"
-            style={{ border: "1px solid rgba(239,68,68,0.2)", backgroundColor: "rgba(239,68,68,0.05)" }}
+            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-semibold transition hover:opacity-80"
+            style={{ border: "1px solid rgba(220,38,38,0.2)", backgroundColor: "rgba(220,38,38,0.05)", color: "#dc2626" }}
           >
             ⚡ Force stage status override
           </Link>
