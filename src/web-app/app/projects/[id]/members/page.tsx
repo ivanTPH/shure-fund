@@ -28,12 +28,12 @@ type User = { id: string; full_name: string; email: string; role: string };
 // ---------------------------------------------------------------------------
 
 const ROLE_COLOR: Record<string, string> = {
-  funder:     "#34d399",
-  developer:  "#60a5fa",
-  commercial: "#fbbf24",
-  contractor: "#f97316",
-  consultant: "#a78bfa",
-  admin:      "#f87171",
+  funder:     "#059669",
+  developer:  "#2563eb",
+  commercial: "#d97706",
+  contractor: "#ea580c",
+  consultant: "#7c3aed",
+  admin:      "#dc2626",
 };
 
 const ALL_ROLES = ["funder", "developer", "commercial", "contractor", "consultant", "admin"];
