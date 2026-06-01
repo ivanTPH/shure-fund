@@ -71,7 +71,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   );
 
   // Build per-stage approval map
-  const approvalsByStage = new Map<string, typeof approvals>();
+  type Approval = NonNullable<typeof approvals>[number];
+  const approvalsByStage = new Map<string, Approval[]>();
   for (const ap of approvals ?? []) {
     if (!approvalsByStage.has(ap.stage_id)) approvalsByStage.set(ap.stage_id, []);
     approvalsByStage.get(ap.stage_id)!.push(ap);
@@ -90,7 +91,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     })),
   }));
 
-  const normalise = (m: typeof members[0]) => ({
+  const normalise = (m: NonNullable<typeof members>[0]) => ({
     memberId: m.id,
     projectRole: m.role,
     user: Array.isArray(m.user) ? m.user[0] : m.user,
