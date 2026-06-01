@@ -83,21 +83,38 @@ type Dispute = {
 // ---------------------------------------------------------------------------
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
-  draft:                { bg: "rgba(148,163,184,0.1)",  border: "rgba(148,163,184,0.2)", text: "#94a3b8", label: "Draft" },
-  in_progress:          { bg: "rgba(96,165,250,0.1)",   border: "rgba(96,165,250,0.25)", text: "#60a5fa", label: "In progress" },
-  awaiting_approval:    { bg: "rgba(251,191,36,0.1)",   border: "rgba(251,191,36,0.25)", text: "#fbbf24", label: "Awaiting approval" },
-  returned:             { bg: "rgba(251,191,36,0.1)",   border: "rgba(251,191,36,0.25)", text: "#fbbf24", label: "Returned" },
-  disputed:             { bg: "rgba(249,115,22,0.1)",   border: "rgba(249,115,22,0.25)", text: "#f97316", label: "Disputed" },
-  available_to_release: { bg: "rgba(52,211,153,0.1)",   border: "rgba(52,211,153,0.25)", text: "#34d399", label: "Ready to release" },
-  released:             { bg: "rgba(168,85,247,0.1)",   border: "rgba(168,85,247,0.25)", text: "#a855f7", label: "Released" },
-  funding_gap:          { bg: "rgba(239,68,68,0.1)",    border: "rgba(239,68,68,0.2)",   text: "#f87171", label: "Funding gap" },
+  draft:                { bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.2)",  text: "#64748b", label: "Draft" },
+  in_progress:          { bg: "rgba(37,99,235,0.06)",   border: "rgba(37,99,235,0.2)",    text: "#2563eb", label: "In progress" },
+  awaiting_approval:    { bg: "rgba(124,58,237,0.07)",  border: "rgba(124,58,237,0.2)",   text: "#7c3aed", label: "Awaiting approval" },
+  returned:             { bg: "rgba(234,88,12,0.07)",   border: "rgba(234,88,12,0.2)",    text: "#ea580c", label: "Returned" },
+  disputed:             { bg: "rgba(220,38,38,0.06)",   border: "rgba(220,38,38,0.2)",    text: "#dc2626", label: "Disputed" },
+  available_to_release: { bg: "rgba(5,150,105,0.07)",   border: "rgba(5,150,105,0.2)",    text: "#059669", label: "Ready to release" },
+  released:             { bg: "rgba(22,163,74,0.07)",   border: "rgba(22,163,74,0.2)",    text: "#16a34a", label: "Released" },
+  funding_gap:          { bg: "rgba(220,38,38,0.06)",   border: "rgba(220,38,38,0.2)",    text: "#dc2626", label: "Funding gap" },
+  sent:                 { bg: "rgba(37,99,235,0.06)",   border: "rgba(37,99,235,0.18)",   text: "#2563eb", label: "Sent for review" },
+  accepted:             { bg: "rgba(124,58,237,0.06)",  border: "rgba(124,58,237,0.18)",  text: "#7c3aed", label: "Accepted" },
+  part_funded:          { bg: "rgba(217,119,6,0.07)",   border: "rgba(217,119,6,0.2)",    text: "#d97706", label: "Partially funded" },
 };
 
 const DECISION_STYLE: Record<string, { color: string; label: string }> = {
-  approved: { color: "#34d399", label: "Approved" },
-  rejected: { color: "#f87171", label: "Rejected" },
-  returned: { color: "#fbbf24", label: "Returned" },
+  approved: { color: "#059669", label: "Approved" },
+  rejected: { color: "#dc2626", label: "Rejected" },
+  returned: { color: "#ea580c", label: "Returned" },
   pending:  { color: "#94a3b8", label: "Pending" },
+};
+
+const ACTION_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  submit:                   { label: "Submit for review",          color: "#2563eb", bg: "rgba(37,99,235,0.08)",  border: "rgba(37,99,235,0.25)" },
+  accept:                   { label: "Accept stage",               color: "#059669", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.25)" },
+  reject:                   { label: "Reject stage",               color: "#dc2626", bg: "rgba(220,38,38,0.08)", border: "rgba(220,38,38,0.25)" },
+  allocate_funding:         { label: "Allocate funding & start",   color: "#059669", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.25)" },
+  flag_funding_gap:         { label: "Flag funding gap",           color: "#dc2626", bg: "rgba(220,38,38,0.06)", border: "rgba(220,38,38,0.2)"  },
+  partial_fund:             { label: "Mark partially funded",      color: "#d97706", bg: "rgba(217,119,6,0.08)", border: "rgba(217,119,6,0.25)" },
+  submit_for_approval:      { label: "Submit for approval",        color: "#7c3aed", bg: "rgba(124,58,237,0.08)",border: "rgba(124,58,237,0.25)"},
+  complete_approvals:       { label: "Complete approval chain",    color: "#059669", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.25)" },
+  restart:                  { label: "Restart stage",              color: "#2563eb", bg: "rgba(37,99,235,0.08)", border: "rgba(37,99,235,0.25)" },
+  resolve_dispute_continue: { label: "Resolve — continue to approval", color: "#059669", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.25)" },
+  resolve_dispute_reject:   { label: "Resolve — return for rework",    color: "#dc2626", bg: "rgba(220,38,38,0.06)", border: "rgba(220,38,38,0.2)"  },
 };
 
 const APPROVAL_ROLE_LABEL: Record<string, string> = {
@@ -178,6 +195,12 @@ export default function StageOverviewPage() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
 
+  // Workflow transitions
+  const [availableTransitions, setAvailableTransitions] = useState<string[]>([]);
+  const [transitioning, setTransitioning]               = useState(false);
+  const [transitionError, setTransitionError]           = useState<string | null>(null);
+  const [transitionSuccess, setTransitionSuccess]       = useState<string | null>(null);
+
   // Evidence inline review
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
@@ -190,12 +213,13 @@ export default function StageOverviewPage() {
 
   const load = useCallback(async () => {
     try {
-      const [stageRes, evidenceRes, approvalsRes, variationsRes, disputesRes] = await Promise.all([
+      const [stageRes, evidenceRes, approvalsRes, variationsRes, disputesRes, transitionRes] = await Promise.all([
         fetch(`/api/stages/${stageId}`),
         fetch(`/api/evidence?stageId=${stageId}`),
         fetch(`/api/stages/${stageId}/approvals`),
         fetch(`/api/variations?stageId=${stageId}`),
         fetch(`/api/disputes?stageId=${stageId}`),
+        fetch(`/api/stages/${stageId}/transition`),
       ]);
 
       if (stageRes.status === 401) { setError("Sign in to view this stage."); return; }
@@ -242,6 +266,11 @@ export default function StageOverviewPage() {
           requester: Array.isArray(v.requester) ? v.requester[0] : v.requester,
         })));
       }
+      if (transitionRes.ok) {
+        const { availableActions } = await transitionRes.json();
+        setAvailableTransitions(availableActions ?? []);
+      }
+
       if (disputesRes.ok) {
         const { disputes: di } = await disputesRes.json();
         setDisputes((di ?? []).map((d: {
@@ -291,6 +320,30 @@ export default function StageOverviewPage() {
       setReviewError("Network error.");
     } finally {
       setReviewSubmitting(null);
+    }
+  }
+
+  async function performTransition(action: string) {
+    setTransitioning(true);
+    setTransitionError(null);
+    setTransitionSuccess(null);
+    try {
+      const res = await fetch(`/api/stages/${stageId}/transition`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTransitionError(data.error ?? "Transition failed.");
+        return;
+      }
+      setTransitionSuccess(`Stage moved to: ${data.newStatus?.replace(/_/g, " ") ?? action}`);
+      await load();
+    } catch {
+      setTransitionError("Network error.");
+    } finally {
+      setTransitioning(false);
     }
   }
 
@@ -400,7 +453,7 @@ export default function StageOverviewPage() {
               <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Contracted value</p>
               <p className="mt-0.5 text-lg font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(stage.value)}</p>
               {variationImpact !== 0 && (
-                <p className="text-[11px]" style={{ color: variationImpact > 0 ? "#34d399" : "#f87171" }}>
+                <p className="text-[11px] font-semibold" style={{ color: variationImpact > 0 ? "#059669" : "#dc2626" }}>
                   {variationImpact > 0 ? "+" : ""}{gbp.format(variationImpact)} variations
                 </p>
               )}
@@ -413,34 +466,59 @@ export default function StageOverviewPage() {
               <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>End</p>
               <p className="mt-0.5 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{formatDate(stage.endDate)}</p>
               {stage.endDate && new Date(stage.endDate) < new Date() && stage.status !== "released" && (
-                <p className="text-[10px] text-red-400">Overdue</p>
+                <p className="text-[10px] font-semibold" style={{ color: "#dc2626" }}>Overdue</p>
               )}
             </div>
           </div>
         </div>
 
-        {/* ── Action buttons — context-aware per status + role ─────────────── */}
+        {/* ── Workflow transitions ──────────────────────────────────────────── */}
+        {availableTransitions.length > 0 && (
+          <div
+            className="rounded-[20px] p-4"
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+          >
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
+              Workflow actions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {availableTransitions.map((action) => {
+                const cfg = ACTION_CONFIG[action];
+                if (!cfg) return null;
+                return (
+                  <button
+                    key={action}
+                    type="button"
+                    disabled={transitioning}
+                    onClick={() => performTransition(action)}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50"
+                    style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}
+                  >
+                    {transitioning ? "…" : cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+            {transitionError && (
+              <p className="mt-3 text-xs" style={{ color: "#dc2626" }}>{transitionError}</p>
+            )}
+            {transitionSuccess && (
+              <p className="mt-3 text-xs font-semibold" style={{ color: "#059669" }}>{transitionSuccess}</p>
+            )}
+          </div>
+        )}
+
+        {/* ── Contextual action links ───────────────────────────────────────── */}
         <div className="flex flex-wrap gap-2">
 
           {/* DISPUTED: primary = view/resolve dispute */}
           {stage.status === "disputed" && disputes.length > 0 && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/disputes/${disputes[0].id}`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold text-white transition"
-              style={{ backgroundColor: "rgba(249,115,22,0.18)", border: "1px solid rgba(249,115,22,0.4)", color: "#f97316" }}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition"
+              style={{ backgroundColor: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
             >
-              ⚠ View dispute
-            </Link>
-          )}
-
-          {/* DISPUTED + all approvals done + funder/admin: offer release override */}
-          {stage.status === "disputed" && allApproved && (canRelease || isAdmin) && (
-            <Link
-              href={`/projects/${projectId}/stages/${stageId}/release`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold text-white transition"
-              style={{ backgroundColor: "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.4)" }}
-            >
-              Release payment →
+              View dispute
             </Link>
           )}
 
@@ -448,8 +526,8 @@ export default function StageOverviewPage() {
           {canRelease && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/release`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold text-white transition"
-              style={{ backgroundColor: "rgba(52,211,153,0.2)", border: "1px solid rgba(52,211,153,0.4)" }}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition"
+              style={{ backgroundColor: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.25)", color: "#059669" }}
             >
               Release payment →
             </Link>
@@ -459,11 +537,11 @@ export default function StageOverviewPage() {
           {isApprover && stage.status !== "disputed" && stage.status !== "released" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/approve`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition"
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
               style={{
-                backgroundColor: pendingApprovals > 0 ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.06)",
-                border: `1px solid ${pendingApprovals > 0 ? "rgba(251,191,36,0.35)" : "rgba(255,255,255,0.12)"}`,
-                color: pendingApprovals > 0 ? "#fbbf24" : "#d4d4d4",
+                backgroundColor: pendingApprovals > 0 ? "rgba(124,58,237,0.07)" : "rgba(148,163,184,0.08)",
+                border: `1px solid ${pendingApprovals > 0 ? "rgba(124,58,237,0.2)" : "rgba(148,163,184,0.2)"}`,
+                color: pendingApprovals > 0 ? "#7c3aed" : "#64748b",
               }}
             >
               {pendingApprovals > 0 ? `Review & approve (${pendingApprovals} pending)` : "View approvals"}
@@ -474,8 +552,8 @@ export default function StageOverviewPage() {
           {isContractor && (stage.status === "in_progress" || stage.status === "returned" || stage.status === "draft") && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/action`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition"
-              style={{ backgroundColor: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)" }}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
+              style={{ backgroundColor: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.2)", color: "#2563eb" }}
             >
               Upload evidence
             </Link>
@@ -485,8 +563,8 @@ export default function StageOverviewPage() {
           {canVariation && stage.status !== "released" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/variations/new`}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-neutral-300 transition"
-              style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
+              style={{ backgroundColor: "rgba(148,163,184,0.08)", border: "1px solid rgba(148,163,184,0.2)", color: "#64748b" }}
             >
               + Variation
             </Link>
@@ -497,7 +575,7 @@ export default function StageOverviewPage() {
             <Link
               href={`/projects/${projectId}/stages/${stageId}/disputes/new`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
-              style={{ backgroundColor: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)", color: "#f97316" }}
+              style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
             >
               Raise dispute
             </Link>
@@ -508,9 +586,9 @@ export default function StageOverviewPage() {
             <Link
               href={`/projects/${projectId}/stages/${stageId}/override`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
-              style={{ backgroundColor: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}
+              style={{ backgroundColor: "rgba(148,163,184,0.08)", border: "1px solid rgba(148,163,184,0.2)", color: "#64748b" }}
             >
-              ⚡ Override
+              Override
             </Link>
           )}
         </div>
@@ -521,22 +599,22 @@ export default function StageOverviewPage() {
           {evidence.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {evidenceCounts.accepted > 0 && (
-                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(52,211,153,0.12)", color: "#34d399" }}>
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(5,150,105,0.08)", color: "#059669", border: "1px solid rgba(5,150,105,0.2)" }}>
                   {evidenceCounts.accepted} accepted
                 </span>
               )}
               {evidenceCounts.pending > 0 && (
-                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(148,163,184,0.12)", color: "#94a3b8" }}>
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(148,163,184,0.1)", color: "#64748b", border: "1px solid rgba(148,163,184,0.2)" }}>
                   {evidenceCounts.pending} pending
                 </span>
               )}
               {evidenceCounts.requires_more > 0 && (
-                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}>
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(217,119,6,0.08)", color: "#d97706", border: "1px solid rgba(217,119,6,0.2)" }}>
                   {evidenceCounts.requires_more} requires more
                 </span>
               )}
               {evidenceCounts.rejected > 0 && (
-                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#f87171" }}>
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "rgba(220,38,38,0.07)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.2)" }}>
                   {evidenceCounts.rejected} rejected
                 </span>
               )}
@@ -544,7 +622,7 @@ export default function StageOverviewPage() {
           )}
 
           {reviewError && (
-            <p className="mb-2 rounded-xl px-3 py-2 text-xs text-red-300" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <p className="mb-2 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}>
               {reviewError}
             </p>
           )}
@@ -553,10 +631,10 @@ export default function StageOverviewPage() {
           ) : (
             <div className="space-y-2">
               {evidence.map((item) => {
-                const sc = item.status === "accepted" ? "#34d399"
-                  : item.status === "rejected" ? "#f87171"
-                  : item.status === "requires_more" ? "#fbbf24"
-                  : "#94a3b8";
+                const sc = item.status === "accepted" ? "#059669"
+                  : item.status === "rejected" ? "#dc2626"
+                  : item.status === "requires_more" ? "#d97706"
+                  : "#64748b";
                 const isReviewable = item.status === "pending" || item.status === "requires_more";
                 const isExpanded = expandedEvidenceId === item.id;
                 const isReviewing = reviewSubmitting === item.id;
@@ -612,8 +690,8 @@ export default function StageOverviewPage() {
                             <button
                               type="button"
                               onClick={() => setViewerFile({ url: item.signedUrl!, name: item.name })}
-                              className="rounded-lg px-2 py-1 text-[10px] font-semibold text-neutral-400 hover:text-white transition"
-                              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                              className="rounded-lg px-2 py-1 text-[10px] font-semibold transition hover:opacity-70"
+                              style={{ border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.5)" }}
                             >
                               View
                             </button>
@@ -660,7 +738,7 @@ export default function StageOverviewPage() {
                             disabled={isReviewing}
                             onClick={() => reviewEvidence(item.id, "accepted")}
                             className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
-                            style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}
+                            style={{ backgroundColor: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.25)", color: "#059669" }}
                           >
                             ✓ Accept
                           </button>
@@ -669,7 +747,7 @@ export default function StageOverviewPage() {
                             disabled={isReviewing || !reviewNotes[item.id]?.trim()}
                             onClick={() => reviewEvidence(item.id, "requires_more")}
                             className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
-                            style={{ backgroundColor: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
+                            style={{ backgroundColor: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.25)", color: "#d97706" }}
                           >
                             ↩ More info
                           </button>
@@ -678,7 +756,7 @@ export default function StageOverviewPage() {
                             disabled={isReviewing || !reviewNotes[item.id]?.trim()}
                             onClick={() => reviewEvidence(item.id, "rejected")}
                             className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition disabled:opacity-50"
-                            style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171" }}
+                            style={{ backgroundColor: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}
                           >
                             ✗ Reject
                           </button>

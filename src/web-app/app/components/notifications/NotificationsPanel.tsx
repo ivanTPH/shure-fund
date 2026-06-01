@@ -117,7 +117,7 @@ export default function NotificationsPanel({
         {notifications.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-2xl mb-2">🔔</p>
-            <p className="text-sm text-neutral-400">You're all caught up</p>
+            <p className="text-sm text-neutral-400">You&apos;re all caught up</p>
             <p className="text-xs text-neutral-600 mt-1">No notifications yet</p>
           </div>
         ) : (
