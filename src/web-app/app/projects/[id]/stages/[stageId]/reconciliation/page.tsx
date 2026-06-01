@@ -20,7 +20,7 @@ const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP",
 const fmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 const STATUS_COLOR: Record<string, string> = {
-  accepted: "#34d399", rejected: "#f87171", pending: "#fbbf24", uploaded: "#60a5fa",
+  accepted: "#059669", rejected: "#dc2626", pending: "#d97706", uploaded: "#2563eb",
 };
 
 export default function ReconciliationPage() {
@@ -51,24 +51,24 @@ export default function ReconciliationPage() {
 
   if (loading) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-        <p className="text-neutral-400">Loading…</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
       </div>
     </AppShell>
   );
 
   return (
     <AppShell>
-    <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-      <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs font-medium text-neutral-400 hover:text-white">
+    <div className="min-h-screen px-4 py-8">
+      <Link href={`/projects/${projectId}/stages/${stageId}`} className="text-xs font-medium hover:underline" style={{ color: "rgba(13,17,68,0.45)" }}>
         ← Back to stage
       </Link>
 
-      <h1 className="mt-4 text-2xl font-bold text-white">Reconciliation</h1>
-      {stage && <p className="mt-1 text-sm text-neutral-400">{stage.name} · {gbp.format(stage.value)}</p>}
+      <h1 className="mt-4 text-2xl font-bold" style={{ color: "#0D1144" }}>Reconciliation</h1>
+      {stage && <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.55)" }}>{stage.name} · {gbp.format(stage.value)}</p>}
 
       {error && (
-        <p className="mt-4 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
+        <p className="mt-4 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.2)" }}>
           {error}
         </p>
       )}
@@ -77,37 +77,37 @@ export default function ReconciliationPage() {
         {/* Summary */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Accepted", count: accepted.length, color: "#34d399" },
-            { label: "Pending", count: pending.length, color: "#fbbf24" },
-            { label: "Rejected", count: rejected.length, color: "#f87171" },
+            { label: "Accepted", count: accepted.length, color: "#059669" },
+            { label: "Pending",  count: pending.length,  color: "#d97706" },
+            { label: "Rejected", count: rejected.length, color: "#dc2626" },
           ].map(({ label, count, color }) => (
-            <div key={label} className="rounded-2xl px-4 py-3 text-center" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
+            <div key={label} className="rounded-2xl px-4 py-3 text-center" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
               <p className="text-xl font-bold" style={{ color }}>{count}</p>
-              <p className="mt-0.5 text-[10px] uppercase tracking-wider text-neutral-500">{label}</p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-wider" style={{ color: "rgba(13,17,68,0.45)" }}>{label}</p>
             </div>
           ))}
         </div>
 
         {/* Evidence list */}
         {evidence.length === 0 ? (
-          <p className="text-sm text-neutral-500">No evidence uploaded for this stage.</p>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No evidence uploaded for this stage.</p>
         ) : (
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Evidence items</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Evidence items</p>
             <div className="space-y-2">
               {evidence.map((ev) => {
-                const color = STATUS_COLOR[ev.status] ?? "#94a3b8";
+                const color = STATUS_COLOR[ev.status] ?? "#64748b";
                 return (
-                  <div key={ev.id} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}>
+                  <div key={ev.id} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{ev.name}</p>
-                      <p className="mt-0.5 text-xs text-neutral-500">
+                      <p className="truncate text-sm font-medium" style={{ color: "#0D1144" }}>{ev.name}</p>
+                      <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
                         {ev.uploadedBy?.full_name ?? "Unknown"} · {fmt.format(new Date(ev.uploadedAt))}
                       </p>
                     </div>
                     <div className="ml-3 flex shrink-0 items-center gap-2">
                       {ev.signedUrl && (
-                        <a href={ev.signedUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300">
+                        <a href={ev.signedUrl} target="_blank" rel="noreferrer" className="text-[10px] hover:underline" style={{ color: "#2563eb" }}>
                           View
                         </a>
                       )}

@@ -19,10 +19,10 @@ const fmt = new Intl.DateTimeFormat("en-GB", {
 });
 
 const STATUS_COLOR: Record<string, string> = {
-  raised:       "#fbbf24",
-  under_review: "#60a5fa",
-  resolved:     "#34d399",
-  escalated:    "#f97316",
+  raised:       "#d97706",
+  under_review: "#2563eb",
+  resolved:     "#059669",
+  escalated:    "#ea580c",
 };
 
 const CAN_RESPOND  = ["funder", "commercial", "developer", "admin"];
@@ -84,7 +84,7 @@ function StatusTimeline({ current }: { current: string }) {
       {steps.map((step, idx) => {
         const done  = idx < currentIdx;
         const active = idx === currentIdx && !isEscalated;
-        const color = done || active ? (STATUS_COLOR[step] ?? "#94a3b8") : "#374151";
+        const color = done || active ? (STATUS_COLOR[step] ?? "#64748b") : "rgba(13,17,68,0.15)";
 
         return (
           <div key={step} className="flex items-center">
@@ -92,7 +92,7 @@ function StatusTimeline({ current }: { current: string }) {
             {idx > 0 && (
               <div
                 className="h-px w-8 shrink-0"
-                style={{ backgroundColor: done ? STATUS_COLOR[steps[idx - 1]] ?? "#34d399" : "rgba(255,255,255,0.1)" }}
+                style={{ backgroundColor: done ? STATUS_COLOR[steps[idx - 1]] ?? "#059669" : "rgba(13,17,68,0.12)" }}
               />
             )}
             <div className="flex flex-col items-center gap-1">
@@ -103,7 +103,7 @@ function StatusTimeline({ current }: { current: string }) {
                   backgroundColor: done || active ? color : "transparent",
                 }}
               />
-              <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: done || active ? color : "#4b5563" }}>
+              <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: done || active ? color : "rgba(13,17,68,0.3)" }}>
                 {STEP_LABEL[step]}
               </span>
             </div>
@@ -113,13 +113,13 @@ function StatusTimeline({ current }: { current: string }) {
 
       {isEscalated && (
         <>
-          <div className="h-px w-8 shrink-0" style={{ backgroundColor: STATUS_COLOR.escalated }} />
+          <div className="h-px w-8 shrink-0" style={{ backgroundColor: "#ea580c" }} />
           <div className="flex flex-col items-center gap-1">
             <div
               className="h-3 w-3 rounded-full border-2"
-              style={{ borderColor: STATUS_COLOR.escalated, backgroundColor: STATUS_COLOR.escalated }}
+              style={{ borderColor: "#ea580c", backgroundColor: "#ea580c" }}
             />
-            <span className="text-[10px] font-bold" style={{ color: STATUS_COLOR.escalated }}>
+            <span className="text-[10px] font-bold" style={{ color: "#ea580c" }}>
               Escalated
             </span>
           </div>
@@ -205,8 +205,8 @@ export default function DisputeDetailPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-          <p className="text-sm text-neutral-500">Loading dispute…</p>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading dispute…</p>
         </div>
       </AppShell>
     );
@@ -215,12 +215,16 @@ export default function DisputeDetailPage() {
   if (error || !dispute) {
     return (
       <AppShell>
-        <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-          <Link href={`/projects/${projectId}`} className="text-xs text-neutral-400 hover:text-white">
+        <div className="min-h-screen px-4 py-8">
+          <Link
+            href={`/projects/${projectId}`}
+            className="text-xs font-medium transition hover:opacity-70"
+            style={{ color: "rgba(13,17,68,0.5)" }}
+          >
             ← Back to project
           </Link>
-          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-            <p className="text-sm text-red-300">{error ?? "Dispute not found."}</p>
+          <div className="mt-6 rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{error ?? "Dispute not found."}</p>
           </div>
         </div>
       </AppShell>
@@ -246,271 +250,270 @@ export default function DisputeDetailPage() {
   // Render
   // ---------------------------------------------------------------------------
 
+  const EVIDENCE_STATUS_COLOR: Record<string, string> = {
+    accepted:      "#059669",
+    rejected:      "#dc2626",
+    requires_more: "#d97706",
+    pending:       "#64748b",
+  };
+
   return (
     <>
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-8" style={{ backgroundColor: "#0d1144" }}>
+      <div className="min-h-full px-4 md:px-8 py-8 max-w-2xl mx-auto space-y-5">
         <Link
           href={`/projects/${projectId}/stages/${stageId}`}
-          className="text-xs font-medium text-neutral-400 hover:text-white"
+          className="text-xs font-medium transition hover:opacity-70"
+          style={{ color: "rgba(13,17,68,0.5)" }}
         >
           ← Back to stage
         </Link>
 
         {/* Header */}
-        <div className="mt-4 mb-6 flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold text-white">Dispute</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Dispute</h1>
           <span
             className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
-            style={{ backgroundColor: statusColor + "22", color: statusColor, border: `1px solid ${statusColor}44` }}
+            style={{ backgroundColor: statusColor + "18", color: statusColor, border: `1px solid ${statusColor}33` }}
           >
             {dispute.status.replace(/_/g, " ")}
           </span>
         </div>
 
-        <div className="max-w-2xl space-y-5">
+        {/* Status timeline */}
+        <div
+          className="rounded-[20px] px-5 py-4"
+          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+        >
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
+            Timeline
+          </p>
+          <StatusTimeline current={dispute.status} />
+        </div>
 
-          {/* Status timeline */}
-          <div
-            className="rounded-[20px] px-5 py-4"
-            style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
-          >
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Timeline</p>
-            <StatusTimeline current={dispute.status} />
+        {/* Dispute detail */}
+        <div
+          className="rounded-[20px] p-5 space-y-4"
+          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+        >
+          <div>
+            <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Reason</p>
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.reason}</p>
           </div>
 
-          {/* Dispute detail */}
-          <div
-            className="rounded-[20px] p-5 space-y-4"
-            style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
-          >
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Reason</p>
-              <p className="mt-1 text-sm text-white leading-relaxed">{dispute.reason}</p>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Raised by</p>
+              <p className="mt-1 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.raiser?.full_name ?? "—"}</p>
+              {dispute.raiser?.role && (
+                <p className="text-[10px] capitalize" style={{ color: "rgba(13,17,68,0.45)" }}>{dispute.raiser.role}</p>
+              )}
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Raised by</p>
-                <p className="mt-1 text-sm text-white">{dispute.raiser?.full_name ?? "—"}</p>
-                {dispute.raiser?.role && (
-                  <p className="text-[10px] text-neutral-500 capitalize">{dispute.raiser.role}</p>
-                )}
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Stage</p>
-                <p className="mt-1 text-sm text-white">{stage?.name ?? "—"}</p>
-              </div>
-            </div>
-
             <div>
-              <p className="text-xs uppercase tracking-widest text-neutral-500">Raised</p>
-              <p className="mt-1 text-sm text-white">{fmt.format(new Date(dispute.created_at))}</p>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Stage</p>
+              <p className="mt-1 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{stage?.name ?? "—"}</p>
             </div>
-
-            {dispute.respondent && (
-              <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Respondent</p>
-                <p className="mt-1 text-sm text-white">{dispute.respondent.full_name}</p>
-                {dispute.respondent.role && (
-                  <p className="text-[10px] text-neutral-500 capitalize">{dispute.respondent.role}</p>
-                )}
-              </div>
-            )}
-
-            {dispute.evidence_url && (
-              <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Evidence</p>
-                <button
-                  onClick={() => setViewerFile({ url: dispute.evidence_url!, name: "Dispute evidence" })}
-                  className="mt-1 inline-block text-sm text-blue-400 hover:text-blue-300 underline"
-                >
-                  View evidence
-                </button>
-              </div>
-            )}
-
-            {dispute.resolution_notes && (
-              <div>
-                <p className="text-xs uppercase tracking-widest text-neutral-500">Resolution notes</p>
-                <p className="mt-1 text-sm text-white leading-relaxed">{dispute.resolution_notes}</p>
-              </div>
-            )}
           </div>
 
-          {/* Stage evidence — shown so reviewer can inspect submitted files */}
-          {stageEvidence.length > 0 && (
-            <div
-              className="rounded-[20px] p-5 space-y-3"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}
-            >
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                Stage evidence ({stageEvidence.length} file{stageEvidence.length !== 1 ? "s" : ""})
-              </p>
-              <p className="text-xs text-neutral-500">
-                Review all submitted files before making a decision on this dispute.
-              </p>
-              <div className="space-y-2">
-                {stageEvidence.map((ev) => {
-                  const EVIDENCE_STATUS_COLOR: Record<string, string> = {
-                    accepted:      "#34d399",
-                    rejected:      "#f87171",
-                    requires_more: "#fbbf24",
-                    pending:       "#94a3b8",
-                  };
-                  const evColor = EVIDENCE_STATUS_COLOR[ev.status] ?? "#94a3b8";
-                  const label = ev.name || ev.file_url.split("/").pop() || "File";
-                  const isViewable = !!ev.signedUrl;
+          <div>
+            <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Raised</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{fmt.format(new Date(dispute.created_at))}</p>
+          </div>
 
-                  return (
-                    <div
-                      key={ev.id}
-                      className="flex items-start justify-between gap-3 rounded-xl px-4 py-3"
-                      style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-white truncate">{label}</span>
-                          <span
-                            className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                            style={{ backgroundColor: evColor + "22", color: evColor, border: `1px solid ${evColor}44` }}
-                          >
-                            {ev.status.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                        {ev.uploader && (
-                          <p className="mt-0.5 text-[11px] text-neutral-500">
-                            Uploaded by {ev.uploader.full_name} · {fmt.format(new Date(ev.uploaded_at))}
-                          </p>
-                        )}
-                        {ev.notes && (
-                          <p className="mt-1 text-xs text-neutral-400 italic">"{ev.notes}"</p>
-                        )}
-                      </div>
-                      {isViewable && (
-                        <button
-                          type="button"
-                          onClick={() => setViewerFile({ url: ev.signedUrl!, name: label })}
-                          className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-blue-400 transition hover:text-blue-300"
-                          style={{ border: "1px solid rgba(96,165,250,0.25)", backgroundColor: "rgba(96,165,250,0.08)" }}
+          {dispute.respondent && (
+            <div>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Respondent</p>
+              <p className="mt-1 text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.respondent.full_name}</p>
+              {dispute.respondent.role && (
+                <p className="text-[10px] capitalize" style={{ color: "rgba(13,17,68,0.45)" }}>{dispute.respondent.role}</p>
+              )}
+            </div>
+          )}
+
+          {dispute.evidence_url && (
+            <div>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Evidence</p>
+              <button
+                onClick={() => setViewerFile({ url: dispute.evidence_url!, name: "Dispute evidence" })}
+                className="mt-1 inline-block text-sm font-semibold transition hover:opacity-70"
+                style={{ color: "#2563eb" }}
+              >
+                View evidence
+              </button>
+            </div>
+          )}
+
+          {dispute.resolution_notes && (
+            <div>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Resolution notes</p>
+              <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--brand-navy, #0D1144)" }}>{dispute.resolution_notes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Stage evidence */}
+        {stageEvidence.length > 0 && (
+          <div
+            className="rounded-[20px] p-5 space-y-3"
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
+              Stage evidence ({stageEvidence.length} file{stageEvidence.length !== 1 ? "s" : ""})
+            </p>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+              Review all submitted files before making a decision on this dispute.
+            </p>
+            <div className="space-y-2">
+              {stageEvidence.map((ev) => {
+                const evColor = EVIDENCE_STATUS_COLOR[ev.status] ?? "#64748b";
+                const label = ev.name || ev.file_url.split("/").pop() || "File";
+
+                return (
+                  <div
+                    key={ev.id}
+                    className="flex items-start justify-between gap-3 rounded-xl px-4 py-3"
+                    style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc" }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{label}</span>
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                          style={{ backgroundColor: evColor + "18", color: evColor, border: `1px solid ${evColor}33` }}
                         >
-                          View
-                        </button>
+                          {ev.status.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      {ev.uploader && (
+                        <p className="mt-0.5 text-[11px]" style={{ color: "rgba(13,17,68,0.45)" }}>
+                          Uploaded by {ev.uploader.full_name} · {fmt.format(new Date(ev.uploaded_at))}
+                        </p>
+                      )}
+                      {ev.notes && (
+                        <p className="mt-1 text-xs italic" style={{ color: "rgba(13,17,68,0.5)" }}>&ldquo;{ev.notes}&rdquo;</p>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+                    {ev.signedUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setViewerFile({ url: ev.signedUrl!, name: label })}
+                        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-70"
+                        style={{ border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.5)", backgroundColor: "#fff" }}
+                      >
+                        View
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Terminal state banners */}
-          {dispute.status === "resolved" && (
-            <div
-              className="rounded-2xl px-4 py-4"
-              style={{ backgroundColor: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}
-            >
-              <p className="text-xs font-bold uppercase tracking-wider text-green-400">Dispute resolved</p>
-              <p className="mt-1 text-sm text-neutral-300">
-                This dispute has been closed. The stage has continued through the workflow.
-              </p>
-            </div>
-          )}
+        {/* Terminal state banners */}
+        {dispute.status === "resolved" && (
+          <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(5,150,105,0.07)", border: "1px solid rgba(5,150,105,0.2)" }}>
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#059669" }}>Dispute resolved</p>
+            <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>
+              This dispute has been closed. The stage has continued through the workflow.
+            </p>
+          </div>
+        )}
 
-          {dispute.status === "escalated" && (
-            <div
-              className="rounded-2xl px-4 py-4"
-              style={{ backgroundColor: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.25)" }}
-            >
-              <p className="text-xs font-bold uppercase tracking-wider text-orange-400">Escalated</p>
-              <p className="mt-1 text-sm text-neutral-300">
-                This dispute has been escalated for senior review. No further actions are available here.
-              </p>
-            </div>
-          )}
+        {dispute.status === "escalated" && (
+          <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "rgba(234,88,12,0.07)", border: "1px solid rgba(234,88,12,0.2)" }}>
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#ea580c" }}>Escalated</p>
+            <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>
+              This dispute has been escalated for senior review. No further actions are available here.
+            </p>
+          </div>
+        )}
 
-          {/* Actions */}
-          {hasActions && (
-            <div className="space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Actions</p>
+        {/* Actions */}
+        {hasActions && (
+          <div
+            className="rounded-[20px] p-5 space-y-4"
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Actions</p>
 
-              {/* Stage outcome picker (only when resolving) */}
-              {canResolve && (
-                <div>
-                  <p className="mb-2 text-xs text-neutral-400">What happens to the stage after resolution?</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["continue", "return"] as const).map((opt) => (
+            {/* Stage outcome picker (only when resolving) */}
+            {canResolve && (
+              <div>
+                <p className="mb-2 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>What happens to the stage after resolution?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["continue", "return"] as const).map((opt) => {
+                    const selected = stageOutcome === opt;
+                    return (
                       <button
                         key={opt}
                         type="button"
                         onClick={() => setStageOutcome(opt)}
-                        className="rounded-2xl px-4 py-3 text-sm font-semibold text-white transition"
+                        className="rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-80"
                         style={{
-                          border: `1px solid ${stageOutcome === opt ? "rgba(96,165,250,0.5)" : "rgba(255,255,255,0.1)"}`,
-                          backgroundColor: stageOutcome === opt ? "rgba(96,165,250,0.12)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${selected ? "rgba(37,99,235,0.3)" : "var(--surface-border, #e4e7f0)"}`,
+                          backgroundColor: selected ? "rgba(37,99,235,0.07)" : "#f7f8fc",
+                          color: selected ? "#2563eb" : "rgba(13,17,68,0.5)",
                         }}
                       >
                         {opt === "continue" ? "Continue to approval" : "Return for rework"}
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              <textarea
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none"
-                rows={3}
-                placeholder="Add notes or resolution details… (optional)"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-
-              <div className="flex flex-wrap gap-2">
-                {canRespond && (
-                  <button
-                    onClick={() => doAction("respond")}
-                    disabled={acting}
-                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)" }}
-                  >
-                    {acting ? "Processing…" : "Begin review"}
-                  </button>
-                )}
-                {canResolve && (
-                  <button
-                    onClick={() => doAction("resolve")}
-                    disabled={acting}
-                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)" }}
-                  >
-                    {acting ? "Processing…" : "Mark resolved"}
-                  </button>
-                )}
-                {canEscalate && (
-                  <button
-                    onClick={() => doAction("escalate")}
-                    disabled={acting}
-                    className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.3)" }}
-                  >
-                    {acting ? "Processing…" : "Escalate"}
-                  </button>
-                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {actionError && (
-            <div
-              className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
-            >
-              <p className="text-xs font-bold uppercase tracking-wider text-red-400">Action failed</p>
-              <p className="mt-1 text-sm text-red-300">{actionError}</p>
-            </div>
-          )}
+            <textarea
+              className="w-full rounded-2xl px-4 py-3 text-sm outline-none resize-none"
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
+              rows={3}
+              placeholder="Add notes or resolution details… (optional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
 
-        </div>
+            <div className="flex flex-wrap gap-2">
+              {canRespond && (
+                <button
+                  onClick={() => doAction("respond")}
+                  disabled={acting}
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50"
+                  style={{ backgroundColor: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.2)", color: "#2563eb" }}
+                >
+                  {acting ? "Processing…" : "Begin review"}
+                </button>
+              )}
+              {canResolve && (
+                <button
+                  onClick={() => doAction("resolve")}
+                  disabled={acting}
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50"
+                  style={{ backgroundColor: "rgba(5,150,105,0.07)", border: "1px solid rgba(5,150,105,0.2)", color: "#059669" }}
+                >
+                  {acting ? "Processing…" : "Mark resolved"}
+                </button>
+              )}
+              {canEscalate && (
+                <button
+                  onClick={() => doAction("escalate")}
+                  disabled={acting}
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50"
+                  style={{ backgroundColor: "rgba(234,88,12,0.07)", border: "1px solid rgba(234,88,12,0.2)", color: "#ea580c" }}
+                >
+                  {acting ? "Processing…" : "Escalate"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{actionError}</p>
+          </div>
+        )}
+
       </div>
     </AppShell>
 

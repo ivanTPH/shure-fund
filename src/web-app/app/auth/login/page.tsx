@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
@@ -225,8 +226,18 @@ function LoginForm() {
           </button>
         </form>
 
+        <div className="mt-5 text-center">
+          <Link
+            href="/auth/forgot-password"
+            className="text-xs font-medium hover:underline"
+            style={{ color: "rgba(13,17,68,0.5)" }}
+          >
+            Forgot your password?
+          </Link>
+        </div>
+
         <p
-          className="mt-6 text-center text-xs"
+          className="mt-4 text-center text-xs"
           style={{ color: "rgba(13,17,68,0.45)" }}
         >
           Access is invitation-only. Contact your project administrator if you

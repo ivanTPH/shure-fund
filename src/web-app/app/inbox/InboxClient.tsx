@@ -41,18 +41,18 @@ const TYPE_CONFIG: Record<string, {
   accent: string;
   dot: string;
 }> = {
-  payment_ready:       { label: "Release payment",           needsAction: true,  accent: "#34d399", dot: "£" },
-  approval_required:   { label: "Sign-off needed",           needsAction: true,  accent: "#60a5fa", dot: "✓" },
-  evidence_required:   { label: "Evidence needed",           needsAction: true,  accent: "#fbbf24", dot: "📎" },
-  funding_gap:         { label: "Funds short",               needsAction: true,  accent: "#f87171", dot: "!" },
-  variation_submitted: { label: "Contract change to review", needsAction: true,  accent: "#a78bfa", dot: "↕" },
-  dispute_raised:      { label: "Dispute — payment held",    needsAction: true,  accent: "#f97316", dot: "⚠" },
-  variation_approved:  { label: "Contract change approved",  needsAction: false, accent: "#34d399", dot: "✓" },
-  variation_rejected:  { label: "Contract change rejected",  needsAction: false, accent: "#f87171", dot: "✗" },
-  dispute_resolved:    { label: "Dispute sorted",            needsAction: false, accent: "#34d399", dot: "✓" },
+  payment_ready:       { label: "Release payment",           needsAction: true,  accent: "#059669", dot: "£" },
+  approval_required:   { label: "Sign-off needed",           needsAction: true,  accent: "#2563eb", dot: "✓" },
+  evidence_required:   { label: "Evidence needed",           needsAction: true,  accent: "#d97706", dot: "📎" },
+  funding_gap:         { label: "Funds short",               needsAction: true,  accent: "#dc2626", dot: "!" },
+  variation_submitted: { label: "Contract change to review", needsAction: true,  accent: "#7c3aed", dot: "↕" },
+  dispute_raised:      { label: "Dispute — payment held",    needsAction: true,  accent: "#ea580c", dot: "⚠" },
+  variation_approved:  { label: "Contract change approved",  needsAction: false, accent: "#059669", dot: "✓" },
+  variation_rejected:  { label: "Contract change rejected",  needsAction: false, accent: "#dc2626", dot: "✗" },
+  dispute_resolved:    { label: "Dispute sorted",            needsAction: false, accent: "#059669", dot: "✓" },
 };
 
-const DEFAULT_CONFIG = { label: "Update", needsAction: false, accent: "#94a3b8", dot: "•" };
+const DEFAULT_CONFIG = { label: "Update", needsAction: false, accent: "#64748b", dot: "•" };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -194,14 +194,15 @@ export default function InboxClient({ notifications: initial }: { notifications:
         {liveCount > 0 && (
           <div
             className="mb-4 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3"
-            style={{ backgroundColor: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)" }}
+            style={{ backgroundColor: "#eff6ff", border: "1px solid #bfdbfe" }}
           >
-            <p className="text-xs font-semibold text-blue-300">
+            <p className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>
               {liveCount} new item{liveCount !== 1 ? "s" : ""} arrived
             </p>
             <button
               onClick={() => setLiveCount(0)}
-              className="text-[10px] text-blue-400 hover:text-blue-200 transition"
+              className="text-[10px] transition hover:opacity-70"
+              style={{ color: "#2563eb" }}
             >
               Dismiss
             </button>
