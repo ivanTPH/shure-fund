@@ -92,9 +92,9 @@ function StatusChip({ status }: { status: string }) {
 
 function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="mb-3 border-b border-white/8 pb-2">
-      <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-400">{title}</h2>
-      {sub && <p className="mt-0.5 text-xs text-neutral-600">{sub}</p>}
+    <div className="mb-3 pb-2" style={{ borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
+      <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>{title}</h2>
+      {sub && <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.35)" }}>{sub}</p>}
     </div>
   );
 }
@@ -173,17 +173,17 @@ export default function ProjectReportsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0d1144" }}>
-        <p className="text-neutral-400">Loading report…</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading report…</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen px-4 py-8" style={{ backgroundColor: "#0d1144" }}>
-        <Link href={`/projects/${projectId}`} className="text-xs text-neutral-400 hover:text-white">← Back to project</Link>
-        <p className="mt-6 text-sm text-red-300">{error ?? "Report unavailable."}</p>
+      <div className="min-h-screen px-4 py-8">
+        <Link href={`/projects/${projectId}`} className="text-xs transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>← Back to project</Link>
+        <p className="mt-6 text-sm" style={{ color: "#dc2626" }}>{error ?? "Report unavailable."}</p>
       </div>
     );
   }
@@ -257,43 +257,43 @@ export default function ProjectReportsPage() {
         }
       `}</style>
 
-      <div className="min-h-screen px-4 md:px-8 py-8 print-root" style={{ backgroundColor: "#0d1144" }}>
+      <div className="min-h-screen px-4 md:px-8 py-8 print-root">
         {/* Header */}
         <div className="no-print mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <Link href={`/projects/${projectId}`} className="text-xs text-neutral-400 hover:text-white">
+              <Link href={`/projects/${projectId}`} className="text-xs transition hover:opacity-70" style={{ color: "rgba(13,17,68,0.5)" }}>
                 ← Back to project
               </Link>
-              <h1 className="mt-1 text-2xl font-bold text-white">Financial report</h1>
-              <p className="text-sm text-neutral-400">{data.project.name} · {data.project.address}</p>
+              <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Financial report</h1>
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>{data.project.name} · {data.project.address}</p>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={exportCertifiedCSV}
-                className="rounded-2xl px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-                style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+                className="rounded-2xl px-3 py-2 text-xs font-semibold transition hover:opacity-80"
+                style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
               >
                 Export certified CSV
               </button>
               <button
                 onClick={exportVariationsCSV}
-                className="rounded-2xl px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-                style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+                className="rounded-2xl px-3 py-2 text-xs font-semibold transition hover:opacity-80"
+                style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
               >
                 Export variations CSV
               </button>
               <button
                 onClick={exportDrawdownCSV}
-                className="rounded-2xl px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-                style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+                className="rounded-2xl px-3 py-2 text-xs font-semibold transition hover:opacity-80"
+                style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }}
               >
                 Export schedule CSV
               </button>
               <button
                 onClick={() => window.print()}
-                className="no-print rounded-2xl px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/5"
-                style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                className="no-print rounded-2xl px-3 py-2 text-xs font-semibold transition hover:opacity-70"
+                style={{ backgroundColor: "rgba(13,17,68,0.05)", border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.55)" }}
               >
                 Print
               </button>
@@ -303,14 +303,14 @@ export default function ProjectReportsPage() {
           {/* Desktop summary strip */}
           <div className="hidden md:grid md:grid-cols-4 gap-3 mt-6">
             {[
-              { label: "Total contracted", value: gbp.format(data.summary.totalCommitted), tone: "text-white" },
-              { label: "Released to date", value: gbp.format(data.summary.totalDrawn), tone: "text-green-400" },
-              { label: "Cost to complete", value: gbp.format(data.summary.totalRemaining), tone: "text-blue-300" },
-              { label: "Retention held", value: gbp.format(totalRetentionHeld), tone: "text-amber-300" },
+              { label: "Total contracted", value: gbp.format(data.summary.totalCommitted), color: "var(--brand-navy, #0D1144)" },
+              { label: "Released to date", value: gbp.format(data.summary.totalDrawn),     color: "#059669" },
+              { label: "Cost to complete", value: gbp.format(data.summary.totalRemaining), color: "#2563eb" },
+              { label: "Retention held",   value: gbp.format(totalRetentionHeld),          color: "#d97706" },
             ].map((m) => (
-              <div key={m.label} className="rounded-2xl px-4 py-3" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
-                <p className="text-xs text-neutral-500">{m.label}</p>
-                <p className={`mt-1 text-lg font-bold tracking-tight ${m.tone}`}>{m.value}</p>
+              <div key={m.label} className="rounded-2xl px-4 py-3" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+                <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{m.label}</p>
+                <p className="mt-1 text-lg font-bold tracking-tight" style={{ color: m.color }}>{m.value}</p>
               </div>
             ))}
           </div>
@@ -325,12 +325,12 @@ export default function ProjectReportsPage() {
         <div ref={printRef} className="max-w-7xl space-y-8">
 
           {/* 1. Certified vs instructed */}
-          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <SectionHeader title="1. Certified vs instructed amounts" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-neutral-500">
+                  <tr className="text-left text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                     <th className="pb-2 font-medium">Stage</th>
                     <th className="pb-2 font-medium text-right">Contracted</th>
                     <th className="pb-2 font-medium text-right">Instructed</th>
@@ -339,30 +339,30 @@ export default function ProjectReportsPage() {
                     <th className="pb-2 font-medium">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y">
                   {certifiedRows.map((r) => (
-                    <tr key={r.id} className="text-neutral-200">
+                    <tr key={r.id} style={{ color: "rgba(13,17,68,0.7)" }}>
                       <td className="py-2 pr-3">
-                        <p className="font-medium text-white">{r.name}</p>
-                        <p className="text-xs text-neutral-500">{r.contractorName}</p>
+                        <p className="font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{r.name}</p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{r.contractorName}</p>
                       </td>
                       <td className="py-2 text-right">{gbp.format(r.value)}</td>
                       <td className="py-2 text-right">{gbp.format(r.instructed)}</td>
                       <td className="py-2 text-right font-semibold">{gbp.format(r.certified)}</td>
-                      <td className="py-2 text-right" style={{ color: r.variance < 0 ? "#f87171" : r.variance > 0 ? "#34d399" : "#94a3b8" }}>
+                      <td className="py-2 text-right" style={{ color: r.variance < 0 ? "#dc2626" : r.variance > 0 ? "#059669" : "rgba(13,17,68,0.35)" }}>
                         {r.variance === 0 ? "—" : (r.variance > 0 ? "+" : "") + gbp.format(r.variance)}
                       </td>
                       <td className="py-2 pl-2"><StatusChip status={r.status} /></td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="border-t border-white/10">
-                  <tr className="font-bold text-white">
+                <tfoot className="border-t">
+                  <tr className="font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>
                     <td className="pt-3">Total</td>
                     <td className="pt-3 text-right">{gbp.format(data.summary.totalCommitted)}</td>
                     <td className="pt-3 text-right">{gbp.format(totalInstructed)}</td>
                     <td className="pt-3 text-right">{gbp.format(totalCertified)}</td>
-                    <td className="pt-3 text-right" style={{ color: totalCertified - data.summary.totalCommitted < 0 ? "#f87171" : "#34d399" }}>
+                    <td className="pt-3 text-right" style={{ color: totalCertified - data.summary.totalCommitted < 0 ? "#dc2626" : "#059669" }}>
                       {gbp.format(totalCertified - data.summary.totalCommitted)}
                     </td>
                     <td />
@@ -373,10 +373,10 @@ export default function ProjectReportsPage() {
           </section>
 
           {/* 2. Retention */}
-          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <SectionHeader title="2. Retention schedule" sub={`${(RETENTION_PCT * 100).toFixed(0)}% withheld from each certified payment`} />
             {releasedStages.length === 0 ? (
-              <p className="text-sm text-neutral-500">No payments released yet — retention not yet applicable.</p>
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No payments released yet — retention not yet applicable.</p>
             ) : (
               <>
                 <div className="space-y-2">
@@ -385,17 +385,17 @@ export default function ProjectReportsPage() {
                     const retention = certified * RETENTION_PCT;
                     return (
                       <div key={s.id} className="flex items-center justify-between text-sm">
-                        <p className="text-neutral-200">{s.name}</p>
-                        <p className="font-semibold text-amber-300">{gbp.format(retention)}</p>
+                        <p style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                        <p className="font-semibold" style={{ color: "#d97706" }}>{gbp.format(retention)}</p>
                       </div>
                     );
                   })}
                 </div>
-                <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-                  <p className="text-sm font-bold text-white">Total retention held</p>
-                  <p className="text-lg font-bold text-amber-300">{gbp.format(totalRetentionHeld)}</p>
+                <div className="mt-4 flex items-center justify-between border-t pt-3">
+                  <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Total retention held</p>
+                  <p className="text-lg font-bold" style={{ color: "#d97706" }}>{gbp.format(totalRetentionHeld)}</p>
                 </div>
-                <p className="mt-2 text-xs text-neutral-500">
+                <p className="mt-2 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                   Retention is typically released at practical completion and expiry of defects period.
                 </p>
               </>
@@ -403,46 +403,46 @@ export default function ProjectReportsPage() {
           </section>
 
           {/* 3. Cost to complete */}
-          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <SectionHeader title="3. Cost to complete" sub="Remaining contracted value for all non-released stages" />
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-xs text-neutral-500">Total contracted</p>
-                <p className="mt-1 text-lg font-bold text-white">{gbp.format(data.summary.totalCommitted)}</p>
+                <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Total contracted</p>
+                <p className="mt-1 text-lg font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(data.summary.totalCommitted)}</p>
               </div>
               <div>
-                <p className="text-xs text-neutral-500">Released to date</p>
-                <p className="mt-1 text-lg font-bold text-green-400">{gbp.format(data.summary.totalDrawn)}</p>
+                <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Released to date</p>
+                <p className="mt-1 text-lg font-bold" style={{ color: "#059669" }}>{gbp.format(data.summary.totalDrawn)}</p>
               </div>
               <div>
-                <p className="text-xs text-neutral-500">Cost to complete</p>
-                <p className="mt-1 text-lg font-bold text-blue-300">{gbp.format(costToComplete)}</p>
+                <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Cost to complete</p>
+                <p className="mt-1 text-lg font-bold" style={{ color: "#2563eb" }}>{gbp.format(costToComplete)}</p>
               </div>
             </div>
             <div className="mt-4 space-y-1">
               {nonReleasedStages.map((s) => (
                 <div key={s.id} className="flex items-center justify-between text-sm">
                   <div>
-                    <span className="text-neutral-200">{s.name}</span>
-                    <span className="ml-2 text-xs text-neutral-500">({s.status.replace(/_/g, " ")})</span>
+                    <span style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</span>
+                    <span className="ml-2 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>({s.status.replace(/_/g, " ")})</span>
                   </div>
-                  <span className="font-medium text-white">{gbp.format(s.value)}</span>
+                  <span className="font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</span>
                 </div>
               ))}
             </div>
           </section>
 
           {/* 4. Variation register */}
-          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <SectionHeader title="4. Variation register" />
             {variations.length === 0 ? (
-              <p className="text-sm text-neutral-500">No variations recorded for this project.</p>
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No variations recorded for this project.</p>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-xs text-neutral-500">
+                      <tr className="text-left text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                         <th className="pb-2 font-medium">Stage</th>
                         <th className="pb-2 font-medium">Description</th>
                         <th className="pb-2 font-medium text-right">Value change</th>
@@ -450,28 +450,28 @@ export default function ProjectReportsPage() {
                         <th className="pb-2 font-medium">Date</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y">
                       {variations.map((v) => (
-                        <tr key={v.id} className="text-neutral-200">
+                        <tr key={v.id} style={{ color: "rgba(13,17,68,0.7)" }}>
                           <td className="py-2 pr-3 text-xs">{v.stageName}</td>
                           <td className="py-2 pr-3 max-w-xs">
                             <p className="truncate">{v.description}</p>
                           </td>
-                          <td className="py-2 text-right font-semibold" style={{ color: v.valueChange >= 0 ? "#34d399" : "#f87171" }}>
+                          <td className="py-2 text-right font-semibold" style={{ color: v.valueChange >= 0 ? "#059669" : "#dc2626" }}>
                             {v.valueChange >= 0 ? "+" : ""}{gbp.format(v.valueChange)}
                           </td>
                           <td className="py-2 pl-2"><StatusChip status={v.status} /></td>
-                          <td className="py-2 pl-2 text-xs text-neutral-500">{fmtDate(v.createdAt)}</td>
+                          <td className="py-2 pl-2 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{fmtDate(v.createdAt)}</td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t border-white/10">
-                      <tr className="font-bold">
+                    <tfoot className="border-t">
+                      <tr className="font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>
                         <td className="pt-3" colSpan={2}>Net variation impact</td>
-                        <td className="pt-3 text-right" style={{ color: variations.filter((v) => v.status === "approved").reduce((s, v) => s + v.valueChange, 0) >= 0 ? "#34d399" : "#f87171" }}>
+                        <td className="pt-3 text-right" style={{ color: variations.filter((v) => v.status === "approved").reduce((s, v) => s + v.valueChange, 0) >= 0 ? "#059669" : "#dc2626" }}>
                           {gbp.format(variations.filter((v) => v.status === "approved").reduce((s, v) => s + v.valueChange, 0))}
                         </td>
-                        <td colSpan={2} className="pt-3 pl-2 text-xs text-neutral-500">approved only</td>
+                        <td colSpan={2} className="pt-3 pl-2 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>approved only</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -481,15 +481,15 @@ export default function ProjectReportsPage() {
           </section>
 
           {/* 5. Drawdown schedule */}
-          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+          <section className="rounded-[20px] p-5 print-card" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <SectionHeader title="5. Drawdown schedule" sub="Projected payment dates based on stage programme" />
             {allStages.filter((s) => s.startDate || s.endDate).length === 0 ? (
-              <p className="text-sm text-neutral-500">No programme dates set on stages. Add start/end dates to stages to see drawdown schedule.</p>
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No programme dates set on stages. Add start/end dates to stages to see drawdown schedule.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-neutral-500">
+                    <tr className="text-left text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                       <th className="pb-2 font-medium">Stage</th>
                       <th className="pb-2 font-medium">Start date</th>
                       <th className="pb-2 font-medium">End date</th>
@@ -497,15 +497,15 @@ export default function ProjectReportsPage() {
                       <th className="pb-2 font-medium">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y">
                     {allStages
                       .filter((s) => s.startDate || s.endDate)
                       .sort((a, b) => (a.startDate ?? a.endDate ?? "").localeCompare(b.startDate ?? b.endDate ?? ""))
                       .map((s) => (
-                        <tr key={s.id} className="text-neutral-200">
+                        <tr key={s.id} style={{ color: "rgba(13,17,68,0.7)" }}>
                           <td className="py-2 pr-3">
-                            <p className="font-medium text-white">{s.name}</p>
-                            <p className="text-xs text-neutral-500">{s.contractorName}</p>
+                            <p className="font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{s.contractorName}</p>
                           </td>
                           <td className="py-2 text-xs">{fmtDate(s.startDate)}</td>
                           <td className="py-2 text-xs">{fmtDate(s.endDate)}</td>
@@ -520,7 +520,7 @@ export default function ProjectReportsPage() {
           </section>
 
           {/* Report footer */}
-          <div className="text-xs text-neutral-600 text-center py-2">
+          <div className="text-xs text-center py-2" style={{ color: "rgba(13,17,68,0.35)" }}>
             Generated by Shure.Fund · {fmt.format(new Date())} · {data.project.name}
           </div>
         </div>
