@@ -189,15 +189,24 @@ export default async function ContractDetailPage({ params }: { params: Params })
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
             Payment stages · {stages.length}
           </p>
-          {canManage && (
+          <div className="flex items-center gap-4">
             <Link
-              href={`/projects/${projectId}/contracts/${contractId}/add-stage`}
+              href={`/projects/${projectId}/contracts/${contractId}/approval-chain`}
               className="text-xs font-semibold transition hover:opacity-70"
-              style={{ color: "#2563eb" }}
+              style={{ color: "#7c3aed" }}
             >
-              + Add stage
+              Approval chain →
             </Link>
-          )}
+            {canManage && (
+              <Link
+                href={`/projects/${projectId}/contracts/${contractId}/add-stage`}
+                className="text-xs font-semibold transition hover:opacity-70"
+                style={{ color: "#2563eb" }}
+              >
+                + Add stage
+              </Link>
+            )}
+          </div>
         </div>
 
         {stages.length === 0 ? (
