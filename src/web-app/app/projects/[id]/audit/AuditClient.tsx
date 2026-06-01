@@ -40,33 +40,36 @@ function actionLabel(action: string) {
 }
 
 function stateChip(value: string | null) {
-  if (!value) return <span className="text-neutral-500">—</span>;
+  if (!value) return <span style={{ color: "rgba(13,17,68,0.35)" }}>—</span>;
   return (
-    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs">
+    <span
+      className="rounded-full px-2 py-0.5 text-xs"
+      style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc", color: "rgba(13,17,68,0.65)" }}
+    >
       {value.replaceAll("_", " ")}
     </span>
   );
 }
 
 const ACTION_COLORS: Record<string, string> = {
-  stage_status_changed: "#60a5fa",
-  evidence_submitted: "#4ade80",
-  evidence_reviewed: "#86efac",
-  approval_given: "#34d399",
-  approval_rejected: "#f87171",
-  approval_returned: "#fbbf24",
-  all_approvals_complete: "#a3e635",
-  release_initiated: "#c084fc",
-  release_completed: "#a855f7",
-  release_failed: "#ef4444",
-  dispute_opened: "#f97316",
-  dispute_resolved: "#fb923c",
-  variation_requested: "#38bdf8",
-  variation_approved: "#34d399",
-  variation_activated: "#a3e635",
-  wallet_funded: "#38bdf8",
-  wallet_allocated: "#7dd3fc",
-  override_applied: "#e879f9",
+  stage_status_changed: "#2563eb",
+  evidence_submitted: "#059669",
+  evidence_reviewed: "#059669",
+  approval_given: "#059669",
+  approval_rejected: "#dc2626",
+  approval_returned: "#ea580c",
+  all_approvals_complete: "#059669",
+  release_initiated: "#7c3aed",
+  release_completed: "#16a34a",
+  release_failed: "#dc2626",
+  dispute_opened: "#ea580c",
+  dispute_resolved: "#059669",
+  variation_requested: "#2563eb",
+  variation_approved: "#059669",
+  variation_activated: "#16a34a",
+  wallet_funded: "#2563eb",
+  wallet_allocated: "#2563eb",
+  override_applied: "#7c3aed",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -169,25 +172,27 @@ export default function AuditClient({
   }
 
   const selectClass =
-    "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
+    "rounded-xl px-3 py-2 text-xs outline-none";
   const inputClass =
-    "rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none";
+    "rounded-xl px-3 py-2 text-xs outline-none";
+  const controlStyle = { border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "#0D1144" };
 
   return (
     <AppShell>
-    <div className="min-h-screen px-4 py-6" style={{ backgroundColor: "#0d1144" }}>
+    <div className="min-h-screen px-4 py-6">
       {/* Header */}
       <div className="mb-6">
         <Link
           href={`/projects/${projectId}`}
-          className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500 hover:text-neutral-300"
+          className="text-[11px] font-medium uppercase tracking-[0.14em] hover:underline"
+          style={{ color: "rgba(13,17,68,0.45)" }}
         >
           ← Back to project
         </Link>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">
+        <h1 className="mt-2 text-2xl font-bold tracking-tight" style={{ color: "#0D1144" }}>
           Audit trail
         </h1>
-        <p className="mt-1 text-sm text-neutral-400">
+        <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.55)" }}>
           Immutable record of every governed event on this project.
         </p>
       </div>
@@ -195,7 +200,7 @@ export default function AuditClient({
       {/* Filters */}
       <div className="mb-4 flex flex-wrap gap-2">
         {/* Stage */}
-        <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className={selectClass}>
+        <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className={selectClass} style={controlStyle}>
           <option value="all">All stages</option>
           {stages.map(([id, name]) => (
             <option key={id} value={id}>{name}</option>
@@ -203,7 +208,7 @@ export default function AuditClient({
         </select>
 
         {/* Action */}
-        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectClass}>
+        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className={selectClass} style={controlStyle}>
           <option value="all">All actions</option>
           {actions.map((action) => (
             <option key={action} value={action}>{actionLabel(action)}</option>
@@ -211,7 +216,7 @@ export default function AuditClient({
         </select>
 
         {/* Role */}
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass} style={controlStyle}>
           <option value="all">All roles</option>
           {roles.map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role] ?? role}</option>
@@ -225,7 +230,7 @@ export default function AuditClient({
           onChange={(e) => setDateFrom(e.target.value)}
           className={inputClass}
           title="From date"
-          style={{ colorScheme: "dark" }}
+          style={controlStyle}
         />
 
         {/* Date to */}
@@ -235,27 +240,29 @@ export default function AuditClient({
           onChange={(e) => setDateTo(e.target.value)}
           className={inputClass}
           title="To date"
-          style={{ colorScheme: "dark" }}
+          style={controlStyle}
         />
 
         {hasFilters && (
           <button
             type="button"
             onClick={clearFilters}
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 hover:text-white"
+            className="rounded-xl px-3 py-2 text-xs"
+            style={{ ...controlStyle, color: "rgba(13,17,68,0.55)" }}
           >
             Clear filters
           </button>
         )}
 
-        <span className="ml-auto self-center text-xs text-neutral-500">
+        <span className="ml-auto self-center text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
           {filtered.length} event{filtered.length !== 1 ? "s" : ""}
         </span>
 
         <button
           type="button"
           onClick={exportCSV}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 hover:text-white"
+          className="rounded-xl px-3 py-2 text-xs"
+          style={{ border: "1px solid rgba(37,99,235,0.25)", backgroundColor: "rgba(37,99,235,0.07)", color: "#2563eb" }}
         >
           Export CSV
         </button>
@@ -265,21 +272,21 @@ export default function AuditClient({
       {filtered.length === 0 ? (
         <div
           className="rounded-[20px] px-6 py-8 text-center"
-          style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+          style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
         >
-          <p className="text-sm text-neutral-400">No events match the current filters.</p>
+          <p className="text-sm" style={{ color: "rgba(13,17,68,0.55)" }}>No events match the current filters.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((ev) => {
-            const dotColor = ACTION_COLORS[ev.action] ?? "#94a3b8";
+            const dotColor = ACTION_COLORS[ev.action] ?? "#64748b";
             return (
               <div
                 key={ev.id}
                 className="rounded-[18px] px-4 py-4"
                 style={{
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  backgroundColor: "rgba(255,255,255,0.04)",
+                  border: "1px solid var(--surface-border, #e4e7f0)",
+                  backgroundColor: "#fff",
                 }}
               >
                 {/* Top row: timestamp | action | role pill */}
@@ -295,32 +302,32 @@ export default function AuditClient({
                     {ev.actor?.role && (
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                        style={{ backgroundColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}
+                        style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.55)" }}
                       >
                         {ROLE_LABELS[ev.actor.role] ?? ev.actor.role}
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-neutral-500">{formatTs(ev.createdAt)}</span>
+                  <span className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>{formatTs(ev.createdAt)}</span>
                 </div>
 
                 {/* Actor */}
                 {ev.actor && (
-                  <p className="mt-1.5 text-xs text-neutral-500">
-                    <span className="font-medium text-neutral-300">{ev.actor.full_name}</span>
+                  <p className="mt-1.5 text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>
+                    <span className="font-medium" style={{ color: "#0D1144" }}>{ev.actor.full_name}</span>
                   </p>
                 )}
 
                 {/* Stage name */}
                 {ev.stageName && (
-                  <p className="mt-1 text-xs text-neutral-400">
-                    Stage: <span className="font-medium text-neutral-200">{ev.stageName}</span>
+                  <p className="mt-1 text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>
+                    Stage: <span className="font-medium" style={{ color: "#0D1144" }}>{ev.stageName}</span>
                   </p>
                 )}
 
                 {/* State transition */}
                 {(ev.fromState || ev.toState) && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                     {stateChip(ev.fromState)}
                     <span>→</span>
                     {stateChip(ev.toState)}
@@ -329,7 +336,7 @@ export default function AuditClient({
 
                 {/* Metadata notes */}
                 {ev.metadata?.reason !== undefined && (
-                  <p className="mt-2 text-xs italic text-neutral-500">
+                  <p className="mt-2 text-xs italic" style={{ color: "rgba(13,17,68,0.55)" }}>
                     &ldquo;{String(ev.metadata.reason)}&rdquo;
                   </p>
                 )}
