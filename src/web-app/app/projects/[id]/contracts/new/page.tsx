@@ -25,6 +25,12 @@ type Stage = {
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 
+const INPUT_STYLE = {
+  border: "1px solid var(--surface-border, #e4e7f0)",
+  backgroundColor: "#fff",
+  color: "var(--brand-navy, #0D1144)",
+} as const;
+
 export default function NewContractPage() {
   const router = useRouter();
   const { id: projectId } = useParams<{ id: string }>();
@@ -81,7 +87,7 @@ export default function NewContractPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Failed to create contract."); return; }
-      router.push(`/projects/${projectId}`);
+      router.push(`/projects/${projectId}/contracts/${data.contractId}`);
       router.refresh();
     } catch {
       setError("Network error. Please try again.");
@@ -92,44 +98,51 @@ export default function NewContractPage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen px-4 md:px-8 py-8 max-w-2xl mx-auto" style={{ backgroundColor: "#0d1144" }}>
-        <Link href={`/projects/${projectId}`} className="text-xs font-medium text-neutral-400 hover:text-white">
+      <div className="min-h-full px-4 md:px-8 py-8 max-w-2xl mx-auto">
+        <Link
+          href={`/projects/${projectId}`}
+          className="text-xs font-medium transition hover:opacity-70"
+          style={{ color: "rgba(13,17,68,0.5)" }}
+        >
           ← Back to project
         </Link>
 
-        <h1 className="mt-4 text-2xl font-bold text-white">New contract</h1>
-        <p className="mt-1 text-sm text-neutral-400">
-          Define the contractor and payment stages. The contractor must already have a Shure.Fund account.
-        </p>
+        <div className="mt-4 mb-8">
+          <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>New contract</h1>
+          <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>
+            Define the contractor and payment stages. The contractor must already have a Shure.Fund account.
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-8">
 
           {/* Contractor */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
-              Contractor email
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
+              Contractor email <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <input
               type="email"
               required
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-blue-400/50 transition"
+              className="w-full rounded-2xl px-4 py-3 text-sm outline-none transition"
+              style={INPUT_STYLE}
               placeholder="contractor@theircompany.com"
               value={contractorEmail}
               onChange={(e) => setContractorEmail(e.target.value)}
             />
-            <p className="mt-1.5 text-xs text-neutral-600">
-              The contractor must be registered — use a dev quick-login email (e.g. contractor@test.com).
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>
+              The contractor must be registered — invite them first if needed.
             </p>
           </div>
 
           {/* Stages */}
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
                 Payment stages
               </label>
               {totalValue > 0 && (
-                <span className="text-xs font-semibold text-neutral-300">
+                <span className="text-xs font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>
                   Total: {gbp.format(totalValue)}
                 </span>
               )}
@@ -140,15 +153,16 @@ export default function NewContractPage() {
                 <div
                   key={i}
                   className="rounded-[20px] p-4 space-y-3"
-                  style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)" }}
+                  style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#f7f8fc" }}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-neutral-400">Stage {i + 1}</p>
+                    <p className="text-xs font-semibold" style={{ color: "rgba(13,17,68,0.5)" }}>Stage {i + 1}</p>
                     {stages.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeStage(i)}
-                        className="text-xs text-neutral-600 hover:text-red-400 transition"
+                        className="text-xs transition hover:opacity-70"
+                        style={{ color: "#dc2626" }}
                       >
                         Remove
                       </button>
@@ -160,8 +174,9 @@ export default function NewContractPage() {
                     <input
                       type="text"
                       required
-                      className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 outline-none"
-                      placeholder={`Stage ${i + 1} name (e.g. Foundation Package)`}
+                      className="flex-1 rounded-xl px-3 py-2.5 text-sm outline-none"
+                      style={INPUT_STYLE}
+                      placeholder={`Stage ${i + 1} name`}
                       value={stage.name}
                       onChange={(e) => updateStage(i, "name", e.target.value)}
                     />
@@ -170,7 +185,8 @@ export default function NewContractPage() {
                       required
                       min="1"
                       step="1"
-                      className="w-32 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 outline-none"
+                      className="w-32 rounded-xl px-3 py-2.5 text-sm outline-none"
+                      style={INPUT_STYLE}
                       placeholder="£ value"
                       value={stage.value}
                       onChange={(e) => updateStage(i, "value", e.target.value)}
@@ -180,7 +196,8 @@ export default function NewContractPage() {
                   {/* Description */}
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 outline-none"
+                    className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+                    style={INPUT_STYLE}
                     placeholder="Description (optional)"
                     value={stage.description}
                     onChange={(e) => updateStage(i, "description", e.target.value)}
@@ -189,21 +206,21 @@ export default function NewContractPage() {
                   {/* Dates */}
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <label className="block text-[10px] text-neutral-600 mb-1">Start date</label>
+                      <label className="block text-[10px] mb-1" style={{ color: "rgba(13,17,68,0.45)" }}>Start date</label>
                       <input
                         type="date"
-                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
-                        style={{ colorScheme: "dark" }}
+                        className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                        style={INPUT_STYLE}
                         value={stage.startDate}
                         onChange={(e) => updateStage(i, "startDate", e.target.value)}
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-[10px] text-neutral-600 mb-1">End date</label>
+                      <label className="block text-[10px] mb-1" style={{ color: "rgba(13,17,68,0.45)" }}>End date</label>
                       <input
                         type="date"
-                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
-                        style={{ colorScheme: "dark" }}
+                        className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                        style={INPUT_STYLE}
                         value={stage.endDate}
                         onChange={(e) => updateStage(i, "endDate", e.target.value)}
                       />
@@ -216,34 +233,29 @@ export default function NewContractPage() {
             <button
               type="button"
               onClick={addStage}
-              className="mt-3 flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm text-neutral-400 hover:text-white transition"
-              style={{ border: "1px dashed rgba(255,255,255,0.12)" }}
+              className="mt-3 flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-medium transition hover:opacity-70"
+              style={{ border: "1px dashed var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.5)", backgroundColor: "#fff" }}
             >
               + Add another stage
             </button>
           </div>
 
-          {/* Error */}
           {error && (
-            <div
-              className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
-            >
-              <p className="text-sm text-red-300">{error}</p>
+            <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
+              <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>
             </div>
           )}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white transition disabled:opacity-50"
-            style={{ backgroundColor: "rgba(96,165,250,0.2)", border: "1px solid rgba(96,165,250,0.4)" }}
+            className="w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
           >
             {submitting ? "Creating contract…" : "Create contract"}
           </button>
 
-          <p className="text-xs text-neutral-600 text-center pb-4">
+          <p className="text-xs text-center pb-4" style={{ color: "rgba(13,17,68,0.4)" }}>
             Stages are created in draft status. Advance them to in-progress once work begins.
           </p>
         </form>
