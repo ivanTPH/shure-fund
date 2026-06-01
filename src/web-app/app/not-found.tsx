@@ -18,7 +18,7 @@ export default function NotFound() {
           Page not found
         </h1>
         <p style={{ margin: "0 0 28px", fontSize: "14px", color: "rgba(13,17,68,0.5)", lineHeight: 1.5 }}>
-          This page doesn't exist or you don't have permission to view it.
+          This page doesn&apos;t exist or you don&apos;t have permission to view it.
         </p>
         <Link
           href="/projects"

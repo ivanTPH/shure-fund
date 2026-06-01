@@ -390,7 +390,7 @@ export default function DisputeDetailPage() {
                         </p>
                       )}
                       {ev.notes && (
-                        <p className="mt-1 text-xs italic" style={{ color: "rgba(13,17,68,0.5)" }}>"{ev.notes}"</p>
+                        <p className="mt-1 text-xs italic" style={{ color: "rgba(13,17,68,0.5)" }}>&ldquo;{ev.notes}&rdquo;</p>
                       )}
                     </div>
                     {ev.signedUrl && (
