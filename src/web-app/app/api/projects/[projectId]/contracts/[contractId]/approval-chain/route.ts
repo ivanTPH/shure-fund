@@ -43,9 +43,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   // Fetch all stages for this contract
   const { data: stages } = await service
     .from("contract_stages")
-    .select("id, name, value, status, sequence_order")
+    .select("id, name, value, status, created_at")
     .eq("contract_id", contractId)
-    .order("sequence_order", { ascending: true });
+    .order("created_at", { ascending: true });
 
   // Fetch all approval records for all stages in this contract
   const stageIds = (stages ?? []).map((s) => s.id);

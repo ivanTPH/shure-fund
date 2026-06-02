@@ -254,7 +254,7 @@ export default async function ApprovalsPage() {
                   )}
                 </div>
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-bold"
-                  style={{ backgroundColor: "rgba(192,132,252,0.15)", color: "#c084fc" }}>
+                  style={{ backgroundColor: "rgba(124,58,237,0.1)", color: "#7c3aed" }}>
                   {group.items.length} pending
                 </span>
               </div>

@@ -47,6 +47,8 @@ const TYPE_LABEL: Record<string, string> = {
   variation_approved:  "Contract change approved",
   variation_rejected:  "Contract change rejected",
   dispute_resolved:    "Dispute sorted",
+  approval_returned:   "Stage returned — action needed",
+  approval_rejected:   "Stage rejected",
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -59,6 +61,8 @@ const TYPE_COLOR: Record<string, string> = {
   variation_approved:  "#059669",
   variation_rejected:  "#dc2626",
   dispute_resolved:    "#059669",
+  approval_returned:   "#ea580c",
+  approval_rejected:   "#dc2626",
 };
 
 const fmtDate = new Intl.DateTimeFormat("en-GB", {

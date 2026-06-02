@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
+import { notifyApprovalDecision } from "@/lib/notifications/notificationService";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -156,7 +157,7 @@ export async function POST(
   // 4. Verify stage exists and is in awaiting_approval
   const { data: stage, error: stageError } = await service
     .from("contract_stages")
-    .select("id, status")
+    .select("id, name, status, contract_id, contract:contracts!contract_id(id, project_id)")
     .eq("id", stageId)
     .single();
 
@@ -209,6 +210,25 @@ export async function POST(
       { error: `Database error: ${upsertError?.message}` },
       { status: 500 },
     );
+  }
+
+  // 7. Fire notifications (non-fatal)
+  try {
+    const contractInfo = Array.isArray(stage.contract) ? stage.contract[0] : stage.contract;
+    const projectId = (contractInfo as { project_id?: string } | null)?.project_id ?? null;
+    if (projectId) {
+      await notifyApprovalDecision(
+        service,
+        projectId,
+        stageId,
+        stage.name,
+        stage.contract_id,
+        decision,
+        approvalRole,
+      );
+    }
+  } catch (err) {
+    console.error("[approvals] Notification error (non-fatal):", err);
   }
 
   return NextResponse.json({
