@@ -24,20 +24,21 @@ You protect workflow clarity, status visibility, and mobile-first UX for the Shu
 ## Stage status display rules
 
 Every status must have: a coloured pill, a plain-English label, and a next-action hint.
+Pills use `background: {colour}18`, `color: {colour}`, `border-radius: full`, `font-size: 10px`, `font-weight: bold`, `text-transform: uppercase`.
 
 | Status | Colour | Label |
 |--------|--------|-------|
-| draft | slate #94a3b8 | Draft |
-| sent | blue #60a5fa | Sent |
-| accepted | indigo #818cf8 | Accepted |
-| in_progress | amber #fbbf24 | In Progress |
-| awaiting_approval | purple #c084fc | Awaiting Approval |
-| returned | orange #fb923c | Returned |
-| disputed | red #f87171 | Disputed |
-| available_to_release | green #4ade80 | Ready to Release |
-| released | emerald #34d399 | Released |
-| funding_gap | red #f87171 | Funding Gap |
-| part_funded | yellow #facc15 | Part Funded |
+| draft | `#94a3b8` | Draft |
+| sent | `#2563eb` | Sent |
+| accepted | `#7c3aed` | Accepted |
+| in_progress | `#d97706` | In Progress |
+| awaiting_approval | `#7c3aed` | Awaiting Approval |
+| returned | `#ea580c` | Returned |
+| disputed | `#dc2626` | Disputed |
+| available_to_release | `#059669` | Ready to Release |
+| released | `#16a34a` | Released |
+| funding_gap | `#dc2626` | Funding Gap |
+| part_funded | `#d97706` | Part Funded |
 
 ## Navigation rules
 
@@ -48,10 +49,10 @@ Every status must have: a coloured pill, a plain-English label, and a next-actio
 
 ## Component conventions
 
-- Cards: `rounded-[20px]`, glass borders (`1px solid rgba(255,255,255,0.08)`), dark backgrounds (`rgba(255,255,255,0.02–0.06)`)
-- Buttons: `rounded-xl`, role-coloured background with matching border at 40% opacity
-- Action CTAs (warnings): amber `rgba(251,191,36,0.1)` background, amber border
-- Overdue states: red `rgba(248,113,113,0.04)` background, red border at 30% opacity
+- Cards: `rounded-[20px]`, `background: #fff`, `border: 1px solid var(--surface-border, #e4e7f0)`
+- Buttons: `rounded-xl`, solid navy `#0D1144` for primary; status colour for contextual actions
+- Action CTAs (warnings): amber `rgba(217,119,6,0.08)` background, amber border
+- Overdue states: red `rgba(220,38,38,0.04)` background, `rgba(220,38,38,0.2)` border
 - Empty states: always show a message with context — never a blank page
 
 ## What to check on UX reviews
