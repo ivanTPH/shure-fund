@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "design-system": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/ivan-imac/shure-fund/design-system"
+      ]
+    }
+  }
+}
