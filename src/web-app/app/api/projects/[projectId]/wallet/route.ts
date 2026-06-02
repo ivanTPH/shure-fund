@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
 import { assertProjectAccess } from "@/lib/auth-server";
+import { runDepositAmlChecks } from "@/lib/compliance/amlRules";
 
 type RouteContext = { params: Promise<{ projectId: string }> };
 
@@ -76,6 +77,27 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
   const deposit = Number(amount);
 
+  // Generate a provisional transaction ID for AML audit trail
+  const provisionalTxId = crypto.randomUUID();
+
+  // Run AML checks before committing the deposit
+  const blockingRules = await runDepositAmlChecks({
+    userId:             user.id,
+    amount:             deposit,
+    walletTransactionId: provisionalTxId,
+    projectId,
+  });
+
+  if (blockingRules.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Deposit is under compliance review. A compliance officer will contact you within 1 business day.",
+        blocked_by: blockingRules,
+      },
+      { status: 403 }
+    );
+  }
+
   // Update wallet balances
   const { error: updateErr } = await service
     .from("wallets")
@@ -89,8 +111,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Record transaction
+  // Record transaction (use provisional ID so compliance_reviews entity_id matches)
   await service.from("wallet_transactions").insert({
+    id:         provisionalTxId,
     wallet_id:  wallet.id,
     type:       "deposit",
     amount:     deposit,
