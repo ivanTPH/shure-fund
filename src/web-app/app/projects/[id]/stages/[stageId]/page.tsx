@@ -825,9 +825,10 @@ export default function StageOverviewPage() {
                 const isPending  = v.status === "pending" || v.status === "under_review";
                 const color = isApproved ? "#059669" : isPending ? "#d97706" : "#6b7280";
                 return (
-                  <div
+                  <Link
                     key={v.id}
-                    className="rounded-2xl px-4 py-3"
+                    href={`/projects/${projectId}/stages/${stageId}/variations/${v.id}`}
+                    className="block rounded-2xl px-4 py-3 transition hover:bg-slate-50"
                     style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -845,7 +846,7 @@ export default function StageOverviewPage() {
                       <span>·</span>
                       <span>{relativeTime(v.createdAt)}</span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
