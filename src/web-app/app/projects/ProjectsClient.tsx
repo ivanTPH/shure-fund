@@ -126,10 +126,10 @@ function AttentionPanel({ items }: { items: AttentionItems }) {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active:    { label: "Active",    color: "#34d399", bg: "rgba(52,211,153,0.1)" },
-  on_hold:   { label: "On hold",   color: "#fbbf24", bg: "rgba(251,191,36,0.1)" },
-  completed: { label: "Completed", color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
-  archived:  { label: "Archived",  color: "#6b7280", bg: "rgba(107,114,128,0.1)" },
+  active:    { label: "Active",    color: "#059669", bg: "rgba(5,150,105,0.08)"   },
+  on_hold:   { label: "On hold",   color: "#d97706", bg: "rgba(217,119,6,0.08)"   },
+  completed: { label: "Completed", color: "#2563eb", bg: "rgba(37,99,235,0.08)"   },
+  archived:  { label: "Archived",  color: "#64748b", bg: "rgba(100,116,139,0.08)" },
 };
 
 const ALL_STATUSES = ["active", "on_hold", "completed", "archived"];
@@ -305,7 +305,7 @@ export default function ProjectsClient({
                       <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: "rgba(13,17,68,0.08)" }}>
                         <div
                           className="h-full rounded-full transition-all"
-                          style={{ width: `${progress}%`, backgroundColor: "#34d399" }}
+                          style={{ width: `${progress}%`, backgroundColor: "#059669" }}
                         />
                       </div>
                     </div>

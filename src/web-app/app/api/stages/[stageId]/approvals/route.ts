@@ -33,13 +33,15 @@ import { notifyApprovalDecision } from "@/lib/notifications/notificationService"
 type ApprovalRole = "commercial" | "professional" | "treasury";
 type ApprovalDecision = "approved" | "rejected" | "returned";
 
-/** Maps an app-level role to its approval_role enum value */
-function toApprovalRole(appRole: AppRole): ApprovalRole | null {
+/** Maps an app-level role (or raw DB role) to its approval_role enum value */
+function toApprovalRole(appRole: AppRole | string): ApprovalRole | null {
   switch (appRole) {
     case "commercial":  return "commercial";
-    case "consultant":  return "professional";
+    case "consultant":
+    case "professional": return "professional"; // dev profiles use 'professional' directly
     case "funder":
-    case "developer":   return "treasury";
+    case "developer":
+    case "treasury":    return "treasury";
     case "admin":       return "treasury"; // fallback; body may override
     default:            return null;
   }

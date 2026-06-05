@@ -63,7 +63,7 @@ const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP",
 const APPROVAL_ROLES: { key: ApprovalRole; label: string; desc: string; appRoles: string[] }[] = [
   { key: "commercial",   label: "Commercial",  desc: "Commercial manager / cost controller", appRoles: ["commercial"] },
   { key: "professional", label: "Professional", desc: "Consultant / quantity surveyor",       appRoles: ["consultant"] },
-  { key: "treasury",     label: "Treasury",     desc: "Funder / developer sign-off",          appRoles: ["funder", "developer"] },
+  { key: "treasury",     label: "Treasury",     desc: "Funder / project owner sign-off",      appRoles: ["funder", "developer"] },
 ];
 
 const DECISION_COLOR: Record<string, string> = {
