@@ -23,6 +23,15 @@ type User = {
 
 const ROLES = ["funder", "developer", "commercial", "contractor", "consultant", "admin"];
 
+const ROLE_LABELS: Record<string, string> = {
+  funder:     "Funder",
+  developer:  "Project Owner",
+  commercial: "Commercial",
+  contractor: "Contractor",
+  consultant: "Consultant",
+  admin:      "Admin",
+};
+
 const ROLE_COLOR: Record<string, string> = {
   funder:     "#059669",
   developer:  "#2563eb",
@@ -182,7 +191,7 @@ export default function AdminUsersPage() {
                 className="rounded-xl px-3 py-2 text-sm outline-none"
                 style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               >
-                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
               </select>
               <button
                 type="submit"
@@ -215,7 +224,7 @@ export default function AdminUsersPage() {
                 }}
               >
                 <p className="text-base font-bold" style={{ color: active ? color : "var(--brand-navy, #0D1144)" }}>{count}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: active ? color : "rgba(13,17,68,0.4)" }}>{r}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: active ? color : "rgba(13,17,68,0.4)" }}>{ROLE_LABELS[r] ?? r}</p>
               </button>
             );
           })}
@@ -358,7 +367,7 @@ export default function AdminUsersPage() {
                         className="rounded-xl px-2 py-1 text-xs outline-none"
                         style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color }}
                       >
-                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
                       </select>
                     </div>
                   </div>

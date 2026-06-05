@@ -27,6 +27,15 @@ type User = { id: string; full_name: string; email: string; role: string };
 // Helpers
 // ---------------------------------------------------------------------------
 
+const ROLE_LABELS: Record<string, string> = {
+  funder:     "Funder",
+  developer:  "Project Owner",
+  commercial: "Commercial",
+  contractor: "Contractor",
+  consultant: "Consultant",
+  admin:      "Admin",
+};
+
 const ROLE_COLOR: Record<string, string> = {
   funder:     "#059669",
   developer:  "#2563eb",
@@ -176,7 +185,7 @@ export default function ProjectMembersPage() {
               >
                 <option value="">Select user…</option>
                 {availableUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
+                  <option key={u.id} value={u.id}>{u.full_name} ({ROLE_LABELS[u.role] ?? u.role})</option>
                 ))}
               </select>
             )}
@@ -189,7 +198,7 @@ export default function ProjectMembersPage() {
                 style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
               >
                 {ALL_ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
                 ))}
               </select>
 
@@ -269,7 +278,7 @@ export default function ProjectMembersPage() {
                             className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                             style={{ backgroundColor: color + "22", color, border: `1px solid ${color}33` }}
                           >
-                            {m.role}
+                            {ROLE_LABELS[m.role] ?? m.role}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{m.delegate?.full_name ?? "—"}</td>
@@ -310,7 +319,7 @@ export default function ProjectMembersPage() {
                         )}
                       </div>
                       <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{m.member?.email}</p>
-                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{m.role}</p>
+                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{ROLE_LABELS[m.role] ?? m.role}</p>
                       {m.delegate && <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Delegate: {m.delegate.full_name}</p>}
                       {m.notes && <p className="mt-0.5 text-xs italic" style={{ color: "rgba(13,17,68,0.4)" }}>{m.notes}</p>}
                     </div>

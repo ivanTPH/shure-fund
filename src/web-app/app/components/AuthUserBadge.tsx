@@ -7,12 +7,12 @@ import { getRole, ROLE_LABELS } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 
 const ROLE_PILL_COLOR: Record<string, string> = {
-  funder:     "#34d399",
-  developer:  "#60a5fa",
-  contractor: "#fbbf24",
-  commercial: "#a78bfa",
-  consultant: "#fb923c",
-  admin:      "#f87171",
+  funder:     "#059669",
+  developer:  "#2563eb",
+  contractor: "#ea580c",
+  commercial: "#d97706",
+  consultant: "#7c3aed",
+  admin:      "#dc2626",
 };
 
 type BadgeVariant = "light" | "dark";
