@@ -27,10 +27,18 @@ interface ComplianceReview {
 interface KycSubmission {
   id: string;
   created_at: string;
+  reviewed_at: string | null;
   status: "pending" | "approved" | "rejected";
   full_name: string;
+  date_of_birth: string | null;
   nationality: string;
+  address_line1: string | null;
+  city: string | null;
+  postcode: string | null;
+  country: string | null;
   document_type: string;
+  document_number: string | null;
+  document_expiry: string | null;
   source_of_funds: string;
   reviewer_notes: string | null;
   user: { id: string; full_name: string; email: string; role: string; kyc_status: string } | null;
@@ -166,20 +174,35 @@ function ReviewModal({
           </div>
         )}
 
-        {isKyc && (
-          <div style={{ marginBottom: "16px" }}>
-            {[
-              { label: "Nationality",     value: (review as KycSubmission).nationality },
-              { label: "Document type",   value: (review as KycSubmission).document_type.replace("_", " ") },
-              { label: "Source of funds", value: (review as KycSubmission).source_of_funds },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ display: "flex", gap: "12px", padding: "6px 0", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
-                <span style={{ fontSize: "12px", color: "rgba(13,17,68,0.45)", minWidth: "120px" }}>{label}</span>
-                <span style={{ fontSize: "12px", color: "#0D1144" }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {isKyc && (() => {
+          const k = review as KycSubmission;
+          const address = [k.address_line1, k.city, k.postcode, k.country].filter(Boolean).join(", ");
+          const rows = [
+            { label: "Date of birth",    value: k.date_of_birth ?? "—" },
+            { label: "Nationality",      value: k.nationality },
+            { label: "Address",          value: address || "—" },
+            { label: "Document type",    value: k.document_type.replace(/_/g, " ") },
+            { label: "Document number",  value: k.document_number ?? "—" },
+            { label: "Document expiry",  value: k.document_expiry ?? "—" },
+            { label: "Source of funds",  value: k.source_of_funds },
+          ];
+          return (
+            <div style={{ marginBottom: "16px", borderRadius: "12px", border: "1px solid var(--surface-border, #e4e7f0)", overflow: "hidden" }}>
+              {rows.map(({ label, value }, i) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "flex", gap: "12px", padding: "8px 12px",
+                    backgroundColor: i % 2 === 0 ? "#f7f8fc" : "#fff",
+                  }}
+                >
+                  <span style={{ fontSize: "12px", color: "rgba(13,17,68,0.45)", minWidth: "130px", flexShrink: 0 }}>{label}</span>
+                  <span style={{ fontSize: "12px", color: "#0D1144", wordBreak: "break-word" }}>{value}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Action select */}
         <div style={{ marginBottom: "12px" }}>
@@ -243,6 +266,7 @@ export default function CompliancePage() {
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState<string | null>(null);
   const [statusFilter,    setStatusFilter]    = useState<string>("pending");
+  const [kycFilter,       setKycFilter]       = useState<string>("pending");
   const [selected,        setSelected]        = useState<(ComplianceReview | KycSubmission) | null>(null);
 
   async function loadData() {
@@ -425,16 +449,41 @@ export default function CompliancePage() {
             </div>
           )}
 
+          {/* KYC filter */}
+          {tab === "kyc" && (
+            <div style={{ display: "flex", gap: "8px" }}>
+              {["pending", "approved", "rejected", "all"].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setKycFilter(s)}
+                  style={{
+                    padding: "5px 12px", borderRadius: "9999px", border: "1px solid",
+                    fontSize: "12px", fontWeight: 600, cursor: "pointer",
+                    backgroundColor: kycFilter === s ? "#0D1144" : "#fff",
+                    color: kycFilter === s ? "#fff" : "rgba(13,17,68,0.5)",
+                    borderColor: kycFilter === s ? "#0D1144" : "var(--surface-border, #e4e7f0)",
+                  }}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* KYC submissions */}
-          {!loading && tab === "kyc" && (
+          {!loading && tab === "kyc" && (() => {
+            const filtered = kycFilter === "all"
+              ? kycSubmissions
+              : kycSubmissions.filter((s) => s.status === kycFilter);
+            return (
             <div style={cardStyle}>
-              {kycSubmissions.length === 0 ? (
+              {filtered.length === 0 ? (
                 <div style={{ padding: "48px", textAlign: "center" }}>
-                  <p style={{ color: "rgba(13,17,68,0.4)", fontSize: "14px" }}>No KYC submissions to review.</p>
+                  <p style={{ color: "rgba(13,17,68,0.4)", fontSize: "14px" }}>No {kycFilter} KYC submissions.</p>
                 </div>
               ) : (
                 <div>
-                  {kycSubmissions.map((sub, i) => (
+                  {filtered.map((sub, i) => (
                     <div
                       key={sub.id}
                       style={{
@@ -478,7 +527,8 @@ export default function CompliancePage() {
                 </div>
               )}
             </div>
-          )}
+          );
+        })()}
 
         </div>
       </div>
