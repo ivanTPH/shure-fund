@@ -78,6 +78,13 @@ export async function POST(req: NextRequest) {
 
   if (error || !dispute) return NextResponse.json({ error: error?.message ?? "Failed to create dispute" }, { status: 500 });
 
+  // Transition stage to 'disputed' if it is currently in a disputable state
+  await service
+    .from("contract_stages")
+    .update({ status: "disputed" })
+    .eq("id", stageId)
+    .in("status", ["in_progress", "awaiting_approval"]);
+
   // Notify
   try {
     if (projectId) {

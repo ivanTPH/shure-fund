@@ -391,7 +391,7 @@ export default function StageOverviewPage() {
 
   const pendingApprovals = approvals.filter((a) => a.decision === "pending").length;
   const allApproved = approvals.length > 0 && approvals.every((a) => a.decision === "approved");
-  const activeDisputes = disputes.filter((d) => d.status === "raised" || d.status === "open").length;
+  const activeDisputes = disputes.filter((d) => d.status === "raised" || d.status === "under_review").length;
 
   const variationImpact = variations
     .filter((v) => v.status === "approved" || v.status === "active")
