@@ -25,6 +25,14 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   const denied = await assertProjectAccess(service, user, projectId);
   if (denied) return denied;
 
+  // Wallet balance is financial information — restrict to funder, developer, and admin.
+  // Contractors, commercial, and consultants have project access but don't need to
+  // see the raw wallet balance.
+  const role = getRole(user);
+  if (role !== "funder" && role !== "developer" && role !== "admin") {
+    return NextResponse.json({ error: "Wallet access is restricted to funder and developer roles." }, { status: 403 });
+  }
+
   const { data, error } = await service
     .from("wallets")
     .select("id, balance, available_amount, ringfenced_amount, updated_at")

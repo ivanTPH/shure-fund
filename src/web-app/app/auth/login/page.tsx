@@ -12,7 +12,7 @@ const DEV_PROFILES = [
   { role: "contractor",   label: "Contractor",  email: "contracts@hawthornebuild.co.uk",color: "#1e5c3a" },
   { role: "professional", label: "Professional",email: "owen.blake@shure.fund",         color: "#1a3a6b" },
   { role: "treasury",     label: "Treasury",    email: "leah.mercer@shure.fund",        color: "#5b2a8a" },
-  { role: "commercial",   label: "Developer Co",email: "helen.grant@shure.fund",        color: "#7c5a00" },
+  { role: "developer",    label: "Developer Co",email: "helen.grant@shure.fund",        color: "#7c5a00" },
 ] as const;
 
 // Suspense wrapper required by Next.js 16 for pages using useSearchParams

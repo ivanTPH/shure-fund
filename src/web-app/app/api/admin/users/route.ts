@@ -34,17 +34,28 @@ export async function PATCH(req: NextRequest) {
   const role = getRole(user);
   if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-  let body: { userId: string; role?: string; active?: boolean };
+  let body: { userId: string; role?: string; active?: boolean; kyc_status?: string };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { userId, role: newRole, active } = body;
+  const { userId, role: newRole, active, kyc_status } = body;
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
   const update: Record<string, unknown> = {};
   if (newRole !== undefined) update.role = newRole;
   if (active !== undefined) update.active = active;
+  if (kyc_status !== undefined) {
+    const validStatuses = ["not_started", "pending_review", "approved", "rejected", "expired"];
+    if (!validStatuses.includes(kyc_status)) {
+      return NextResponse.json({ error: `kyc_status must be one of: ${validStatuses.join(", ")}` }, { status: 400 });
+    }
+    update.kyc_status = kyc_status;
+    if (kyc_status === "approved") {
+      update.kyc_reviewed_at = new Date().toISOString();
+      update.kyc_expires_at  = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    }
+  }
   if (!Object.keys(update).length) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 
   const service = createServiceClient();
