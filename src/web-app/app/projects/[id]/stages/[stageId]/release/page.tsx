@@ -221,11 +221,11 @@ export default function ReleasePaymentPage() {
       <div className="min-h-screen px-4 md:px-8 py-8 max-w-2xl mx-auto">
         {/* Back */}
         <Link
-          href={`/projects/${projectId}/stages/${stageId}/approve`}
+          href={`/projects/${projectId}/stages/${stageId}`}
           className="text-xs font-medium hover:underline"
           style={{ color: "rgba(13,17,68,0.45)" }}
         >
-          ← Back to approval screen
+          ← Back to stage
         </Link>
 
         {/* Heading */}

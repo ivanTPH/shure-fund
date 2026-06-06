@@ -17,6 +17,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AuthUserBadge, { SignOutButton } from "./AuthUserBadge";
+import { ToastProvider } from "./ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -294,7 +295,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
       </main>
 
       {/* ── Mobile bottom tab bar ────────────────────────────────────────── */}

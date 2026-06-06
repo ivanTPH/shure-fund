@@ -25,8 +25,9 @@ export async function GET() {
   const { data: submissions, error } = await supabase
     .from("kyc_submissions")
     .select(`
-      id, created_at, status, document_type,
-      full_name, nationality, address_line1, city, postcode, country,
+      id, created_at, status, document_type, document_number, document_expiry,
+      full_name, date_of_birth, nationality,
+      address_line1, city, postcode, country,
       source_of_funds, reviewer_notes, reviewed_at,
       user_id
     `)

@@ -44,6 +44,7 @@ const TYPE_CONFIG: Record<string, {
   payment_ready:       { label: "Release payment",           needsAction: true,  accent: "#059669", dot: "£" },
   approval_required:   { label: "Sign-off needed",           needsAction: true,  accent: "#2563eb", dot: "✓" },
   evidence_required:   { label: "Evidence needed",           needsAction: true,  accent: "#d97706", dot: "📎" },
+  funding_required:    { label: "Allocate funding",          needsAction: true,  accent: "#7c3aed", dot: "£" },
   funding_gap:         { label: "Funds short",               needsAction: true,  accent: "#dc2626", dot: "!" },
   variation_submitted: { label: "Contract change to review", needsAction: true,  accent: "#7c3aed", dot: "↕" },
   dispute_raised:      { label: "Dispute — payment held",    needsAction: true,  accent: "#ea580c", dot: "⚠" },
@@ -143,14 +144,9 @@ export default function InboxClient({ notifications: initial }: { notifications:
   // Actions
   // ---------------------------------------------------------------------------
 
-  async function markRead(id: string) {
+  async function markDone(id: string) {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     await fetch(`/api/notifications/${id}`, { method: "PATCH" }).catch(() => {});
-  }
-
-  async function handleTap(n: Notification) {
-    if (!n.read) await markRead(n.id);
-    if (n.action_url) router.push(n.action_url);
   }
 
   async function markAllRead() {
@@ -162,14 +158,21 @@ export default function InboxClient({ notifications: initial }: { notifications:
   // Filtered lists
   // ---------------------------------------------------------------------------
 
+  // "Needs action" = requires action AND not yet dismissed (read)
+  // "Done" = dismissed (read) OR info-only notification type
   const actionItems = useMemo(() =>
     items.filter((n) => {
       const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
-      return (cfg.needsAction || !n.read) && !n.read;
+      return cfg.needsAction && !n.read;
     }),
   [items]);
 
-  const doneItems = useMemo(() => items.filter((n) => n.read), [items]);
+  const doneItems = useMemo(() =>
+    items.filter((n) => {
+      const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
+      return n.read || !cfg.needsAction;
+    }),
+  [items]);
 
   const visible = useMemo(() => {
     const base = tab === "action" ? actionItems : doneItems;
@@ -258,8 +261,8 @@ export default function InboxClient({ notifications: initial }: { notifications:
         >
           {(["action", "done"] as const).map((t) => {
             const labels: Record<typeof t, string> = {
-              action: `Needs action${unreadCount > 0 ? ` · ${unreadCount}` : ""}`,
-              done:   `Done · ${doneItems.length}`,
+              action: `Needs action${unreadCount > 0 ? ` (${unreadCount})` : ""}`,
+              done:   `Activity · ${doneItems.length}`,
             };
             return (
               <button
@@ -291,7 +294,7 @@ export default function InboxClient({ notifications: initial }: { notifications:
             <p className="mt-1 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
               {tab === "action"
                 ? "Nothing needs your attention right now."
-                : "Items will appear here once you've dealt with them."}
+                : "Completed and informational items appear here."}
             </p>
           </div>
         ) : (
@@ -299,19 +302,16 @@ export default function InboxClient({ notifications: initial }: { notifications:
             {visible.map((n) => {
               const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
               const hasLink = !!n.action_url;
+              const isActionTab = tab === "action";
 
               return (
-                <button
+                <div
                   key={n.id}
-                  onClick={() => handleTap(n)}
-                  disabled={!hasLink}
-                  className="w-full text-left rounded-[18px] px-4 py-4 transition"
+                  className="rounded-[18px] px-4 py-4"
                   style={{
                     backgroundColor: "#fff",
-                    border: `1px solid ${n.read ? "var(--surface-border, #e4e7f0)" : cfg.accent + "44"}`,
-                    boxShadow: n.read ? "none" : `0 0 0 3px ${cfg.accent}11`,
-                    opacity: !hasLink ? 0.75 : 1,
-                    cursor: hasLink ? "pointer" : "default",
+                    border: `1px solid ${!n.read ? cfg.accent + "44" : "var(--surface-border, #e4e7f0)"}`,
+                    boxShadow: !n.read ? `0 0 0 3px ${cfg.accent}11` : "none",
                   }}
                 >
                   <div className="flex items-start gap-3">
@@ -343,24 +343,9 @@ export default function InboxClient({ notifications: initial }: { notifications:
                         {n.message}
                       </p>
 
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <p className="text-[10px]" style={{ color: "rgba(13,17,68,0.35)" }}>
-                          {timeAgo(n.created_at)}
-                        </p>
-                        {hasLink && !n.read && (
-                          <span
-                            className="text-[10px] font-bold uppercase tracking-wide"
-                            style={{ color: cfg.accent }}
-                          >
-                            Tap to sort →
-                          </span>
-                        )}
-                        {hasLink && n.read && (
-                          <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.3)" }}>
-                            View →
-                          </span>
-                        )}
-                      </div>
+                      <p className="mt-1.5 text-[10px]" style={{ color: "rgba(13,17,68,0.35)" }}>
+                        {timeAgo(n.created_at)}
+                      </p>
                     </div>
 
                     {!n.read && (
@@ -370,7 +355,35 @@ export default function InboxClient({ notifications: initial }: { notifications:
                       />
                     )}
                   </div>
-                </button>
+
+                  {/* Action row */}
+                  {(hasLink || isActionTab) && (
+                    <div className="mt-3 flex items-center justify-between gap-2 pt-3" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
+                      {hasLink ? (
+                        <button
+                          onClick={() => router.push(n.action_url!)}
+                          className="rounded-xl px-4 py-2 text-xs font-bold transition hover:opacity-80"
+                          style={{ backgroundColor: cfg.accent, color: "#fff" }}
+                        >
+                          Take action →
+                        </button>
+                      ) : (
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>
+                          No action required — for your awareness only.
+                        </p>
+                      )}
+                      {isActionTab && (
+                        <button
+                          onClick={() => markDone(n.id)}
+                          className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-70"
+                          style={{ border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.5)", backgroundColor: "#f7f8fc" }}
+                        >
+                          ✓ Dismiss
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
