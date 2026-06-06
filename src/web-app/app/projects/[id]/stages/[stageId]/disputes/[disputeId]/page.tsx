@@ -26,7 +26,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const CAN_RESPOND  = ["funder", "commercial", "developer", "admin"];
-const CAN_RESOLVE  = ["funder", "commercial", "developer", "admin"];
+const CAN_RESOLVE  = ["funder", "developer", "admin"];
 const CAN_ESCALATE = ["developer", "admin"];
 
 // ---------------------------------------------------------------------------
@@ -49,6 +49,7 @@ type Dispute = {
   id: string;
   reason: string;
   status: string;
+  disputed_value: number;
   resolution_notes: string | null;
   evidence_url: string | null;
   created_at: string;
@@ -185,11 +186,18 @@ export default function DisputeDetailPage() {
         const transitionAction = stageOutcome === "continue"
           ? "resolve_dispute_continue"
           : "resolve_dispute_reject";
-        await fetch(`/api/stages/${stageId}/transition`, {
+        const tRes = await fetch(`/api/stages/${stageId}/transition`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ action: transitionAction }),
         });
+        if (!tRes.ok) {
+          const tData = await tRes.json();
+          setActionError(tData.error ?? "Dispute resolved but stage transition failed. Contact admin.");
+          // Reload dispute state
+          await load();
+          return;
+        }
         // Dispute resolved — return to stage overview
         router.push(`/projects/${projectId}/stages/${stageId}`);
         return;
@@ -326,9 +334,17 @@ export default function DisputeDetailPage() {
             </div>
           </div>
 
-          <div>
-            <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Raised</p>
-            <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{fmt.format(new Date(dispute.created_at))}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Raised</p>
+              <p className="mt-1 text-sm" style={{ color: "var(--brand-navy, #0D1144)" }}>{fmt.format(new Date(dispute.created_at))}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Disputed value</p>
+              <p className="mt-1 text-sm font-bold" style={{ color: "#dc2626" }}>
+                {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(Number(dispute.disputed_value))}
+              </p>
+            </div>
           </div>
 
           {dispute.respondent && (
