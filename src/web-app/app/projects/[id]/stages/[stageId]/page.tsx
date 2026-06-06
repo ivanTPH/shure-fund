@@ -533,18 +533,18 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {/* AWAITING_APPROVAL: review & approve (not shown when disputed) */}
-          {isApprover && stage.status !== "disputed" && stage.status !== "released" && (
+          {/* AWAITING_APPROVAL: review & approve — only shown when stage actually needs sign-off */}
+          {isApprover && stage.status === "awaiting_approval" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/approve`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
               style={{
-                backgroundColor: pendingApprovals > 0 ? "rgba(124,58,237,0.07)" : "rgba(148,163,184,0.08)",
-                border: `1px solid ${pendingApprovals > 0 ? "rgba(124,58,237,0.2)" : "rgba(148,163,184,0.2)"}`,
-                color: pendingApprovals > 0 ? "#7c3aed" : "#64748b",
+                backgroundColor: "rgba(124,58,237,0.07)",
+                border: "1px solid rgba(124,58,237,0.2)",
+                color: "#7c3aed",
               }}
             >
-              {pendingApprovals > 0 ? `Review & approve (${pendingApprovals} pending)` : "View approvals"}
+              {pendingApprovals > 0 ? `Sign off (${pendingApprovals} pending)` : "Review & sign off"}
             </Link>
           )}
 
