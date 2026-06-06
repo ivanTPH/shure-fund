@@ -158,6 +158,10 @@ export default function UploadEvidenceClient({
   const [error, setError]               = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; type: string; label: string; previewUrl: string | null }[]>([]);
 
+  // Submit-for-approval state
+  const [submitting, setSubmitting]     = useState(false);
+  const [submitError, setSubmitError]   = useState<string | null>(null);
+
   // Online / offline
   const [isOnline, setIsOnline]               = useState(true);
   const [queue, setQueue]                     = useState<QueuedItem[]>([]);
@@ -306,6 +310,30 @@ export default function UploadEvidenceClient({
   }
 
   // ---------------------------------------------------------------------------
+  // Submit stage for approval
+  // ---------------------------------------------------------------------------
+
+  async function submitForApproval() {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch(`/api/stages/${stageId}/transition`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "submit_for_approval" }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "Could not submit for approval");
+      }
+      router.push(`/projects/${projectId}/stages/${stageId}`);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Could not submit for approval — try again.");
+      setSubmitting(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Main render
   // ---------------------------------------------------------------------------
 
@@ -321,10 +349,10 @@ export default function UploadEvidenceClient({
           style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}
         >
           <Link
-            href={`/projects/${projectId}`}
+            href={`/projects/${projectId}/stages/${stageId}`}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:opacity-70"
             style={{ backgroundColor: "rgba(13,17,68,0.06)", color: "var(--brand-navy, #0D1144)" }}
-            aria-label="Back to project"
+            aria-label="Back to stage"
           >
             ←
           </Link>
@@ -334,7 +362,7 @@ export default function UploadEvidenceClient({
           </div>
           {uploadedFiles.length > 0 && (
             <Link
-              href={`/projects/${projectId}`}
+              href={`/projects/${projectId}/stages/${stageId}`}
               className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
               style={{ border: "1px solid rgba(5,150,105,0.3)", backgroundColor: "rgba(5,150,105,0.08)", color: "#059669" }}
             >
@@ -430,6 +458,36 @@ export default function UploadEvidenceClient({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* What's next — submit for approval panel */}
+        {uploadedFiles.length > 0 && (
+          <div
+            className="mx-4 mt-4 rounded-2xl px-4 py-4"
+            style={{ backgroundColor: "rgba(37,99,235,0.05)", border: "1px solid rgba(37,99,235,0.2)" }}
+          >
+            <p className="text-sm font-bold" style={{ color: "#2563eb" }}>Ready to submit?</p>
+            <p className="mt-1 text-xs leading-relaxed" style={{ color: "rgba(13,17,68,0.6)" }}>
+              You have uploaded {uploadedFiles.length} file{uploadedFiles.length !== 1 ? "s" : ""}.
+              When you have added all your evidence, tap <strong>Submit for approval</strong> to send
+              this stage to the review team.
+            </p>
+            {submitError && (
+              <p className="mt-2 text-xs" style={{ color: "#dc2626" }}>{submitError}</p>
+            )}
+            <button
+              type="button"
+              onClick={submitForApproval}
+              disabled={submitting}
+              className="mt-3 w-full rounded-2xl py-3 text-sm font-bold text-white transition disabled:opacity-40 active:scale-[0.98]"
+              style={{ backgroundColor: "#2563eb" }}
+            >
+              {submitting ? "Submitting…" : "Submit for approval"}
+            </button>
+            <p className="mt-2 text-center text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>
+              Or continue adding files below
+            </p>
           </div>
         )}
 
@@ -606,11 +664,11 @@ export default function UploadEvidenceClient({
           </button>
 
           <Link
-            href={`/projects/${projectId}`}
+            href={`/projects/${projectId}/stages/${stageId}`}
             className="block py-2 text-center text-sm transition hover:opacity-70"
             style={{ color: "rgba(13,17,68,0.45)" }}
           >
-            {uploadedFiles.length > 0 ? "Done — back to project" : "Cancel"}
+            {uploadedFiles.length > 0 ? "Done — back to stage" : "Cancel"}
           </Link>
         </form>
       </div>

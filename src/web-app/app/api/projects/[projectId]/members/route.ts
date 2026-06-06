@@ -58,6 +58,38 @@ export async function POST(req: NextRequest, context: RouteContext) {
   if (!memberRole) return NextResponse.json({ error: "role required" }, { status: 400 });
 
   const service = createServiceClient();
+
+  // KYC gate: funders and contractors must have approved KYC before joining a project.
+  // Admins and developers are internal staff and are exempt.
+  const KYC_REQUIRED_ROLES = ["funder", "contractor"];
+  if (KYC_REQUIRED_ROLES.includes(memberRole)) {
+    const { data: targetUser } = await service
+      .from("users")
+      .select("kyc_status, full_name")
+      .eq("id", userId)
+      .single();
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+    if (targetUser.kyc_status !== "approved") {
+      const statusLabel: Record<string, string> = {
+        not_started:    "has not started identity verification",
+        pending_review: "has identity verification under review",
+        rejected:       "failed identity verification",
+        expired:        "has expired identity verification",
+      };
+      const reason = statusLabel[targetUser.kyc_status] ?? "has not completed identity verification";
+      return NextResponse.json(
+        {
+          error: `${targetUser.full_name} ${reason}. KYC must be approved before assigning a ${memberRole} role on a project.`,
+          kyc_status: targetUser.kyc_status,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   const { data, error } = await service
     .from("project_members")
     .upsert({

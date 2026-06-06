@@ -13,12 +13,12 @@ import type { AppRole } from "@/lib/auth";
 // ---------------------------------------------------------------------------
 
 const ROLE_COLOR: Record<string, string> = {
-  funder:     "#34d399",
-  developer:  "#60a5fa",
-  commercial: "#fbbf24",
-  contractor: "#f97316",
-  consultant: "#a78bfa",
-  admin:      "#f87171",
+  funder:     "#059669",
+  developer:  "#2563eb",
+  commercial: "#d97706",
+  contractor: "#ea580c",
+  consultant: "#7c3aed",
+  admin:      "#dc2626",
 };
 
 // ---------------------------------------------------------------------------
@@ -32,6 +32,7 @@ export default function AccountPage() {
   const [role, setRole]       = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [kycStatus, setKycStatus] = useState<string>("not_started");
 
   useEffect(() => {
     const supabase = createClient();
@@ -43,6 +44,13 @@ export default function AccountPage() {
       setLoading(false);
     });
   }, [router]);
+
+  useEffect(() => {
+    fetch("/api/account/kyc")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.profile?.kyc_status) setKycStatus(d.profile.kyc_status); })
+      .catch(() => {});
+  }, []);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -114,6 +122,44 @@ export default function AccountPage() {
             </div>
           </div>
 
+          {/* KYC status banner */}
+          {kycStatus !== "approved" && (
+            <Link
+              href="/account/setup/kyc"
+              style={{ textDecoration: "none" }}
+            >
+              <div
+                className="rounded-[20px] px-5 py-4 flex items-center justify-between"
+                style={{
+                  backgroundColor: kycStatus === "rejected"
+                    ? "rgba(220,38,38,0.06)"
+                    : kycStatus === "pending_review"
+                    ? "rgba(37,99,235,0.06)"
+                    : "rgba(217,119,6,0.06)",
+                  border: `1px solid ${kycStatus === "rejected" ? "rgba(220,38,38,0.2)" : kycStatus === "pending_review" ? "rgba(37,99,235,0.15)" : "rgba(217,119,6,0.2)"}`,
+                }}
+              >
+                <div>
+                  <p className="text-sm font-bold" style={{ color: kycStatus === "rejected" ? "#dc2626" : kycStatus === "pending_review" ? "#2563eb" : "#d97706" }}>
+                    {kycStatus === "rejected"
+                      ? "Identity verification failed"
+                      : kycStatus === "pending_review"
+                      ? "Identity verification under review"
+                      : "Identity verification required"}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(13,17,68,0.5)" }}>
+                    {kycStatus === "rejected"
+                      ? "Contact support — your KYC submission was not approved."
+                      : kycStatus === "pending_review"
+                      ? "Your submission is being reviewed. Typically 1–2 business days."
+                      : "Complete KYC to deposit funds and receive payments."}
+                  </p>
+                </div>
+                <span style={{ color: "rgba(13,17,68,0.3)", fontSize: "18px" }}>›</span>
+              </div>
+            </Link>
+          )}
+
           {/* Quick links */}
           <div
             className="rounded-[20px] overflow-hidden"
@@ -123,10 +169,13 @@ export default function AccountPage() {
               Navigate
             </p>
             {[
-              { href: "/projects",  label: "My projects",  desc: "All projects you're assigned to" },
-              { href: "/inbox",     label: "Inbox",        desc: "Notifications and actions" },
-              { href: "/approvals", label: "Sign-offs",    desc: "Pending approvals across all projects" },
-              { href: "/audit-log", label: "Audit log",    desc: "Immutable activity trail" },
+              { href: "/projects",         label: "My projects",  desc: "All projects you're assigned to" },
+              { href: "/inbox",            label: "Inbox",        desc: "Notifications and actions" },
+              { href: "/approvals",        label: "Sign-offs",    desc: "Pending approvals across all projects" },
+              { href: "/audit-log",        label: "Audit log",    desc: "Immutable activity trail" },
+              ...(role === "funder" || role === "admin"
+                ? [{ href: "/account/payments", label: "My payments", desc: "Token distributions received from stage releases" }]
+                : []),
               { href: "/settings",  label: "Settings",     desc: "Edit your name and password" },
             ].map(({ href, label, desc }) => (
               <Link
@@ -158,17 +207,30 @@ export default function AccountPage() {
                   <span style={{ color: "rgba(13,17,68,0.25)" }}>›</span>
                 </Link>
                 {role === "admin" && (
-                  <Link
-                    href="/admin/company"
-                    className="flex items-center justify-between px-5 py-3.5 border-t transition hover:bg-neutral-50"
-                    style={{ borderColor: "var(--surface-border, #e4e7f0)" }}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>Company settings</p>
-                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Organisation details and preferences</p>
-                    </div>
-                    <span style={{ color: "rgba(13,17,68,0.25)" }}>›</span>
-                  </Link>
+                  <>
+                    <Link
+                      href="/admin/company"
+                      className="flex items-center justify-between px-5 py-3.5 border-t transition hover:bg-neutral-50"
+                      style={{ borderColor: "var(--surface-border, #e4e7f0)" }}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>Company settings</p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Organisation details and preferences</p>
+                      </div>
+                      <span style={{ color: "rgba(13,17,68,0.25)" }}>›</span>
+                    </Link>
+                    <Link
+                      href="/admin/compliance"
+                      className="flex items-center justify-between px-5 py-3.5 border-t transition hover:bg-neutral-50"
+                      style={{ borderColor: "var(--surface-border, #e4e7f0)" }}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>Compliance queue</p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>AML flags and KYC reviews</p>
+                      </div>
+                      <span style={{ color: "rgba(13,17,68,0.25)" }}>›</span>
+                    </Link>
+                  </>
                 )}
               </>
             )}

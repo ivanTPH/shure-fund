@@ -202,8 +202,8 @@ export default function SettingsPage() {
                 />
               </div>
 
-              {nameError && <p className="text-xs" style={{ color: "#ef4444" }}>{nameError}</p>}
-              {nameSaved  && <p className="text-xs font-semibold" style={{ color: "#22c55e" }}>✓ Name updated</p>}
+              {nameError && <p className="text-xs" style={{ color: "#dc2626" }}>{nameError}</p>}
+              {nameSaved  && <p className="text-xs font-semibold" style={{ color: "#059669" }}>✓ Name updated</p>}
 
               <button
                 type="submit"
@@ -255,8 +255,8 @@ export default function SettingsPage() {
                 </div>
               ))}
 
-              {pwError && <p className="text-xs" style={{ color: "#ef4444" }}>{pwError}</p>}
-              {pwSaved  && <p className="text-xs font-semibold" style={{ color: "#22c55e" }}>✓ Password changed — you&apos;re still signed in</p>}
+              {pwError && <p className="text-xs" style={{ color: "#dc2626" }}>{pwError}</p>}
+              {pwSaved  && <p className="text-xs font-semibold" style={{ color: "#059669" }}>✓ Password changed — you&apos;re still signed in</p>}
 
               <button
                 type="submit"

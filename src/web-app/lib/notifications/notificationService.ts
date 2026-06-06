@@ -16,8 +16,11 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sendEmail, buildTransactionalEmail } from "@/lib/email/emailService";
 
 type Db = SupabaseClient;
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.shure.fund";
 
 // ---------------------------------------------------------------------------
 // Notification payload
@@ -144,7 +147,40 @@ async function insertNotification(db: Db, userId: string, payload: NotificationP
 
 async function notifyRecipients(db: Db, userIds: string[], payload: NotificationPayload) {
   if (!userIds.length) return;
+
+  // Insert DB notifications
   await Promise.all(userIds.map((uid) => insertNotification(db, uid, payload)));
+
+  // Fire transactional emails — non-fatal, never blocks the main flow
+  try {
+    const { data: users } = await db
+      .from("users")
+      .select("id, full_name, email")
+      .in("id", userIds);
+
+    if (users?.length) {
+      const notification = {
+        type:            payload.type,
+        required_action: payload.required_action,
+        message:         payload.message,
+        entity_name:     payload.entity_name,
+        action_url:      payload.action_url,
+        created_at:      new Date().toISOString(),
+      };
+      await Promise.all(
+        users.map((u) => {
+          const { subject, html, text } = buildTransactionalEmail(
+            u.full_name ?? u.email,
+            notification,
+            SITE_URL,
+          );
+          return sendEmail({ to: u.email, subject, html, text });
+        }),
+      );
+    }
+  } catch (err) {
+    console.error("[notificationService] Email send failed (non-fatal):", err);
+  }
 }
 
 async function notifyRoles(
@@ -239,6 +275,28 @@ export async function notifyFundingGap(
     type:            "funding_gap",
     required_action: "Top up wallet",
     message:         `Insufficient funds to cover "${stageName}". Wallet top-up required before work can proceed.`,
+    entity_type:     "stage",
+    entity_id:       stageId,
+    entity_name:     stageName,
+    action_url:      url,
+    project_id:      projectId,
+    stage_id:        stageId,
+    contract_id:     contractId,
+  });
+}
+
+export async function notifyFundingAllocationRequired(
+  db: Db,
+  projectId: string,
+  stageId: string,
+  stageName: string,
+  contractId: string | null,
+) {
+  const url = `/projects/${projectId}/stages/${stageId}`;
+  await notifyRoles(db, ["funder", "developer", "admin"], projectId, {
+    type:            "funding_required",
+    required_action: "Allocate funding to start work",
+    message:         `"${stageName}" has been accepted. Confirm funding to let the contractor begin.`,
     entity_type:     "stage",
     entity_id:       stageId,
     entity_name:     stageName,
@@ -388,4 +446,76 @@ export async function notifyVariationRejected(
     stage_id:        stageId,
     contract_id:     contractId,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Approval decision notifications
+// ---------------------------------------------------------------------------
+
+/**
+ * Fire notifications after an individual approval decision is recorded.
+ *
+ * - returned  → contractor told to address feedback and resubmit
+ * - rejected  → contractor + developer + admin told the stage was rejected
+ * - approved  → if ALL approval rows for the stage are now approved,
+ *               notify the funder that payment is ready to release
+ */
+export async function notifyApprovalDecision(
+  db: Db,
+  projectId: string,
+  stageId: string,
+  stageName: string,
+  contractId: string | null,
+  decision: "approved" | "rejected" | "returned",
+  approvalRole: string,
+) {
+  const stageUrl = `/projects/${projectId}/stages/${stageId}`;
+
+  if (decision === "returned") {
+    await notifyRoles(db, ["contractor", "admin"], projectId, {
+      type:            "approval_returned",
+      required_action: "Address feedback and resubmit",
+      message:         `"${stageName}" was returned by the ${approvalRole} reviewer. Address their feedback before resubmitting.`,
+      entity_type:     "stage",
+      entity_id:       stageId,
+      entity_name:     stageName,
+      action_url:      stageUrl,
+      project_id:      projectId,
+      stage_id:        stageId,
+      contract_id:     contractId,
+    });
+    return;
+  }
+
+  if (decision === "rejected") {
+    await notifyRoles(db, ["contractor", "developer", "admin"], projectId, {
+      type:            "approval_rejected",
+      required_action: "View rejection details",
+      message:         `"${stageName}" was rejected by the ${approvalRole} reviewer. See the stage for details.`,
+      entity_type:     "stage",
+      entity_id:       stageId,
+      entity_name:     stageName,
+      action_url:      stageUrl,
+      project_id:      projectId,
+      stage_id:        stageId,
+      contract_id:     contractId,
+    });
+    return;
+  }
+
+  // approved — check if all approval rows for this stage are now approved
+  if (decision === "approved") {
+    const { data: allApprovals } = await db
+      .from("approvals")
+      .select("decision")
+      .eq("stage_id", stageId);
+
+    const allDone =
+      (allApprovals ?? []).length > 0 &&
+      (allApprovals ?? []).every((a) => a.decision === "approved");
+
+    if (allDone) {
+      await notifyPaymentReady(db, projectId, stageId, stageName, contractId);
+    }
+  }
 }

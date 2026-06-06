@@ -41,6 +41,7 @@ import {
   notifyPaymentReady,
   notifyEvidenceRequired,
   notifyFundingGap,
+  notifyFundingAllocationRequired,
 } from "@/lib/notifications/notificationService";
 
 // ---------------------------------------------------------------------------
@@ -180,6 +181,48 @@ async function checkApprovalCertificateExists(
   return { ok: true, reason: "" };
 }
 
+/**
+ * KYC gate: the contractor assigned to this stage's contract must have
+ * kyc_status = 'approved' before payment can be released.
+ */
+async function checkContractorKyc(
+  stageId: string,
+  supabase: ReturnType<typeof createServiceClient>,
+): Promise<{ ok: boolean; reason: string }> {
+  const { data } = await supabase
+    .from("contract_stages")
+    .select("contracts!inner ( contractor_id, contractor:users!contractor_id ( full_name, kyc_status ) )")
+    .eq("id", stageId)
+    .single();
+
+  const contract = Array.isArray(data?.contracts) ? data.contracts[0] : data?.contracts;
+  if (!contract?.contractor_id) {
+    // No contractor assigned — allow (some stages may be internal)
+    return { ok: true, reason: "" };
+  }
+
+  const contractor = Array.isArray(contract.contractor) ? contract.contractor[0] : contract.contractor;
+  if (!contractor) {
+    return { ok: false, reason: "Contractor record not found. Cannot verify KYC status." };
+  }
+
+  if (contractor.kyc_status !== "approved") {
+    const statusLabel: Record<string, string> = {
+      not_started:    "has not started identity verification",
+      pending_review: "has identity verification pending review",
+      rejected:       "failed identity verification",
+      expired:        "has an expired identity verification",
+    };
+    const reason = statusLabel[contractor.kyc_status] ?? "has not completed identity verification";
+    return {
+      ok: false,
+      reason: `Payment cannot be released: contractor ${contractor.full_name} ${reason}. KYC must be approved before funds are disbursed.`,
+    };
+  }
+
+  return { ok: true, reason: "" };
+}
+
 // ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
@@ -252,6 +295,14 @@ export async function POST(
 
   const { rule } = validation;
 
+  // ---- 5b. KYC gate on release ----
+  if (action === "release") {
+    const kycCheck = await checkContractorKyc(stageId, serviceClient);
+    if (!kycCheck.ok) {
+      return NextResponse.json({ error: kycCheck.reason }, { status: 403 });
+    }
+  }
+
   // ---- 6. Pre-condition checks ----
   for (const condition of rule.preConditions) {
     let check: { ok: boolean; reason: string };
@@ -300,7 +351,7 @@ export async function POST(
     );
   }
 
-  // ---- 8a. Wallet deduction on release (non-fatal) ----
+  // ---- 8a. Wallet deduction + simultaneous token holder payments on release ----
   if (rule.to === "released") {
     try {
       const { data: stageContract } = await serviceClient
@@ -313,6 +364,7 @@ export async function POST(
       const releaseAmount = Number(stageContract?.value ?? 0);
 
       if (projectId && releaseAmount > 0) {
+        // Deduct from wallet
         const { data: wallet } = await serviceClient
           .from("wallets")
           .select("id, balance, available_amount")
@@ -333,8 +385,36 @@ export async function POST(
             created_by: user.id,
           });
         }
+
+        // Simultaneous token holder payments
+        // All funder-role members of the project are co-beneficiaries in the trust.
+        // Every one must receive a payment record at the identical paid_at timestamp.
+        const { data: tokenHolders } = await serviceClient
+          .from("project_members")
+          .select("user_id")
+          .eq("project_id", projectId)
+          .eq("role", "funder");
+
+        if (tokenHolders && tokenHolders.length > 0) {
+          const paidAt = new Date().toISOString();
+          const shareAmount = Number((releaseAmount / tokenHolders.length).toFixed(2));
+          const sharePct    = Number((1 / tokenHolders.length).toFixed(4));
+          const stageName   = stageContract?.name ?? stageId;
+
+          await serviceClient.from("token_payments").insert(
+            tokenHolders.map((th) => ({
+              stage_id:   stageId,
+              project_id: projectId,
+              user_id:    th.user_id,
+              amount:     shareAmount,
+              share_pct:  sharePct,
+              reference:  `${stageName} — Stage Released`,
+              paid_at:    paidAt,
+            }))
+          );
+        }
       }
-    } catch { /* non-fatal */ }
+    } catch { /* non-fatal — transition must never fail due to payment record errors */ }
   }
 
   // ---- 8. Fire notifications (non-fatal) ----
@@ -358,6 +438,8 @@ export async function POST(
         await notifyEvidenceRequired(serviceClient, projectId, stageId, stage.name, contractId);
       } else if (rule.to === "funding_gap") {
         await notifyFundingGap(serviceClient, projectId, stageId, stage.name, contractId);
+      } else if (rule.to === "accepted") {
+        await notifyFundingAllocationRequired(serviceClient, projectId, stageId, stage.name, contractId);
       }
     }
   } catch { /* non-fatal — transitions must never fail due to notification errors */ }

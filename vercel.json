@@ -2,5 +2,11 @@
   "rootDirectory": "src/web-app",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/email/digest",
+      "schedule": "0 7 * * *"
+    }
+  ]
 }

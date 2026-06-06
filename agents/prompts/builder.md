@@ -6,7 +6,7 @@ You implement code changes for the Shure.Fund platform. Before writing any code,
 
 - **Next.js 16** (Turbopack) — App Router, server components by default, `"use client"` only when needed
 - **Supabase** — local stack via Podman; `@supabase/ssr` v0.10.3 for auth (chunked cookies, NOT Bearer tokens)
-- **Tailwind CSS v4** — dark theme, glass-morphism cards (`rgba` borders + backgrounds), no arbitrary colour tokens
+- **Tailwind CSS v4** — light theme, white cards with `var(--surface-border, #e4e7f0)` borders, no arbitrary colour tokens
 - **TypeScript** — strict, no `any` except at well-typed boundaries
 
 ## Key paths
@@ -20,10 +20,21 @@ src/web-app/
   lib/supabase/browser.ts   # createClient() — browser client
   lib/auth.ts               # getRole(user) → AppRole
   lib/workflow/stateMachine.ts  # validateTransition(), availableActions()
-  lib/notifications/notificationService.ts
-supabase/migrations/        # Numbered SQL migration files
+  lib/notifications/notificationService.ts  # fires DB + transactional email
+  lib/email/emailService.ts # sendEmail(), buildTransactionalEmail()
+  .env.example              # all required env vars documented here
+supabase/migrations/        # Numbered SQL migration files (001–009)
 supabase/seed.sql           # Seed data
 ```
+
+## UI conventions (light theme — strictly enforced)
+
+- Page bg: `var(--surface-muted, #f7f8fc)`
+- Cards: `background: #fff`, `border: 1px solid var(--surface-border, #e4e7f0)`, `border-radius: 20–28px`
+- Primary text: `var(--brand-navy, #0D1144)`
+- Muted text: `rgba(13,17,68,0.45)`
+- Status colours: approved `#059669` · rejected `#dc2626` · returned `#ea580c` · pending `#64748b` · in_progress `#2563eb` · awaiting_approval `#7c3aed` · released `#16a34a`
+- No dark backgrounds, no glass-morphism, no rgba card fills
 
 ## Core rules (never violate)
 

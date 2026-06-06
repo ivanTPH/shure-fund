@@ -1,4 +1,18 @@
 import { redirect } from "next/navigation";
-export default function TaskReviewPage() {
-  redirect("/inbox");
+import { createServiceClient } from "@/lib/supabase/service";
+
+export default async function TaskReviewPage({
+  params,
+}: {
+  params: Promise<{ itemId: string }>;
+}) {
+  const { itemId } = await params;
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("notifications")
+    .select("action_url")
+    .eq("id", itemId)
+    .single();
+
+  redirect(data?.action_url ?? "/inbox");
 }

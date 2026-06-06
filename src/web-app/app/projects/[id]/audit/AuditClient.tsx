@@ -73,12 +73,16 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  funder: "Funder",
-  developer: "Developer",
-  contractor: "Contractor",
-  commercial: "Commercial",
-  consultant: "Consultant",
-  admin: "Admin",
+  funder:            "Funder",
+  developer:         "Project Owner",
+  contractor:        "Contractor",
+  commercial:        "Commercial",
+  consultant:        "Consultant",
+  professional:      "Consultant",           // DB approval_role value
+  treasury:          "Funder / Project Owner", // DB approval_role value
+  subcontractor:     "Contractor",
+  quantity_surveyor: "Quantity Surveyor",
+  admin:             "Admin",
 };
 
 // ---------------------------------------------------------------------------

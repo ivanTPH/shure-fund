@@ -17,6 +17,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../components/AppShell";
 import FileViewerModal from "../../../../components/FileViewerModal";
+import { useToast } from "../../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -185,6 +186,7 @@ function Section({
 
 export default function StageOverviewPage() {
   const { id: projectId, stageId } = useParams<{ id: string; stageId: string }>();
+  const { toast } = useToast();
 
   const [stage, setStage]         = useState<StageDetail | null>(null);
   const [evidence, setEvidence]   = useState<Evidence[]>([]);
@@ -198,14 +200,11 @@ export default function StageOverviewPage() {
   // Workflow transitions
   const [availableTransitions, setAvailableTransitions] = useState<string[]>([]);
   const [transitioning, setTransitioning]               = useState(false);
-  const [transitionError, setTransitionError]           = useState<string | null>(null);
-  const [transitionSuccess, setTransitionSuccess]       = useState<string | null>(null);
 
   // Evidence inline review
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [reviewSubmitting, setReviewSubmitting] = useState<string | null>(null);
-  const [reviewError, setReviewError] = useState<string | null>(null);
   const notesRef = useRef<HTMLTextAreaElement | null>(null);
 
   // File viewer modal — must be declared before any early returns
@@ -301,7 +300,6 @@ export default function StageOverviewPage() {
 
   async function reviewEvidence(evidenceId: string, status: "accepted" | "rejected" | "requires_more") {
     setReviewSubmitting(evidenceId);
-    setReviewError(null);
     try {
       const res = await fetch(`/api/evidence/${evidenceId}`, {
         method: "PATCH",
@@ -310,14 +308,16 @@ export default function StageOverviewPage() {
       });
       if (!res.ok) {
         const d = await res.json();
-        setReviewError(d.error ?? "Failed to update evidence.");
+        toast(d.error ?? "Failed to update evidence.", "error");
         return;
       }
       setEvidence((prev) => prev.map((e) => e.id === evidenceId ? { ...e, status } : e));
       setExpandedEvidenceId(null);
       setReviewNotes((prev) => ({ ...prev, [evidenceId]: "" }));
+      const label = status === "accepted" ? "Evidence accepted" : status === "rejected" ? "Evidence rejected" : "More information requested";
+      toast(label, status === "accepted" ? "success" : status === "rejected" ? "error" : "info");
     } catch {
-      setReviewError("Network error.");
+      toast("Network error updating evidence.", "error");
     } finally {
       setReviewSubmitting(null);
     }
@@ -325,8 +325,6 @@ export default function StageOverviewPage() {
 
   async function performTransition(action: string) {
     setTransitioning(true);
-    setTransitionError(null);
-    setTransitionSuccess(null);
     try {
       const res = await fetch(`/api/stages/${stageId}/transition`, {
         method:  "POST",
@@ -335,13 +333,14 @@ export default function StageOverviewPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setTransitionError(data.error ?? "Transition failed.");
+        toast(data.error ?? "Action failed.", "error");
         return;
       }
-      setTransitionSuccess(`Stage moved to: ${data.newStatus?.replace(/_/g, " ") ?? action}`);
+      const newStatus = (data.to ?? "").replace(/_/g, " ");
+      toast(`Stage moved to: ${newStatus}`, "success");
       await load();
     } catch {
-      setTransitionError("Network error.");
+      toast("Network error.", "error");
     } finally {
       setTransitioning(false);
     }
@@ -391,7 +390,7 @@ export default function StageOverviewPage() {
 
   const pendingApprovals = approvals.filter((a) => a.decision === "pending").length;
   const allApproved = approvals.length > 0 && approvals.every((a) => a.decision === "approved");
-  const activeDisputes = disputes.filter((d) => d.status === "raised" || d.status === "open").length;
+  const activeDisputes = disputes.filter((d) => d.status === "raised" || d.status === "under_review").length;
 
   const variationImpact = variations
     .filter((v) => v.status === "approved" || v.status === "active")
@@ -403,6 +402,41 @@ export default function StageOverviewPage() {
   const canRelease      = (userRole === "funder" || userRole === "admin") && stage.status === "available_to_release";
   const canVariation    = ["contractor", "developer", "admin"].includes(userRole ?? "");
   const isAdmin         = userRole === "admin";
+
+  // Task banner — what does THIS user need to do right now?
+  const myApprovalRole =
+    userRole === "commercial" ? "commercial"
+    : userRole === "consultant" ? "professional"
+    : userRole === "funder" || userRole === "developer" ? "treasury"
+    : null;
+  const myApprovalRecord = myApprovalRole ? approvals.find((a) => a.role === myApprovalRole) : null;
+  const iAlreadyActed = myApprovalRecord && myApprovalRecord.decision !== "pending";
+
+  type TaskBannerConfig = { message: string; sub?: string; accent: string; bg: string; border: string; href?: string; cta?: string } | null;
+
+  function getTaskBanner(): TaskBannerConfig {
+    if (!stage) return null;
+    const s = stage.status;
+    if (userRole === "contractor") {
+      if (s === "in_progress")       return { accent: "#2563eb", bg: "rgba(37,99,235,0.06)", border: "rgba(37,99,235,0.2)", message: "Upload your evidence to progress this stage", sub: "Use the 'Upload evidence' button below once your work is complete.", href: `/projects/${projectId}/stages/${stageId}/action`, cta: "Upload evidence" };
+      if (s === "returned")          return { accent: "#ea580c", bg: "rgba(234,88,12,0.06)", border: "rgba(234,88,12,0.2)",  message: "Stage returned for revision", sub: "Review the notes in the approval chain below, then re-upload your evidence.", href: `/projects/${projectId}/stages/${stageId}/action`, cta: "Upload evidence" };
+      if (s === "awaiting_approval") return { accent: "#7c3aed", bg: "rgba(124,58,237,0.05)", border: "rgba(124,58,237,0.18)", message: "Evidence submitted — awaiting sign-offs", sub: "No action needed from you right now. You will be notified when a decision is made." };
+      if (s === "disputed")          return { accent: "#dc2626", bg: "rgba(220,38,38,0.05)", border: "rgba(220,38,38,0.18)", message: "Stage under dispute", sub: "Payment is held until the dispute is resolved. No action available until then." };
+      if (s === "available_to_release") return { accent: "#059669", bg: "rgba(5,150,105,0.05)", border: "rgba(5,150,105,0.18)", message: "All approvals granted", sub: "Payment is ready to be released by the funder. No action needed from you." };
+    }
+    if (userRole === "commercial" || userRole === "consultant") {
+      if (s === "awaiting_approval" && !iAlreadyActed) return { accent: "#7c3aed", bg: "rgba(124,58,237,0.06)", border: "rgba(124,58,237,0.2)", message: `Your ${userRole === "commercial" ? "commercial" : "professional"} sign-off is required`, sub: "Review the evidence below and submit your decision.", href: `/projects/${projectId}/stages/${stageId}/approve`, cta: "Sign off now" };
+      if (s === "awaiting_approval" && iAlreadyActed)  return { accent: "#059669", bg: "rgba(5,150,105,0.05)", border: "rgba(5,150,105,0.18)", message: "You have signed off", sub: "Awaiting the remaining approvals in the chain." };
+    }
+    if (userRole === "funder" || userRole === "developer") {
+      if (s === "awaiting_approval" && !iAlreadyActed) return { accent: "#7c3aed", bg: "rgba(124,58,237,0.06)", border: "rgba(124,58,237,0.2)", message: "Treasury sign-off required", sub: "Review the evidence and commercial sign-offs, then submit your decision.", href: `/projects/${projectId}/stages/${stageId}/approve`, cta: "Sign off now" };
+      if (s === "awaiting_approval" && iAlreadyActed)  return { accent: "#059669", bg: "rgba(5,150,105,0.05)", border: "rgba(5,150,105,0.18)", message: "You have signed off", sub: "Awaiting the remaining approvals in the chain." };
+      if (s === "available_to_release" && userRole === "funder") return { accent: "#059669", bg: "rgba(5,150,105,0.07)", border: "rgba(5,150,105,0.25)", message: "Ready to release payment", sub: `All sign-offs complete. You can now release ${gbp.format(stage?.value ?? 0)} to the contractor.`, href: `/projects/${projectId}/stages/${stageId}/release`, cta: "Release payment" };
+    }
+    return null;
+  }
+
+  const taskBanner = getTaskBanner();
 
   // ---------------------------------------------------------------------------
   // Render
@@ -421,6 +455,28 @@ export default function StageOverviewPage() {
           <span>/</span>
           <span style={{ color: "var(--brand-navy, #0D1144)", fontWeight: 500 }}>{stage.name}</span>
         </div>
+
+        {/* ── Task banner — role-contextual guidance ────────────────────────── */}
+        {taskBanner && (
+          <div
+            className="rounded-[20px] px-5 py-4"
+            style={{ backgroundColor: taskBanner.bg, border: `1px solid ${taskBanner.border}` }}
+          >
+            <p className="text-sm font-bold" style={{ color: taskBanner.accent }}>{taskBanner.message}</p>
+            {taskBanner.sub && (
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: "rgba(13,17,68,0.6)" }}>{taskBanner.sub}</p>
+            )}
+            {taskBanner.href && taskBanner.cta && (
+              <Link
+                href={taskBanner.href}
+                className="mt-3 inline-block rounded-xl px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
+                style={{ backgroundColor: taskBanner.accent }}
+              >
+                {taskBanner.cta} →
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* ── Stage header ─────────────────────────────────────────────────── */}
         <div
@@ -483,6 +539,8 @@ export default function StageOverviewPage() {
             </p>
             <div className="flex flex-wrap gap-2">
               {availableTransitions.map((action) => {
+                // complete_approvals fires automatically via DB trigger — never show as a manual button
+                if (action === "complete_approvals") return null;
                 const cfg = ACTION_CONFIG[action];
                 if (!cfg) return null;
                 return (
@@ -499,12 +557,6 @@ export default function StageOverviewPage() {
                 );
               })}
             </div>
-            {transitionError && (
-              <p className="mt-3 text-xs" style={{ color: "#dc2626" }}>{transitionError}</p>
-            )}
-            {transitionSuccess && (
-              <p className="mt-3 text-xs font-semibold" style={{ color: "#059669" }}>{transitionSuccess}</p>
-            )}
           </div>
         )}
 
@@ -533,23 +585,23 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {/* AWAITING_APPROVAL: review & approve (not shown when disputed) */}
-          {isApprover && stage.status !== "disputed" && stage.status !== "released" && (
+          {/* AWAITING_APPROVAL: review & approve — only shown when stage actually needs sign-off */}
+          {isApprover && stage.status === "awaiting_approval" && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/approve`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
               style={{
-                backgroundColor: pendingApprovals > 0 ? "rgba(124,58,237,0.07)" : "rgba(148,163,184,0.08)",
-                border: `1px solid ${pendingApprovals > 0 ? "rgba(124,58,237,0.2)" : "rgba(148,163,184,0.2)"}`,
-                color: pendingApprovals > 0 ? "#7c3aed" : "#64748b",
+                backgroundColor: "rgba(124,58,237,0.07)",
+                border: "1px solid rgba(124,58,237,0.2)",
+                color: "#7c3aed",
               }}
             >
-              {pendingApprovals > 0 ? `Review & approve (${pendingApprovals} pending)` : "View approvals"}
+              {pendingApprovals > 0 ? `Sign off (${pendingApprovals} pending)` : "Review & sign off"}
             </Link>
           )}
 
-          {/* Contractor: upload evidence (only when in progress / returned) */}
-          {isContractor && (stage.status === "in_progress" || stage.status === "returned" || stage.status === "draft") && (
+          {/* Contractor: upload evidence (only when in progress or returned — not draft) */}
+          {isContractor && (stage.status === "in_progress" || stage.status === "returned") && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/action`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
@@ -570,8 +622,8 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {/* Raise dispute — only when NOT already disputed or released */}
-          {stage.status !== "disputed" && stage.status !== "released" && stage.status !== "draft" && (
+          {/* Raise dispute — only when work is underway or under review */}
+          {(stage.status === "in_progress" || stage.status === "awaiting_approval" || stage.status === "returned") && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/disputes/new`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
@@ -621,11 +673,6 @@ export default function StageOverviewPage() {
             </div>
           )}
 
-          {reviewError && (
-            <p className="mb-2 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626" }}>
-              {reviewError}
-            </p>
-          )}
           {evidence.length === 0 ? (
             <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No evidence uploaded yet.</p>
           ) : (
@@ -655,7 +702,6 @@ export default function StageOverviewPage() {
                         className="flex w-full items-start gap-3 px-4 py-3 text-left"
                         onClick={() => {
                           setExpandedEvidenceId(isExpanded ? null : item.id);
-                          setReviewError(null);
                           setTimeout(() => notesRef.current?.focus(), 50);
                         }}
                       >
@@ -825,9 +871,10 @@ export default function StageOverviewPage() {
                 const isPending  = v.status === "pending" || v.status === "under_review";
                 const color = isApproved ? "#059669" : isPending ? "#d97706" : "#6b7280";
                 return (
-                  <div
+                  <Link
                     key={v.id}
-                    className="rounded-2xl px-4 py-3"
+                    href={`/projects/${projectId}/stages/${stageId}/variations/${v.id}`}
+                    className="block rounded-2xl px-4 py-3 transition hover:bg-slate-50"
                     style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -845,7 +892,7 @@ export default function StageOverviewPage() {
                       <span>·</span>
                       <span>{relativeTime(v.createdAt)}</span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

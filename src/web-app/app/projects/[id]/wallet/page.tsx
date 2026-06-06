@@ -44,6 +44,16 @@ type RetentionRow = {
   retention: number;
 };
 
+type TokenPayment = {
+  id: string;
+  amount: number;
+  sharePct: number | null;
+  reference: string;
+  paidAt: string;
+  stageName: string | null;
+  userId: string;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -86,6 +96,7 @@ export default function WalletPage() {
   const [wallet, setWallet]               = useState<Wallet | null>(null);
   const [transactions, setTransactions]   = useState<WalletTx[]>([]);
   const [retention, setRetention]         = useState<RetentionRow[]>([]);
+  const [tokenPayments, setTokenPayments] = useState<TokenPayment[]>([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState<string | null>(null);
   const [canDeposit, setCanDeposit]       = useState(false);
@@ -104,18 +115,20 @@ export default function WalletPage() {
         const role = user ? getRole(user) : null;
         setCanDeposit(role === "funder" || role === "admin");
 
-        const [walletRes, txRes, dashRes] = await Promise.all([
+        const [walletRes, txRes, dashRes, tokenRes] = await Promise.all([
           fetch(`/api/projects/${projectId}/wallet`),
           fetch(`/api/projects/${projectId}/wallet/transactions`),
           fetch(`/api/projects/${projectId}/dashboard`),
+          fetch(`/api/token-payments?projectId=${projectId}`),
         ]);
-        const [walletData, txData, dashData] = await Promise.all([
-          walletRes.json(), txRes.json(), dashRes.json(),
+        const [walletData, txData, dashData, tokenData] = await Promise.all([
+          walletRes.json(), txRes.json(), dashRes.json(), tokenRes.json(),
         ]);
 
         if (walletRes.ok) setWallet(walletData.wallet ?? null);
         else setError(walletData.error ?? "Failed to load wallet.");
         if (txRes.ok) setTransactions(txData.transactions ?? []);
+        if (tokenRes.ok) setTokenPayments(tokenData.payments ?? []);
 
         // Build retention rows from released stages in dashboard
         if (dashRes.ok) {
@@ -365,7 +378,58 @@ export default function WalletPage() {
             </div>
           )}
 
-          {/* 4. Transaction history — bank statement format */}
+          {/* 4. Token distributions — per-stage payouts to token holders */}
+          {tokenPayments.length > 0 && (() => {
+            // Group by stage (paid_at batch)
+            const byStage = new Map<string, { stageName: string | null; paidAt: string; rows: TokenPayment[] }>();
+            for (const p of tokenPayments) {
+              const key = `${p.stageName ?? p.paidAt}`;
+              if (!byStage.has(key)) byStage.set(key, { stageName: p.stageName, paidAt: p.paidAt, rows: [] });
+              byStage.get(key)!.rows.push(p);
+            }
+            const batches = [...byStage.values()].sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+            const totalDistributed = tokenPayments.reduce((s, p) => s + p.amount, 0);
+
+            return (
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Token distributions</p>
+                <div
+                  className="rounded-[20px] overflow-hidden"
+                  style={{ border: "1px solid rgba(5,150,105,0.2)", backgroundColor: "rgba(5,150,105,0.03)" }}
+                >
+                  {batches.map((batch, bi) => (
+                    <div key={batch.paidAt + bi} style={{ borderTop: bi > 0 ? "1px solid var(--surface-border, #e4e7f0)" : undefined }}>
+                      <div className="flex items-center justify-between px-5 py-2.5" style={{ backgroundColor: "rgba(5,150,105,0.05)" }}>
+                        <p className="text-xs font-bold" style={{ color: "#059669" }}>{batch.stageName ?? "Stage release"}</p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                          {new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(batch.paidAt))}
+                        </p>
+                      </div>
+                      {batch.rows.map((r, i) => (
+                        <div key={r.id} className="flex items-center justify-between px-5 py-2.5" style={{ borderTop: i > 0 ? "1px solid var(--surface-border, #e4e7f0)" : undefined }}>
+                          <div>
+                            <p className="text-xs font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{r.reference}</p>
+                            {r.sharePct != null && (
+                              <p className="text-[10px]" style={{ color: "rgba(13,17,68,0.4)" }}>
+                                {(r.sharePct * 100).toFixed(1)}% share
+                              </p>
+                            )}
+                          </div>
+                          <p className="text-sm font-bold" style={{ color: "#059669" }}>{gbp.format(r.amount)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>
+                    <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Total distributed to token holders</p>
+                    <p className="text-base font-bold" style={{ color: "#059669" }}>{gbp.format(totalDistributed)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 5. Transaction history — bank statement format */}
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Transaction history</p>
             {transactions.length === 0 ? (

@@ -20,21 +20,22 @@ Shure.Fund is a professional construction fintech platform. The brand conveys:
 
 ## Visual identity
 
-### Colour palette (dark theme)
+### Colour palette (light theme)
 
 | Purpose | Value |
 |---------|-------|
-| Background base | `#0a0a0a` |
-| Card glass | `rgba(255,255,255,0.02–0.06)` |
-| Card border | `rgba(255,255,255,0.08–0.12)` |
-| Text primary | `text-white` |
-| Text secondary | `text-neutral-400` |
-| Text muted | `text-neutral-500` |
-| Accent blue | `#60a5fa` |
-| Accent purple | `#c084fc` |
-| Accent green | `#4ade80` |
-| Warning amber | `#fbbf24` |
-| Danger red | `#f87171` |
+| Page background | `var(--surface-muted, #f7f8fc)` |
+| Card background | `#fff` |
+| Card border | `var(--surface-border, #e4e7f0)` |
+| Brand navy (primary text) | `var(--brand-navy, #0D1144)` |
+| Muted text | `rgba(13,17,68,0.45–0.6)` |
+| Approved / released | `#059669` / `#16a34a` |
+| Rejected / disputed | `#dc2626` |
+| Returned | `#ea580c` |
+| In progress | `#d97706` |
+| Awaiting approval | `#7c3aed` |
+| Pending / draft | `#94a3b8` |
+| Primary button | `#0D1144` (navy) |
 
 ### Typography
 
@@ -45,7 +46,7 @@ Shure.Fund is a professional construction fintech platform. The brand conveys:
 
 ### Component shapes
 
-- Cards: `rounded-[20px]`
+- Cards: `rounded-[20px]` to `rounded-[28px]`
 - Buttons/pills: `rounded-xl` or `rounded-full`
 - Inputs: `rounded-xl`
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../../components/AppShell";
 import FileViewerModal from "../../../../../../components/FileViewerModal";
@@ -135,6 +135,7 @@ function StatusTimeline({ current }: { current: string }) {
 
 export default function DisputeDetailPage() {
   const { id: projectId, stageId, disputeId } = useParams<{ id: string; stageId: string; disputeId: string }>();
+  const router = useRouter();
 
   const [dispute, setDispute]     = useState<Dispute | null>(null);
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
@@ -189,8 +190,18 @@ export default function DisputeDetailPage() {
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ action: transitionAction }),
         });
+        // Dispute resolved — return to stage overview
+        router.push(`/projects/${projectId}/stages/${stageId}`);
+        return;
       }
 
+      if (action === "escalate") {
+        // Escalated — no further actions here; return to stage
+        router.push(`/projects/${projectId}/stages/${stageId}`);
+        return;
+      }
+
+      // "respond" — stay on page, reload updated dispute state
       await load();
       setNotes("");
     } finally {

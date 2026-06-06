@@ -80,7 +80,7 @@ function EvidenceRow({ item, onView }: { item: EvidenceItem; onView: (url: strin
   return (
     <div
       className="flex items-start gap-3 rounded-2xl px-4 py-3"
-      style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+      style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)" }}
     >
       {/* File type badge */}
       <div
@@ -95,15 +95,16 @@ function EvidenceRow({ item, onView }: { item: EvidenceItem; onView: (url: strin
         {item.signedUrl ? (
           <button
             onClick={() => onView(item.signedUrl!, item.name)}
-            className="block truncate text-left text-sm font-medium text-white underline-offset-2 hover:underline"
+            className="block truncate text-left text-sm font-medium underline-offset-2 hover:underline"
+            style={{ color: "var(--brand-navy, #0D1144)" }}
           >
             {item.name}
           </button>
         ) : (
-          <p className="truncate text-sm font-medium text-white">{item.name}</p>
+          <p className="truncate text-sm font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{item.name}</p>
         )}
 
-        <p className="mt-0.5 text-xs text-neutral-400">
+        <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
           {formatBytes(item.fileSize)} · {uploaderName} · {formatDate(item.uploadedAt)}
         </p>
       </div>
@@ -113,15 +114,15 @@ function EvidenceRow({ item, onView }: { item: EvidenceItem; onView: (url: strin
         className="mt-1 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
         style={{
           backgroundColor: item.status === "accepted"
-            ? "rgba(22,163,74,0.18)"
+            ? "rgba(5,150,105,0.1)"
             : item.status === "rejected"
-            ? "rgba(220,38,38,0.18)"
-            : "rgba(255,255,255,0.08)",
+            ? "rgba(220,38,38,0.1)"
+            : "rgba(13,17,68,0.06)",
           color: item.status === "accepted"
-            ? "#4ade80"
+            ? "#059669"
             : item.status === "rejected"
-            ? "#f87171"
-            : "#a3a3a3",
+            ? "#dc2626"
+            : "rgba(13,17,68,0.5)",
         }}
       >
         {item.status === "requires_more" ? "More needed" : item.status}
@@ -246,18 +247,18 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
             disabled={uploading}
             className="w-full rounded-2xl px-4 py-5 text-center transition-colors disabled:cursor-not-allowed"
             style={{
-              border: `2px dashed ${dragOver ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)"}`,
-              backgroundColor: dragOver ? "rgba(255,255,255,0.06)" : "transparent",
+              border: `2px dashed ${dragOver ? "#0D1144" : "var(--surface-border, #e4e7f0)"}`,
+              backgroundColor: dragOver ? "rgba(13,17,68,0.04)" : "rgba(13,17,68,0.02)",
             }}
           >
             {uploading ? (
-              <p className="text-sm text-neutral-400">Uploading…</p>
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>Uploading…</p>
             ) : (
               <>
-                <p className="text-sm font-medium text-white">
+                <p className="text-sm font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>
                   {dragOver ? "Drop to upload" : "Upload evidence"}
                 </p>
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
                   PDF, JPG, PNG, XLSX · max 50 MB
                 </p>
               </>
@@ -268,9 +269,9 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
             <p
               className="mt-2 rounded-xl px-3 py-2 text-xs"
               style={{
-                backgroundColor: "rgba(239,68,68,0.1)",
-                border: "1px solid rgba(239,68,68,0.2)",
-                color: "#f87171",
+                backgroundColor: "rgba(220,38,38,0.06)",
+                border: "1px solid rgba(220,38,38,0.2)",
+                color: "#dc2626",
               }}
             >
               {error}
@@ -281,9 +282,9 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
 
       {/* Evidence list */}
       {loadingList ? (
-        <p className="text-xs text-neutral-500">Loading evidence…</p>
+        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Loading evidence…</p>
       ) : items.length === 0 ? (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
           No evidence uploaded yet.
           {uploadAllowed
             ? " Upload files above to support this stage."

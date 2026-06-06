@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
+import { notifyApprovalDecision } from "@/lib/notifications/notificationService";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,13 +33,15 @@ import type { AppRole } from "@/lib/auth";
 type ApprovalRole = "commercial" | "professional" | "treasury";
 type ApprovalDecision = "approved" | "rejected" | "returned";
 
-/** Maps an app-level role to its approval_role enum value */
-function toApprovalRole(appRole: AppRole): ApprovalRole | null {
+/** Maps an app-level role (or raw DB role) to its approval_role enum value */
+function toApprovalRole(appRole: AppRole | string): ApprovalRole | null {
   switch (appRole) {
     case "commercial":  return "commercial";
-    case "consultant":  return "professional";
+    case "consultant":
+    case "professional": return "professional"; // dev profiles use 'professional' directly
     case "funder":
-    case "developer":   return "treasury";
+    case "developer":
+    case "treasury":    return "treasury";
     case "admin":       return "treasury"; // fallback; body may override
     default:            return null;
   }
@@ -156,7 +159,7 @@ export async function POST(
   // 4. Verify stage exists and is in awaiting_approval
   const { data: stage, error: stageError } = await service
     .from("contract_stages")
-    .select("id, status")
+    .select("id, name, status, contract_id, contract:contracts!contract_id(id, project_id)")
     .eq("id", stageId)
     .single();
 
@@ -209,6 +212,25 @@ export async function POST(
       { error: `Database error: ${upsertError?.message}` },
       { status: 500 },
     );
+  }
+
+  // 7. Fire notifications (non-fatal)
+  try {
+    const contractInfo = Array.isArray(stage.contract) ? stage.contract[0] : stage.contract;
+    const projectId = (contractInfo as { project_id?: string } | null)?.project_id ?? null;
+    if (projectId) {
+      await notifyApprovalDecision(
+        service,
+        projectId,
+        stageId,
+        stage.name,
+        stage.contract_id,
+        decision,
+        approvalRole,
+      );
+    }
+  } catch (err) {
+    console.error("[approvals] Notification error (non-fatal):", err);
   }
 
   return NextResponse.json({
