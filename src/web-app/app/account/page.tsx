@@ -169,10 +169,13 @@ export default function AccountPage() {
               Navigate
             </p>
             {[
-              { href: "/projects",  label: "My projects",  desc: "All projects you're assigned to" },
-              { href: "/inbox",     label: "Inbox",        desc: "Notifications and actions" },
-              { href: "/approvals", label: "Sign-offs",    desc: "Pending approvals across all projects" },
-              { href: "/audit-log", label: "Audit log",    desc: "Immutable activity trail" },
+              { href: "/projects",         label: "My projects",  desc: "All projects you're assigned to" },
+              { href: "/inbox",            label: "Inbox",        desc: "Notifications and actions" },
+              { href: "/approvals",        label: "Sign-offs",    desc: "Pending approvals across all projects" },
+              { href: "/audit-log",        label: "Audit log",    desc: "Immutable activity trail" },
+              ...(role === "funder" || role === "admin"
+                ? [{ href: "/account/payments", label: "My payments", desc: "Token distributions received from stage releases" }]
+                : []),
               { href: "/settings",  label: "Settings",     desc: "Edit your name and password" },
             ].map(({ href, label, desc }) => (
               <Link
