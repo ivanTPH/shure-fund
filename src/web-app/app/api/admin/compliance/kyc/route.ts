@@ -29,6 +29,7 @@ export async function GET() {
       full_name, date_of_birth, nationality,
       address_line1, city, postcode, country,
       source_of_funds, reviewer_notes, reviewed_at,
+      document_front_path, document_back_path, proof_of_address_path,
       user_id
     `)
     .order("created_at", { ascending: false })
@@ -47,12 +48,32 @@ export async function GET() {
 
   const userMap = Object.fromEntries((users ?? []).map((u) => [u.id, u]));
 
-  const enriched = submissions.map((s) => ({
-    ...s,
-    user: userMap[s.user_id] ?? null,
+  // Generate short-lived signed URLs for uploaded documents (1 hour)
+  const withSignedUrls = await Promise.all(submissions.map(async (s) => {
+    async function signedUrl(path: string | null): Promise<string | null> {
+      if (!path) return null;
+      const { data } = await supabase.storage
+        .from("kyc-documents")
+        .createSignedUrl(path, 3600);
+      return data?.signedUrl ?? null;
+    }
+
+    const [frontUrl, backUrl, addressUrl] = await Promise.all([
+      signedUrl(s.document_front_path),
+      signedUrl(s.document_back_path),
+      signedUrl(s.proof_of_address_path),
+    ]);
+
+    return {
+      ...s,
+      user: userMap[s.user_id] ?? null,
+      document_front_url:   frontUrl,
+      document_back_url:    backUrl,
+      proof_of_address_url: addressUrl,
+    };
   }));
 
-  return NextResponse.json({ submissions: enriched });
+  return NextResponse.json({ submissions: withSignedUrls });
 }
 
 // ---------------------------------------------------------------------------

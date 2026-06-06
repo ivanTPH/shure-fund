@@ -24,6 +24,10 @@ interface FormData {
   document_type:   string;
   document_number: string;
   document_expiry: string;
+  // Document uploads (storage paths, set after upload)
+  document_front_path:   string;
+  document_back_path:    string;
+  proof_of_address_path: string;
   // Funds
   source_of_funds:  string;
   source_of_wealth: string;
@@ -33,6 +37,7 @@ const EMPTY: FormData = {
   full_name: "", date_of_birth: "", nationality: "",
   address_line1: "", address_line2: "", city: "", postcode: "", country: "GB",
   document_type: "passport", document_number: "", document_expiry: "",
+  document_front_path: "", document_back_path: "", proof_of_address_path: "",
   source_of_funds: "", source_of_wealth: "",
 };
 
@@ -129,8 +134,37 @@ export default function KycPage() {
   const [error,   setError]   = useState<string | null>(null);
   const [existingStatus, setExistingStatus] = useState<string | null>(null);
 
+  // Document upload state
+  const [uploadingDoc, setUploadingDoc] = useState<"front" | "back" | "address" | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+
   function set(field: keyof FormData) {
     return (v: string) => setForm((f) => ({ ...f, [field]: v }));
+  }
+
+  async function uploadDocument(file: File, docType: "front" | "back" | "address") {
+    setUploadingDoc(docType);
+    setUploadErrors((e) => ({ ...e, [docType]: "" }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("docType", docType);
+      const res = await fetch("/api/account/kyc/documents", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadErrors((e) => ({ ...e, [docType]: data.error ?? "Upload failed." }));
+        return;
+      }
+      const pathField: keyof FormData =
+        docType === "front" ? "document_front_path" :
+        docType === "back"  ? "document_back_path"  :
+                              "proof_of_address_path";
+      setForm((f) => ({ ...f, [pathField]: data.path }));
+    } catch {
+      setUploadErrors((e) => ({ ...e, [docType]: "Network error — please try again." }));
+    } finally {
+      setUploadingDoc(null);
+    }
   }
 
   // Load existing KYC status
@@ -330,28 +364,105 @@ export default function KycPage() {
                   onChange={set("document_type")}
                   required
                   options={[
-                    { value: "passport",         label: "Passport" },
-                    { value: "driving_licence",   label: "Driving licence" },
-                    { value: "national_id",        label: "National ID card" },
+                    { value: "passport",        label: "Passport" },
+                    { value: "driving_licence", label: "Driving licence" },
+                    { value: "national_id",     label: "National ID card" },
                   ]}
                 />
                 <Field label="Document number" id="document_number" value={form.document_number} onChange={set("document_number")} required placeholder="As shown on your document" />
                 <Field label="Expiry date" id="document_expiry" type="date" value={form.document_expiry} onChange={set("document_expiry")} required />
 
-                {/* Document upload notice */}
-                <div style={{ backgroundColor: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.15)", borderRadius: "12px", padding: "14px" }}>
-                  <p style={{ fontSize: "13px", color: "#1d4ed8", fontWeight: 600, marginBottom: "4px" }}>Document upload</p>
-                  <p style={{ fontSize: "12px", color: "rgba(13,17,68,0.55)", lineHeight: "1.6" }}>
-                    A compliance officer will contact you via email to collect certified copies of your identity documents. Do not send originals.
-                  </p>
-                </div>
+                {/* Document uploads */}
+                {(["front", "back", "address"] as const).map((dt) => {
+                  const labels: Record<typeof dt, string> = {
+                    front:   "Photo ID — front",
+                    back:    "Photo ID — back (optional)",
+                    address: "Proof of address (optional)",
+                  };
+                  const hints: Record<typeof dt, string> = {
+                    front:   "Front of passport, driving licence or national ID.",
+                    back:    "Back of card (if applicable).",
+                    address: "Bank statement or utility bill dated within 3 months.",
+                  };
+                  const pathField: keyof FormData =
+                    dt === "front" ? "document_front_path" :
+                    dt === "back"  ? "document_back_path"  :
+                                     "proof_of_address_path";
+                  const uploaded = !!form[pathField];
+                  const uploading = uploadingDoc === dt;
+                  const err = uploadErrors[dt];
+
+                  return (
+                    <div key={dt}>
+                      <p style={{ fontSize: "13px", fontWeight: 600, color: "rgba(13,17,68,0.65)", marginBottom: "6px" }}>
+                        {labels[dt]}
+                        {dt === "front" && <span style={{ color: "#dc2626" }}> *</span>}
+                      </p>
+                      <p style={{ fontSize: "11px", color: "rgba(13,17,68,0.45)", marginBottom: "8px" }}>{hints[dt]}</p>
+
+                      {uploaded ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", borderRadius: "12px", backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                          <span style={{ color: "#059669", fontWeight: 700 }}>✓</span>
+                          <span style={{ fontSize: "13px", color: "#059669", fontWeight: 600 }}>Uploaded</span>
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, [pathField]: "" }))}
+                            style={{ marginLeft: "auto", fontSize: "12px", color: "rgba(13,17,68,0.45)", background: "none", border: "none", cursor: "pointer" }}
+                          >
+                            Replace
+                          </button>
+                        </div>
+                      ) : (
+                        <label style={{ display: "block", cursor: uploading ? "not-allowed" : "pointer" }}>
+                          <div style={{
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                            padding: "12px 14px", borderRadius: "12px",
+                            border: "1px dashed var(--surface-border, #e4e7f0)",
+                            backgroundColor: "#fafbfc",
+                            opacity: uploading ? 0.6 : 1,
+                          }}>
+                            {uploading ? (
+                              <span style={{ fontSize: "13px", color: "rgba(13,17,68,0.5)" }}>Uploading…</span>
+                            ) : (
+                              <>
+                                <span style={{ fontSize: "16px" }}>📎</span>
+                                <span style={{ fontSize: "13px", color: "rgba(13,17,68,0.55)" }}>Choose file</span>
+                              </>
+                            )}
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,application/pdf"
+                            disabled={uploading}
+                            style={{ display: "none" }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) uploadDocument(file, dt);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      )}
+                      {err && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "4px" }}>{err}</p>}
+                    </div>
+                  );
+                })}
+
+                <p style={{ fontSize: "11px", color: "rgba(13,17,68,0.4)", lineHeight: "1.6" }}>
+                  Files are encrypted and stored securely. Only compliance officers can access them.
+                  JPEG, PNG, WebP and PDF accepted — max 10 MB each.
+                </p>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "20px" }}>
                 <button onClick={() => { setError(null); setStep("personal"); }} style={btnSecondary}>Back</button>
                 <button
                   onClick={() => {
                     if (!form.document_number || !form.document_expiry) {
-                      setError("Please complete all required fields.");
+                      setError("Please complete the document number and expiry date.");
+                      return;
+                    }
+                    if (!form.document_front_path) {
+                      setError("Please upload the front of your identity document.");
                       return;
                     }
                     setError(null);
@@ -441,14 +552,16 @@ export default function KycPage() {
               <h2 className="text-lg font-bold mb-4" style={{ color: "#0D1144" }}>Review and submit</h2>
 
               {[
-                { label: "Full name",       value: form.full_name },
-                { label: "Date of birth",   value: form.date_of_birth },
-                { label: "Nationality",     value: form.nationality },
-                { label: "Address",         value: [form.address_line1, form.address_line2, form.city, form.postcode, form.country].filter(Boolean).join(", ") },
-                { label: "Document type",   value: form.document_type.replace("_", " ") },
-                { label: "Document number", value: form.document_number },
-                { label: "Document expiry", value: form.document_expiry },
-                { label: "Source of funds", value: form.source_of_funds },
+                { label: "Full name",        value: form.full_name },
+                { label: "Date of birth",    value: form.date_of_birth },
+                { label: "Nationality",      value: form.nationality },
+                { label: "Address",          value: [form.address_line1, form.address_line2, form.city, form.postcode, form.country].filter(Boolean).join(", ") },
+                { label: "Document type",    value: form.document_type.replace(/_/g, " ") },
+                { label: "Document number",  value: form.document_number },
+                { label: "Document expiry",  value: form.document_expiry },
+                { label: "ID uploaded",      value: form.document_front_path ? "✓ Front" + (form.document_back_path ? " + Back" : "") : "Front only" },
+                { label: "Proof of address", value: form.proof_of_address_path ? "✓ Uploaded" : "Not provided" },
+                { label: "Source of funds",  value: form.source_of_funds },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--surface-border, #e4e7f0)" }}>
                   <span style={{ fontSize: "13px", color: "rgba(13,17,68,0.5)", minWidth: "140px" }}>{label}</span>
