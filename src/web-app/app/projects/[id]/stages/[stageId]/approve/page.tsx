@@ -238,6 +238,8 @@ export default function ApproveStagePage() {
       await loadData();
       setNotes("");
       setCertifiedAmount("");
+      // Redirect to approvals hub after a short pause so user sees the confirmation
+      setTimeout(() => router.push("/approvals"), 2500);
     } finally {
       setSubmitting(false);
     }
@@ -498,9 +500,23 @@ export default function ApproveStagePage() {
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Your decision</h2>
 
           {submitSuccess && (
-            <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(5,150,105,0.07)", border: "1px solid rgba(5,150,105,0.2)" }}>
-              <p className="text-sm font-semibold" style={{ color: "#059669" }}>Decision recorded.</p>
-              <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>Your approval has been saved. The stage will advance to payment release once all required approvals are granted.</p>
+            <div className="mb-4 rounded-2xl px-5 py-4" style={{ backgroundColor: "rgba(5,150,105,0.07)", border: "1px solid rgba(5,150,105,0.2)" }}>
+              <p className="text-base font-bold" style={{ color: "#059669" }}>Decision recorded ✓</p>
+              <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>
+                {decision === "approved"
+                  ? "Your approval has been saved. The stage will advance to payment release once all required sign-offs are complete."
+                  : "The stage has been returned for revision. The contractor will be notified."}
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={() => router.push("/approvals")}
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+                  style={{ backgroundColor: "#059669" }}
+                >
+                  Back to approvals
+                </button>
+                <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Redirecting in a moment…</p>
+              </div>
             </div>
           )}
 
