@@ -209,6 +209,17 @@ export default function AccountPage() {
                 {role === "admin" && (
                   <>
                     <Link
+                      href="/admin"
+                      className="flex items-center justify-between px-5 py-3.5 border-t transition hover:bg-neutral-50"
+                      style={{ borderColor: "var(--surface-border, #e4e7f0)" }}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>Platform overview</p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Cross-project financials, alerts, and activity</p>
+                      </div>
+                      <span style={{ color: "rgba(13,17,68,0.25)" }}>›</span>
+                    </Link>
+                    <Link
                       href="/admin/company"
                       className="flex items-center justify-between px-5 py-3.5 border-t transition hover:bg-neutral-50"
                       style={{ borderColor: "var(--surface-border, #e4e7f0)" }}
