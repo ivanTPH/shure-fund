@@ -13,7 +13,7 @@ type RouteContext = { params: Promise<{ disputeId: string }> };
 
 const TRANSITIONS: Record<string, { to: string; allowedRoles: string[] }> = {
   respond:  { to: "under_review", allowedRoles: ["funder", "commercial", "developer", "admin"] },
-  resolve:  { to: "resolved",     allowedRoles: ["funder", "commercial", "developer", "admin"] },
+  resolve:  { to: "resolved",     allowedRoles: ["funder", "developer", "admin"] },
   escalate: { to: "escalated",    allowedRoles: ["developer", "admin"] },
 };
 
