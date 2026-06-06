@@ -77,20 +77,23 @@ export async function POST(req: NextRequest) {
   const { data: submission, error: insertError } = await supabase
     .from("kyc_submissions")
     .insert({
-      user_id:          user.id,
-      full_name:        body.full_name,
-      date_of_birth:    body.date_of_birth,
-      nationality:      body.nationality,
-      address_line1:    body.address_line1,
-      address_line2:    body.address_line2 ?? null,
-      city:             body.city,
-      postcode:         body.postcode,
-      country:          body.country ?? "GB",
-      document_type:    body.document_type,
-      document_number:  body.document_number,
-      document_expiry:  body.document_expiry,
-      source_of_funds:  body.source_of_funds,
-      source_of_wealth: body.source_of_wealth ?? null,
+      user_id:               user.id,
+      full_name:             body.full_name,
+      date_of_birth:         body.date_of_birth,
+      nationality:           body.nationality,
+      address_line1:         body.address_line1,
+      address_line2:         body.address_line2 ?? null,
+      city:                  body.city,
+      postcode:              body.postcode,
+      country:               body.country ?? "GB",
+      document_type:         body.document_type,
+      document_number:       body.document_number,
+      document_expiry:       body.document_expiry,
+      document_front_path:   body.document_front_path ?? null,
+      document_back_path:    body.document_back_path ?? null,
+      proof_of_address_path: body.proof_of_address_path ?? null,
+      source_of_funds:       body.source_of_funds,
+      source_of_wealth:      body.source_of_wealth ?? null,
     })
     .select("id")
     .single();
