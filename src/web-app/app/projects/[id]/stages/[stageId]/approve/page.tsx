@@ -156,7 +156,7 @@ export default function ApproveStagePage() {
   const [submitSuccess, setSubmitSuccess]   = useState(false);
 
   // ---- Load data ----
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (): Promise<string | null> => {
     try {
       const [stageRes, evidenceRes, approvalsRes] = await Promise.all([
         fetch(`/api/stages/${stageId}`),
@@ -166,20 +166,21 @@ export default function ApproveStagePage() {
 
       if (stageRes.status === 403) {
         setError("You do not have permission to view this approval screen.");
-        return;
+        return null;
       }
       if (!stageRes.ok) {
         setError("Could not load stage details.");
-        return;
+        return null;
       }
 
       const stageJson = await stageRes.json();
       const stageData = stageJson.stage ?? stageJson;
+      const newStatus = stageData.status ?? stageData.currentStatus ?? "";
       setStage({
         id: stageData.id ?? stageId,
         name: stageData.name ?? stageData.stageName ?? "Stage",
         value: stageData.value ?? 0,
-        status: stageData.status ?? stageData.currentStatus ?? "",
+        status: newStatus,
       });
 
       if (evidenceRes.ok) {
@@ -191,8 +192,11 @@ export default function ApproveStagePage() {
         const ap = await approvalsRes.json();
         setApprovals(ap.approvals ?? []);
       }
+
+      return newStatus;
     } catch {
       setError("Network error loading approval data.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -235,11 +239,14 @@ export default function ApproveStagePage() {
       }
 
       setSubmitSuccess(true);
-      await loadData();
+      const newStatus = await loadData();
       setNotes("");
       setCertifiedAmount("");
-      // Redirect to approvals hub after a short pause so user sees the confirmation
-      setTimeout(() => router.push("/approvals"), 2500);
+      // Funder who just completed the final approval goes straight to release
+      const funderReadyToRelease = userRole === "funder" && newStatus === "available_to_release";
+      if (!funderReadyToRelease) {
+        setTimeout(() => router.push("/approvals"), 2500);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -308,7 +315,7 @@ export default function ApproveStagePage() {
           <div>
             <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Status</p>
             <p className="text-sm font-semibold" style={{ color: isAwaitingApproval ? "#7c3aed" : "#64748b" }}>
-              {stage?.status?.replace(/_/g, " ")}
+              {stage?.status?.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
             </p>
           </div>
         </div>
@@ -499,26 +506,44 @@ export default function ApproveStagePage() {
         <div>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Your decision</h2>
 
-          {submitSuccess && (
-            <div className="mb-4 rounded-2xl px-5 py-4" style={{ backgroundColor: "rgba(5,150,105,0.07)", border: "1px solid rgba(5,150,105,0.2)" }}>
-              <p className="text-base font-bold" style={{ color: "#059669" }}>Decision recorded ✓</p>
-              <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>
-                {decision === "approved"
-                  ? "Your approval has been saved. The stage will advance to payment release once all required sign-offs are complete."
-                  : "The stage has been returned for revision. The contractor will be notified."}
-              </p>
-              <div className="mt-3 flex items-center gap-3">
-                <button
-                  onClick={() => router.push("/approvals")}
-                  className="rounded-xl px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
-                  style={{ backgroundColor: "#059669" }}
-                >
-                  Back to approvals
-                </button>
-                <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Redirecting in a moment…</p>
+          {submitSuccess && (() => {
+            const readyToRelease = stage?.status === "available_to_release";
+            const isFunder = userRole === "funder";
+            return (
+              <div className="mb-4 rounded-2xl px-5 py-4" style={{ backgroundColor: "rgba(5,150,105,0.07)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                <p className="text-base font-bold" style={{ color: "#059669" }}>Decision recorded ✓</p>
+                <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.65)" }}>
+                  {decision === "approved"
+                    ? readyToRelease
+                      ? "All sign-offs are complete. The stage is ready for payment release."
+                      : "Your approval has been saved. The stage will advance to payment release once all required sign-offs are complete."
+                    : "The stage has been returned for revision. The contractor will be notified."}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {readyToRelease && isFunder ? (
+                    <Link
+                      href={`/projects/${projectId}/stages/${stageId}/release`}
+                      className="rounded-xl px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+                      style={{ backgroundColor: "#059669" }}
+                    >
+                      Release payment →
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => router.push("/approvals")}
+                      className="rounded-xl px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+                      style={{ backgroundColor: "#059669" }}
+                    >
+                      Back to approvals
+                    </button>
+                  )}
+                  {!(readyToRelease && isFunder) && (
+                    <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Redirecting in a moment…</p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {submitError && (
             <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>

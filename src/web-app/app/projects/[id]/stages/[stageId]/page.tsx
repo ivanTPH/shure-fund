@@ -539,6 +539,8 @@ export default function StageOverviewPage() {
             </p>
             <div className="flex flex-wrap gap-2">
               {availableTransitions.map((action) => {
+                // complete_approvals fires automatically via DB trigger — never show as a manual button
+                if (action === "complete_approvals") return null;
                 const cfg = ACTION_CONFIG[action];
                 if (!cfg) return null;
                 return (
@@ -598,8 +600,8 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {/* Contractor: upload evidence (only when in progress / returned) */}
-          {isContractor && (stage.status === "in_progress" || stage.status === "returned" || stage.status === "draft") && (
+          {/* Contractor: upload evidence (only when in progress or returned — not draft) */}
+          {isContractor && (stage.status === "in_progress" || stage.status === "returned") && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/action`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
@@ -620,8 +622,8 @@ export default function StageOverviewPage() {
             </Link>
           )}
 
-          {/* Raise dispute — only when NOT already disputed or released */}
-          {stage.status !== "disputed" && stage.status !== "released" && stage.status !== "draft" && (
+          {/* Raise dispute — only when work is underway or under review */}
+          {(stage.status === "in_progress" || stage.status === "awaiting_approval" || stage.status === "returned") && (
             <Link
               href={`/projects/${projectId}/stages/${stageId}/disputes/new`}
               className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
