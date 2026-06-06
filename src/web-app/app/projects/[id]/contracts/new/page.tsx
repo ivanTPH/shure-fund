@@ -41,6 +41,8 @@ export default function NewContractPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contractorNotFound, setContractorNotFound] = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
 
   function addStage() {
     setStages((s) => [...s, { name: "", description: "", value: "", startDate: "", endDate: "" }]);
@@ -79,6 +81,7 @@ export default function NewContractPage() {
     }
 
     setSubmitting(true);
+    setContractorNotFound(false);
     try {
       const res = await fetch(`/api/projects/${projectId}/contracts`, {
         method:  "POST",
@@ -86,13 +89,38 @@ export default function NewContractPage() {
         body:    JSON.stringify({ contractorEmail: contractorEmail.trim(), stages: parsedStages }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Failed to create contract."); return; }
+      if (!res.ok) {
+        if (res.status === 404) setContractorNotFound(true);
+        setError(data.error ?? "Failed to create contract.");
+        return;
+      }
       router.push(`/projects/${projectId}/contracts/${data.contractId}`);
       router.refresh();
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function inviteContractor() {
+    setInviteSent(false);
+    try {
+      const res = await fetch("/api/admin/invite", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: contractorEmail.trim(), role: "contractor" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInviteSent(true);
+        setContractorNotFound(false);
+        setError(null);
+      } else {
+        setError(data.error ?? "Failed to send invite.");
+      }
+    } catch {
+      setError("Network error — could not send invite.");
     }
   }
 
@@ -128,7 +156,7 @@ export default function NewContractPage() {
               style={INPUT_STYLE}
               placeholder="contractor@theircompany.com"
               value={contractorEmail}
-              onChange={(e) => setContractorEmail(e.target.value)}
+              onChange={(e) => { setContractorEmail(e.target.value); setContractorNotFound(false); setInviteSent(false); setError(null); }}
             />
             <p className="text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>
               The contractor must be registered — invite them first if needed.
@@ -240,7 +268,35 @@ export default function NewContractPage() {
             </button>
           </div>
 
-          {error && (
+          {inviteSent && (
+            <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+              <p className="text-sm font-semibold" style={{ color: "#059669" }}>Invite sent to {contractorEmail.trim()}</p>
+              <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>
+                They will receive an email to set up their account. Once registered, come back here to create the contract.
+              </p>
+            </div>
+          )}
+
+          {contractorNotFound && !inviteSent && (
+            <div className="rounded-2xl px-4 py-3 space-y-2" style={{ backgroundColor: "rgba(37,99,235,0.05)", border: "1px solid rgba(37,99,235,0.2)" }}>
+              <p className="text-sm font-semibold" style={{ color: "#1d4ed8" }}>
+                No account found for {contractorEmail.trim()}
+              </p>
+              <p className="text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>
+                This contractor is not yet registered. Send them an invite and they can set up their account before you create the contract.
+              </p>
+              <button
+                type="button"
+                onClick={inviteContractor}
+                className="rounded-xl px-4 py-2 text-xs font-bold transition hover:opacity-80"
+                style={{ backgroundColor: "#1d4ed8", color: "#fff" }}
+              >
+                ✉ Send invite to {contractorEmail.trim()}
+              </button>
+            </div>
+          )}
+
+          {error && !contractorNotFound && (
             <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
               <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>
             </div>

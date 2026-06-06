@@ -71,6 +71,14 @@ export default function ProjectMembersPage() {
   const [saving, setSaving]             = useState(false);
   const [saveError, setSaveError]       = useState<string | null>(null);
 
+  // Invite-new-user form
+  const [inviting, setInviting]         = useState(false);
+  const [inviteEmail, setInviteEmail]   = useState("");
+  const [inviteRole, setInviteRole]     = useState("contractor");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [inviteError, setInviteError]   = useState<string | null>(null);
+
   async function loadMembers() {
     const r = await fetch(`/api/projects/${projectId}/members`);
     const d = await r.json();
@@ -129,6 +137,33 @@ export default function ProjectMembersPage() {
     await loadMembers();
   }
 
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteError(null);
+    setInviteSuccess(null);
+    setInviteSending(true);
+    try {
+      const res = await fetch("/api/admin/invite", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setInviteSuccess(`Invite sent to ${inviteEmail.trim()}. They will receive an email to set up their account.`);
+        setInviteEmail("");
+        setInviteRole("contractor");
+        await loadUsers();
+      } else {
+        setInviteError(d.error ?? "Failed to send invite.");
+      }
+    } catch {
+      setInviteError("Network error — please try again.");
+    } finally {
+      setInviteSending(false);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -148,13 +183,22 @@ export default function ProjectMembersPage() {
             </p>
           </div>
           {canManage && (
-            <button
-              onClick={() => { setAdding((v) => !v); setSaveError(null); }}
-              className="rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-              style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
-            >
-              {adding ? "Cancel" : "+ Add member"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setInviting((v) => !v); setAdding(false); setInviteError(null); setInviteSuccess(null); }}
+                className="rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-80"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", color: "rgba(13,17,68,0.65)", backgroundColor: "#fff" }}
+              >
+                {inviting ? "Cancel invite" : "✉ Invite new user"}
+              </button>
+              <button
+                onClick={() => { setAdding((v) => !v); setInviting(false); setSaveError(null); }}
+                className="rounded-2xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
+              >
+                {adding ? "Cancel" : "+ Add member"}
+              </button>
+            </div>
           )}
         </div>
 
@@ -162,6 +206,62 @@ export default function ProjectMembersPage() {
           <div className="mt-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
             <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>
           </div>
+        )}
+
+        {/* Invite new user form */}
+        {inviting && canManage && (
+          <form
+            onSubmit={sendInvite}
+            className="mt-4 max-w-lg rounded-[20px] p-5 space-y-3"
+            style={{ border: "1px solid rgba(37,99,235,0.2)", backgroundColor: "rgba(37,99,235,0.04)" }}
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#2563eb" }}>Invite a new user</p>
+              <p className="mt-1 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
+                They will receive an email to set up their account. Once registered, add them to this project using the "+ Add member" button.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="email"
+                required
+                placeholder="Email address"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="col-span-2 rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
+              >
+                {(userRole === "admin"
+                  ? ALL_ROLES
+                  : ["contractor", "commercial", "consultant"]
+                ).map((r) => (
+                  <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={inviteSending || !inviteEmail.trim()}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
+              >
+                {inviteSending ? "Sending…" : "Send invite"}
+              </button>
+            </div>
+
+            {inviteSuccess && (
+              <div className="rounded-xl px-3 py-2" style={{ backgroundColor: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                <p className="text-xs" style={{ color: "#059669" }}>{inviteSuccess}</p>
+              </div>
+            )}
+            {inviteError && <p className="text-xs" style={{ color: "#dc2626" }}>{inviteError}</p>}
+          </form>
         )}
 
         {/* Add member form */}
