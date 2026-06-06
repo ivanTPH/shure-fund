@@ -84,6 +84,18 @@ type PendingApproval = {
   isOverdue: boolean;
 };
 
+type PendingVariation = {
+  id: string;
+  description: string;
+  valueChange: number;
+  status: string;
+  stageId: string;
+  stageName: string;
+  projectId: string;
+  projectName: string;
+  createdAt: string;
+};
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -152,7 +164,58 @@ export default async function ApprovalsPage() {
 
   const stageIds = (awaitingStages ?? []).map(s => s.id);
 
-  if (stageIds.length === 0) {
+  // Fetch pending variations (submitted or under_review) for commercial/admin
+  let pendingVariations: PendingVariation[] = [];
+  if (role === "commercial" || role === "admin") {
+    const contractIds = (
+      await service.from("contracts").select("id").in("project_id", projectIds)
+    ).data?.map(c => c.id) ?? [];
+
+    if (contractIds.length > 0) {
+      const stageIdsForVariations = (
+        await service
+          .from("contract_stages")
+          .select("id, name, contracts!inner ( project_id )")
+          .in("contract_id", contractIds)
+      ).data ?? [];
+
+      const stageVariationIds = stageIdsForVariations.map(s => s.id);
+
+      if (stageVariationIds.length > 0) {
+        const { data: vars } = await service
+          .from("variations")
+          .select(`
+            id, description, value_change, status, created_at, stage_id,
+            stage:contract_stages!stage_id (
+              id, name,
+              contracts!inner ( project_id, projects!inner ( id, name ) )
+            )
+          `)
+          .in("stage_id", stageVariationIds)
+          .in("status", ["submitted", "under_review"])
+          .order("created_at", { ascending: false });
+
+        pendingVariations = (vars ?? []).map(v => {
+          const stage = Array.isArray(v.stage) ? v.stage[0] : v.stage;
+          const contract = Array.isArray(stage?.contracts) ? stage.contracts[0] : stage?.contracts;
+          const project = Array.isArray(contract?.projects) ? contract.projects[0] : contract?.projects;
+          return {
+            id: v.id,
+            description: v.description,
+            valueChange: Number(v.value_change),
+            status: v.status,
+            stageId: v.stage_id,
+            stageName: stage?.name ?? v.stage_id,
+            projectId: project?.id ?? contract?.project_id ?? "",
+            projectName: project?.name ?? "Unknown project",
+            createdAt: v.created_at,
+          };
+        });
+      }
+    }
+  }
+
+  if (stageIds.length === 0 && pendingVariations.length === 0) {
     return (
       <AppShell>
         <div className="px-4 py-8 max-w-xl mx-auto">
@@ -164,7 +227,7 @@ export default async function ApprovalsPage() {
           >
             <p className="text-3xl mb-3">✓</p>
             <p className="text-sm font-semibold mb-1" style={{ color: "var(--brand-navy, #0D1144)" }}>All clear</p>
-            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>No stages are currently awaiting your sign-off.</p>
+            <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>No stages or variations are currently awaiting your review.</p>
           </div>
         </div>
       </AppShell>
@@ -324,6 +387,59 @@ export default async function ApprovalsPage() {
             </div>
           ))}
         </div>
+
+        {/* Pending variations (commercial / admin) */}
+        {pendingVariations.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-base font-bold mb-1" style={{ color: "var(--brand-navy, #0D1144)" }}>
+              Pending variations
+            </h2>
+            <p className="text-xs mb-4" style={{ color: "rgba(13,17,68,0.45)" }}>
+              Variations awaiting commercial review across all projects.
+            </p>
+            <div className="space-y-2">
+              {pendingVariations.map((v) => (
+                <div
+                  key={v.id}
+                  className="rounded-[20px] p-4"
+                  style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <span
+                        className="inline-block mb-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                        style={{ backgroundColor: "rgba(217,119,6,0.1)", color: "#d97706" }}
+                      >
+                        {v.status === "under_review" ? "Under review" : "Submitted"}
+                      </span>
+                      <p className="text-sm font-semibold leading-snug" style={{ color: "var(--brand-navy, #0D1144)" }}>
+                        {v.description}
+                      </p>
+                      <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>
+                        {v.projectName} · {v.stageName}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p
+                        className="text-sm font-bold mb-2"
+                        style={{ color: v.valueChange >= 0 ? "#059669" : "#dc2626" }}
+                      >
+                        {v.valueChange >= 0 ? "+" : ""}{gbp.format(v.valueChange)}
+                      </p>
+                      <Link
+                        href={`/projects/${v.projectId}/stages/${v.stageId}/variations/${v.id}`}
+                        className="inline-block rounded-xl px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+                        style={{ backgroundColor: "#d97706" }}
+                      >
+                        Review →
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Admin: link to full audit log */}
         {role === "admin" && (

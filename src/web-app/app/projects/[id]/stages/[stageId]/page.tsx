@@ -868,7 +868,7 @@ export default function StageOverviewPage() {
             <div className="space-y-2">
               {variations.map((v) => {
                 const isApproved = v.status === "approved" || v.status === "active";
-                const isPending  = v.status === "pending" || v.status === "under_review";
+                const isPending  = v.status === "submitted" || v.status === "under_review";
                 const color = isApproved ? "#059669" : isPending ? "#d97706" : "#6b7280";
                 return (
                   <Link

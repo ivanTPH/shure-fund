@@ -93,17 +93,45 @@ export default function VariationDetailPage() {
   const [fundingConfirmed, setFundingConfirmed] = useState(false);
 
   useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) =>
-      setUserRole(user ? getRole(user) as AppRole | null : null)
-    );
-    fetch(`/api/variations/${variationId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setVariation(d.variation);
-        setWallet(d.wallet ?? null);
+    async function loadAll() {
+      const { data: { user } } = await createClient().auth.getUser();
+      const role = user ? getRole(user) as AppRole | null : null;
+      setUserRole(role);
+
+      try {
+        const r = await fetch(`/api/variations/${variationId}`);
+        const d = await r.json();
+        let variation = d.variation;
+        let wallet = d.wallet ?? null;
+
+        // Auto-begin-review: when commercial/admin opens a submitted variation,
+        // immediately advance it to under_review so they can act in one step.
+        if (
+          variation?.status === "submitted" &&
+          (role === "commercial" || role === "admin")
+        ) {
+          const pr = await fetch(`/api/variations/${variationId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "begin_review" }),
+          });
+          if (pr.ok) {
+            const r2 = await fetch(`/api/variations/${variationId}`);
+            const d2 = await r2.json();
+            variation = d2.variation;
+            wallet = d2.wallet ?? null;
+          }
+        }
+
+        setVariation(variation);
+        setWallet(wallet);
         setLoading(false);
-      })
-      .catch(() => { setError("Failed to load variation."); setLoading(false); });
+      } catch {
+        setError("Failed to load variation.");
+        setLoading(false);
+      }
+    }
+    loadAll();
   }, [variationId]);
 
   async function doAction(action: VariationAction) {
