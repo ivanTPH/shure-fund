@@ -1157,12 +1157,14 @@ function ProjectSwitcher({ currentProjectId, currentProjectName }: { currentProj
 
 const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => string }>> = {
   funder: [
+    { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Wallet", href: (id) => `/projects/${id}/wallet` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
   ],
   developer: [
+    { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
@@ -1176,6 +1178,7 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
   ],
   contractor: [],   // no extra nav for contractor
   admin: [
+    { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Wallet", href: (id) => `/projects/${id}/wallet` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
