@@ -44,6 +44,7 @@ const TYPE_CONFIG: Record<string, {
   payment_ready:       { label: "Release payment",           needsAction: true,  accent: "#059669", dot: "£" },
   approval_required:   { label: "Sign-off needed",           needsAction: true,  accent: "#2563eb", dot: "✓" },
   evidence_required:   { label: "Evidence needed",           needsAction: true,  accent: "#d97706", dot: "📎" },
+  funding_required:    { label: "Allocate funding",          needsAction: true,  accent: "#7c3aed", dot: "£" },
   funding_gap:         { label: "Funds short",               needsAction: true,  accent: "#dc2626", dot: "!" },
   variation_submitted: { label: "Contract change to review", needsAction: true,  accent: "#7c3aed", dot: "↕" },
   dispute_raised:      { label: "Dispute — payment held",    needsAction: true,  accent: "#ea580c", dot: "⚠" },

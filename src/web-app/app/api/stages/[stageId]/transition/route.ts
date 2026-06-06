@@ -41,6 +41,7 @@ import {
   notifyPaymentReady,
   notifyEvidenceRequired,
   notifyFundingGap,
+  notifyFundingAllocationRequired,
 } from "@/lib/notifications/notificationService";
 
 // ---------------------------------------------------------------------------
@@ -437,6 +438,8 @@ export async function POST(
         await notifyEvidenceRequired(serviceClient, projectId, stageId, stage.name, contractId);
       } else if (rule.to === "funding_gap") {
         await notifyFundingGap(serviceClient, projectId, stageId, stage.name, contractId);
+      } else if (rule.to === "accepted") {
+        await notifyFundingAllocationRequired(serviceClient, projectId, stageId, stage.name, contractId);
       }
     }
   } catch { /* non-fatal — transitions must never fail due to notification errors */ }

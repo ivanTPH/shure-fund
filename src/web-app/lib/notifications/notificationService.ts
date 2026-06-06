@@ -285,6 +285,28 @@ export async function notifyFundingGap(
   });
 }
 
+export async function notifyFundingAllocationRequired(
+  db: Db,
+  projectId: string,
+  stageId: string,
+  stageName: string,
+  contractId: string | null,
+) {
+  const url = `/projects/${projectId}/stages/${stageId}`;
+  await notifyRoles(db, ["funder", "developer", "admin"], projectId, {
+    type:            "funding_required",
+    required_action: "Allocate funding to start work",
+    message:         `"${stageName}" has been accepted. Confirm funding to let the contractor begin.`,
+    entity_type:     "stage",
+    entity_id:       stageId,
+    entity_name:     stageName,
+    action_url:      url,
+    project_id:      projectId,
+    stage_id:        stageId,
+    contract_id:     contractId,
+  });
+}
+
 export async function notifyDisputeRaised(
   db: Db,
   projectId: string,
