@@ -41,6 +41,9 @@ interface KycSubmission {
   document_expiry: string | null;
   source_of_funds: string;
   reviewer_notes: string | null;
+  document_front_url:   string | null;
+  document_back_url:    string | null;
+  proof_of_address_url: string | null;
   user: { id: string; full_name: string; email: string; role: string; kyc_status: string } | null;
 }
 
@@ -186,21 +189,63 @@ function ReviewModal({
             { label: "Document expiry",  value: k.document_expiry ?? "—" },
             { label: "Source of funds",  value: k.source_of_funds },
           ];
+          const docLinks = [
+            { label: "ID front",        url: k.document_front_url },
+            { label: "ID back",         url: k.document_back_url },
+            { label: "Proof of address", url: k.proof_of_address_url },
+          ].filter((d) => d.url);
+
           return (
-            <div style={{ marginBottom: "16px", borderRadius: "12px", border: "1px solid var(--surface-border, #e4e7f0)", overflow: "hidden" }}>
-              {rows.map(({ label, value }, i) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex", gap: "12px", padding: "8px 12px",
-                    backgroundColor: i % 2 === 0 ? "#f7f8fc" : "#fff",
-                  }}
-                >
-                  <span style={{ fontSize: "12px", color: "rgba(13,17,68,0.45)", minWidth: "130px", flexShrink: 0 }}>{label}</span>
-                  <span style={{ fontSize: "12px", color: "#0D1144", wordBreak: "break-word" }}>{value}</span>
+            <>
+              <div style={{ marginBottom: "16px", borderRadius: "12px", border: "1px solid var(--surface-border, #e4e7f0)", overflow: "hidden" }}>
+                {rows.map(({ label, value }, i) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: "flex", gap: "12px", padding: "8px 12px",
+                      backgroundColor: i % 2 === 0 ? "#f7f8fc" : "#fff",
+                    }}
+                  >
+                    <span style={{ fontSize: "12px", color: "rgba(13,17,68,0.45)", minWidth: "130px", flexShrink: 0 }}>{label}</span>
+                    <span style={{ fontSize: "12px", color: "#0D1144", wordBreak: "break-word" }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Document download links */}
+              {docLinks.length > 0 ? (
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(13,17,68,0.45)", marginBottom: "8px" }}>
+                    Uploaded documents
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {docLinks.map(({ label, url }) => (
+                      <a
+                        key={label}
+                        href={url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: "6px",
+                          padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
+                          backgroundColor: "rgba(37,99,235,0.07)", color: "#2563eb",
+                          border: "1px solid rgba(37,99,235,0.2)", textDecoration: "none",
+                        }}
+                      >
+                        📄 {label}
+                      </a>
+                    ))}
+                  </div>
+                  <p style={{ marginTop: "6px", fontSize: "11px", color: "rgba(13,17,68,0.35)" }}>
+                    Links expire in 1 hour. Reload the page if they stop working.
+                  </p>
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div style={{ marginBottom: "16px", padding: "10px 14px", borderRadius: "10px", backgroundColor: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.2)" }}>
+                  <p style={{ fontSize: "12px", color: "#d97706" }}>No documents uploaded — applicant used the manual process.</p>
+                </div>
+              )}
+            </>
           );
         })()}
 
