@@ -55,6 +55,17 @@ type Variation = {
   createdAt: string;
 };
 
+type TokenPayment = {
+  id: string;
+  stageId: string;
+  stageName: string | null;
+  userId: string;
+  amount: number;
+  sharePct: number | null;
+  reference: string;
+  paidAt: string;
+};
+
 type DashboardData = {
   project: { id: string; name: string; address: string };
   wallet: { balance: number; available: number; ringfenced: number };
@@ -125,8 +136,9 @@ export default function ProjectReportsPage() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [data, setData]           = useState<DashboardData | null>(null);
-  const [variations, setVariations] = useState<Variation[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [variations, setVariations]       = useState<Variation[]>([]);
+  const [tokenPayments, setTokenPayments] = useState<TokenPayment[]>([]);
+  const [loading, setLoading]             = useState(true);
   const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
@@ -162,6 +174,23 @@ export default function ProjectReportsPage() {
           ),
         );
         setVariations(varResults.flat());
+
+        // Fetch token distributions for the project
+        const tpRes = await fetch(`/api/token-payments?projectId=${projectId}`);
+        if (tpRes.ok) {
+          const tpData = await tpRes.json();
+          const payments: TokenPayment[] = (tpData.payments ?? []).map((p: Record<string, unknown>) => ({
+            id:        p.id,
+            stageId:   p.stageId,
+            stageName: p.stageName,
+            userId:    p.userId,
+            amount:    Number(p.amount),
+            sharePct:  p.sharePct != null ? Number(p.sharePct) : null,
+            reference: p.reference,
+            paidAt:    p.paidAt,
+          }));
+          setTokenPayments(payments);
+        }
       } catch {
         setError("Network error loading report.");
       } finally {
@@ -248,6 +277,20 @@ export default function ProjectReportsPage() {
     );
   }
 
+  function exportDistributionsCSV() {
+    downloadCSV(
+      `token-distributions-${projectId}-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Stage", "Reference", "Share %", "Amount (£)", "Paid At"],
+      tokenPayments.map((p) => [
+        p.stageName ?? p.stageId,
+        p.reference,
+        p.sharePct != null ? (p.sharePct * 100).toFixed(2) : "",
+        p.amount,
+        fmtDate(p.paidAt),
+      ]),
+    );
+  }
+
   const navy = "var(--brand-navy, #0D1144)";
   const muted = "rgba(13,17,68,0.45)";
   const card = { border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" } as const;
@@ -280,6 +323,7 @@ export default function ProjectReportsPage() {
                 { label: "Export certified CSV", fn: exportCertifiedCSV },
                 { label: "Export variations CSV", fn: exportVariationsCSV },
                 { label: "Export schedule CSV", fn: exportDrawdownCSV },
+                ...(tokenPayments.length > 0 ? [{ label: "Export distributions CSV", fn: exportDistributionsCSV }] : []),
               ].map(({ label, fn }) => (
                 <button
                   key={label}
@@ -519,6 +563,68 @@ export default function ProjectReportsPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </section>
+
+          {/* 6. Token distributions */}
+          <section className="rounded-[20px] p-5" style={card}>
+            <SectionHeader title="6. Token distributions" sub="Payments made to token holders on each stage release" />
+            {tokenPayments.length === 0 ? (
+              <p className="text-sm" style={{ color: muted }}>No stage releases recorded — token distributions will appear here as stages are released.</p>
+            ) : (
+              (() => {
+                // Group by stage
+                const byStage = new Map<string, TokenPayment[]>();
+                for (const p of tokenPayments) {
+                  if (!byStage.has(p.stageId)) byStage.set(p.stageId, []);
+                  byStage.get(p.stageId)!.push(p);
+                }
+                const stageGroups = [...byStage.entries()].map(([sid, payments]) => ({
+                  stageId: sid,
+                  stageName: payments[0].stageName ?? sid,
+                  payments,
+                  total: payments.reduce((s, p) => s + p.amount, 0),
+                }));
+                const grandTotal = stageGroups.reduce((s, g) => s + g.total, 0);
+                return (
+                  <>
+                    {stageGroups.map((group) => (
+                      <div key={group.stageId} className="mb-4">
+                        <div
+                          className="flex items-center justify-between px-3 py-2 rounded-xl mb-1"
+                          style={{ backgroundColor: "rgba(13,17,68,0.03)", border: "1px solid var(--surface-border, #e4e7f0)" }}
+                        >
+                          <p className="text-sm font-semibold" style={{ color: navy }}>{group.stageName}</p>
+                          <p className="text-sm font-bold" style={{ color: "#059669" }}>{gbp.format(group.total)}</p>
+                        </div>
+                        <div className="divide-y" style={{ borderColor: "var(--surface-border, #e4e7f0)" }}>
+                          {group.payments.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between py-2 px-3 text-sm">
+                              <div>
+                                <p style={{ color: "rgba(13,17,68,0.75)" }}>{p.reference}</p>
+                                <p className="text-xs" style={{ color: muted }}>{fmtDate(p.paidAt)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold" style={{ color: "#059669" }}>{gbp.format(p.amount)}</p>
+                                {p.sharePct != null && (
+                                  <p className="text-[10px]" style={{ color: muted }}>{(p.sharePct * 100).toFixed(1)}% share</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <div
+                      className="flex items-center justify-between px-3 py-3 rounded-xl mt-2"
+                      style={{ backgroundColor: "rgba(5,150,105,0.05)", border: "1px solid rgba(5,150,105,0.2)" }}
+                    >
+                      <p className="text-sm font-bold" style={{ color: navy }}>Total distributed</p>
+                      <p className="text-lg font-bold" style={{ color: "#059669" }}>{gbp.format(grandTotal)}</p>
+                    </div>
+                  </>
+                );
+              })()
             )}
           </section>
 
