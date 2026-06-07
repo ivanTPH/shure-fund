@@ -14,6 +14,7 @@ type User = {
   email: string;
   role: string;
   active: boolean;
+  kyc_status: string | null;
   created_at: string;
 };
 
@@ -43,6 +44,27 @@ const ROLE_COLOR: Record<string, string> = {
 
 const fmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
+const KYC_STYLE: Record<string, { color: string; label: string }> = {
+  approved:       { color: "#059669", label: "Approved" },
+  pending_review: { color: "#d97706", label: "Pending" },
+  not_started:    { color: "#94a3b8", label: "Not started" },
+  rejected:       { color: "#dc2626", label: "Rejected" },
+  expired:        { color: "#ea580c", label: "Expired" },
+};
+
+function KycPill({ status }: { status: string | null }) {
+  const s = status ?? "not_started";
+  const { color, label } = KYC_STYLE[s] ?? { color: "#94a3b8", label: s };
+  return (
+    <span
+      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+      style={{ backgroundColor: color + "18", color, border: `1px solid ${color}33` }}
+    >
+      {label}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -52,6 +74,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
   const [saving, setSaving]     = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Filters
   const [search, setSearch]         = useState("");
@@ -111,15 +134,21 @@ export default function AdminUsersPage() {
 
   async function updateUser(userId: string, patch: { role?: string; active?: boolean }) {
     setSaving(userId);
+    setSaveError(null);
     try {
       const r = await fetch("/api/admin/users", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ userId, ...patch }),
       });
+      const d = await r.json();
       if (r.ok) {
         setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, ...patch } : u));
+      } else {
+        setSaveError(d.error ?? "Update failed — please try again.");
       }
+    } catch {
+      setSaveError("Network error — please try again.");
     } finally {
       setSaving(null);
     }
@@ -257,6 +286,12 @@ export default function AdminUsersPage() {
           </div>
         )}
 
+        {saveError && (
+          <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+            <p className="text-sm" style={{ color: "#dc2626" }}>{saveError}</p>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading users…</p>
         ) : (
@@ -272,6 +307,7 @@ export default function AdminUsersPage() {
                     <th className="px-5 py-3 font-medium">Name</th>
                     <th className="px-5 py-3 font-medium">Email</th>
                     <th className="px-5 py-3 font-medium">Role</th>
+                    <th className="px-5 py-3 font-medium">KYC</th>
                     <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 font-medium">Joined</th>
                   </tr>
@@ -300,6 +336,9 @@ export default function AdminUsersPage() {
                           </select>
                         </td>
                         <td className="px-5 py-3">
+                          <KycPill status={u.kyc_status} />
+                        </td>
+                        <td className="px-5 py-3">
                           <button
                             onClick={() => updateUser(u.id, { active: !u.active })}
                             disabled={isSaving}
@@ -321,7 +360,7 @@ export default function AdminUsersPage() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-5 py-6 text-center text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>
+                      <td colSpan={6} className="px-5 py-6 text-center text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>
                         No users match the current filter.
                       </td>
                     </tr>
@@ -359,7 +398,7 @@ export default function AdminUsersPage() {
                         {isSaving ? "…" : u.active ? "Active" : "Inactive"}
                       </button>
                     </div>
-                    <div className="mt-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <select
                         value={u.role}
                         disabled={isSaving}
@@ -369,6 +408,7 @@ export default function AdminUsersPage() {
                       >
                         {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
                       </select>
+                      <KycPill status={u.kyc_status} />
                     </div>
                   </div>
                 );

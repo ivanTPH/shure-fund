@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest) {
   const service = createServiceClient();
   const { data, error } = await service
     .from("users")
-    .select("id, full_name, email, role, active, created_at")
+    .select("id, full_name, email, role, active, kyc_status, created_at")
     .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -61,6 +61,12 @@ export async function PATCH(req: NextRequest) {
   const service = createServiceClient();
   const { error } = await service.from("users").update(update).eq("id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Keep auth.user_metadata in sync so getRole() picks up role changes immediately
+  // rather than waiting for the user's next JWT refresh.
+  if (newRole !== undefined) {
+    await service.auth.admin.updateUserById(userId, { user_metadata: { role: newRole } });
+  }
 
   return NextResponse.json({ ok: true });
 }
