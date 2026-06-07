@@ -71,14 +71,23 @@ export async function PATCH(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // Write audit event
+  // Write audit event — correct column names and enum values (added in migration 015)
+  const actionMap: Record<string, string> = {
+    approved:  "compliance_approved",
+    rejected:  "compliance_rejected",
+    escalated: "compliance_escalated",
+  };
   await supabase.from("audit_events").insert({
-    entity_type:  "compliance_review",
-    entity_id:    reviewId,
-    action:       `compliance_${status}`,
-    user_id:      user.id,
-    before_state: { status: "pending" },
-    after_state:  { status, reviewer_notes },
+    actor_id:   user.id,
+    action:     actionMap[status] ?? "compliance_approved",
+    from_state: "pending",
+    to_state:   status,
+    metadata:   {
+      review_id:      reviewId,
+      entity_type:    review.entity_type,
+      entity_id:      review.entity_id,
+      reviewer_notes: reviewer_notes ?? null,
+    },
   });
 
   return NextResponse.json({ reviewId, status });

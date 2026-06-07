@@ -23,6 +23,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { sendEmail, buildDigestEmail } from "@/lib/email/emailService";
 
 const DIGEST_SECRET = process.env.DIGEST_SECRET ?? "";
+// Vercel Cron Jobs automatically inject Authorization: Bearer <CRON_SECRET>.
+// Accept either so the route works both from the cron and from manual curl.
+const CRON_SECRET   = process.env.CRON_SECRET ?? "";
 const SITE_URL      = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.shure.fund";
 
 // How far back to look for unread notifications
@@ -33,7 +36,10 @@ export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
 
-  if (!DIGEST_SECRET || token !== DIGEST_SECRET) {
+  const isAuthorized =
+    (DIGEST_SECRET && token === DIGEST_SECRET) ||
+    (CRON_SECRET   && token === CRON_SECRET);
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

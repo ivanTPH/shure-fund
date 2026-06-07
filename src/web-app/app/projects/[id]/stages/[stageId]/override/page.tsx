@@ -267,6 +267,23 @@ export default function AdminOverridePage() {
               />
             </div>
 
+            {/* Released-target warning */}
+            {targetStatus === "released" && (
+              <div
+                className="rounded-2xl px-4 py-3"
+                style={{ backgroundColor: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)" }}
+              >
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#dc2626" }}>
+                  Financial side effects will NOT run
+                </p>
+                <p className="mt-1 text-sm" style={{ color: "rgba(13,17,68,0.7)" }}>
+                  Forcing a stage to <strong>released</strong> via override skips the wallet deduction and token
+                  holder payment records that the normal release flow performs. Use the normal release flow
+                  wherever possible. If you proceed, manually adjust the wallet balance and token payments.
+                </p>
+              </div>
+            )}
+
             {/* Arrow preview */}
             {reason.trim() && (
               <div
