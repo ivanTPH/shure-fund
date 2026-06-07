@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     project_id: projectId,
     stage_id:   stageId,
     actor_id:   user.id,
-    action:     "admin_override",
+    action:     "override_applied",
     from_state: fromStatus,
     to_state:   targetStatus,
     metadata:   {

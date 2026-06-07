@@ -143,14 +143,18 @@ export async function PATCH(req: Request) {
     })
     .eq("id", submission.user_id);
 
-  // Audit event
+  // Audit event — uses correct audit_events column names and enum values
   await supabase.from("audit_events").insert({
-    entity_type:  "kyc_submission",
-    entity_id:    submissionId,
-    action:       `kyc_${status}`,
-    user_id:      user.id,
-    before_state: { status: "pending" },
-    after_state:  { status, kyc_tier: kyc_tier ?? "standard" },
+    actor_id:   user.id,
+    action:     status === "approved" ? "kyc_approved" : "kyc_rejected",
+    from_state: "pending",
+    to_state:   status,
+    metadata:   {
+      submission_id: submissionId,
+      user_id:       submission.user_id,
+      kyc_tier:      kyc_tier ?? "standard",
+      reviewer_notes: reviewer_notes ?? null,
+    },
   });
 
   return NextResponse.json({ submissionId, status });
