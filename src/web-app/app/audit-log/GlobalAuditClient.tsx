@@ -70,7 +70,12 @@ const ACTION_COLORS: Record<string, string> = {
   variation_activated: "#16a34a",
   wallet_funded: "#0284c7",
   wallet_allocated: "#0369a1",
-  override_applied: "#9333ea",
+  override_applied:       "#9333ea",
+  kyc_approved:           "#059669",
+  kyc_rejected:           "#dc2626",
+  compliance_approved:    "#059669",
+  compliance_rejected:    "#dc2626",
+  compliance_escalated:   "#7c3aed",
 };
 
 const ROLE_LABELS: Record<string, string> = {

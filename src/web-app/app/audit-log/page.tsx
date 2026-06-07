@@ -87,20 +87,34 @@ export default async function AuditLogPage() {
     }
   }
 
+  // Batch-fetch stage names for unique stage IDs
+  const stageIds = [...new Set(rawEvents.map(r => r.stage_id as string).filter(Boolean))];
+  const stageMap = new Map<string, string>();
+  if (stageIds.length) {
+    const { data: stages } = await service
+      .from("contract_stages")
+      .select("id, name")
+      .in("id", stageIds);
+    for (const s of stages ?? []) {
+      stageMap.set(s.id, s.name ?? "");
+    }
+  }
+
   const events: GlobalAuditEvent[] = rawEvents.map((row) => {
     const project = Array.isArray(row.project) ? row.project[0] : row.project;
+    const stageId = (row.stage_id as string | null) ?? null;
     return {
       id: row.id as string,
       projectId: row.project_id as string,
       projectName: (project as { name: string } | null)?.name ?? "Unknown project",
-      stageId: (row.stage_id as string | null) ?? null,
-      stageName: null,
-      action: row.action as string,
+      stageId,
+      stageName: stageId ? (stageMap.get(stageId) ?? null) : null,
+      action:    row.action as string,
       fromState: (row.from_state as string | null) ?? null,
-      toState: (row.to_state as string | null) ?? null,
-      metadata: (row.metadata ?? {}) as Record<string, unknown>,
+      toState:   (row.to_state as string | null) ?? null,
+      metadata:  (row.metadata ?? {}) as Record<string, unknown>,
       createdAt: row.created_at as string,
-      actor: row.actor_id ? (actorMap.get(row.actor_id as string) ?? null) : null,
+      actor:     row.actor_id ? (actorMap.get(row.actor_id as string) ?? null) : null,
     };
   });
 
