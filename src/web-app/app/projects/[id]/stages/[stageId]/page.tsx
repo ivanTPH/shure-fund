@@ -643,6 +643,17 @@ export default function StageOverviewPage() {
               Override
             </Link>
           )}
+
+          {/* Reconciliation — available after release */}
+          {stage.status === "released" && (
+            <Link
+              href={`/projects/${projectId}/stages/${stageId}/reconciliation`}
+              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
+              style={{ backgroundColor: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.2)", color: "#16a34a" }}
+            >
+              View reconciliation
+            </Link>
+          )}
         </div>
 
         {/* ── Evidence ─────────────────────────────────────────────────────── */}
