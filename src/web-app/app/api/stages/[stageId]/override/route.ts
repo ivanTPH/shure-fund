@@ -47,10 +47,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   const { stageId } = await context.params;
   const service = createServiceClient();
 
-  // Fetch current status
+  // Fetch current status + project_id (needed for audit event)
   const { data: stage, error: fetchErr } = await service
     .from("contract_stages")
-    .select("id, status")
+    .select("id, status, name, contracts!inner ( project_id )")
     .eq("id", stageId)
     .single();
 
@@ -59,6 +59,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
 
   const fromStatus = stage.status as StageStatus;
+  const contract = Array.isArray(stage.contracts) ? stage.contracts[0] : stage.contracts;
+  const projectId: string | null = contract?.project_id ?? null;
 
   if (fromStatus === targetStatus) {
     return NextResponse.json({ error: `Stage is already in status "${targetStatus}".` }, { status: 400 });
@@ -73,6 +75,24 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
+
+  // Write explicit audit event so the override reason is permanently recorded.
+  // The DB trigger fn_audit_stage_transition also fires (recording the status
+  // change), but it has no access to the API-level reason. This second row
+  // captures the admin's stated justification.
+  await service.from("audit_events").insert({
+    project_id: projectId,
+    stage_id:   stageId,
+    actor_id:   user.id,
+    action:     "admin_override",
+    from_state: fromStatus,
+    to_state:   targetStatus,
+    metadata:   {
+      reason:      reason.trim(),
+      stage_name:  stage.name ?? stageId,
+      override_by: user.email ?? user.id,
+    },
+  });
 
   return NextResponse.json({ ok: true, from: fromStatus, to: targetStatus });
 }
