@@ -18,6 +18,7 @@ import type { NextRequest } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { getRole } from "@/lib/auth";
 
 const BUCKET = "evidence";
 const SIGNED_URL_TTL = 3600; // 1 hour
@@ -86,6 +87,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // 1b. Role gate — only contractor and admin may upload evidence
+  const role = getRole(user);
+  if (!role || !["contractor", "admin"].includes(role)) {
+    return NextResponse.json({ error: "Forbidden — only contractors may upload evidence" }, { status: 403 });
+  }
+
   // 2. Parse multipart form
   let form: FormData;
   try {
@@ -123,6 +130,23 @@ export async function POST(request: NextRequest) {
   }
 
   const service = createServiceClient();
+
+  // 3b. Verify stage is in_progress — evidence can only be uploaded at that status
+  const { data: stage, error: stageError } = await service
+    .from("contract_stages")
+    .select("id, status")
+    .eq("id", stageId)
+    .single();
+
+  if (stageError || !stage) {
+    return NextResponse.json({ error: "Stage not found" }, { status: 404 });
+  }
+  if (stage.status !== "in_progress") {
+    return NextResponse.json(
+      { error: `Evidence can only be uploaded when the stage is in_progress. Current status: ${stage.status}.` },
+      { status: 403 },
+    );
+  }
 
   // 4. Ensure the uploader has a profile row (FK constraint on evidence.uploaded_by)
   const meta = user.user_metadata ?? {};
