@@ -85,6 +85,20 @@ export async function POST(req: NextRequest) {
     .eq("id", stageId)
     .in("status", ["in_progress", "awaiting_approval"]);
 
+  // Audit trail
+  try {
+    if (projectId) {
+      await service.from("audit_events").insert({
+        project_id: projectId,
+        stage_id:   stageId,
+        actor_id:   user.id,
+        action:     "dispute_opened",
+        to_state:   "raised",
+        metadata:   { dispute_id: dispute.id, disputed_value: Number(disputedValue), reason: reason.trim() },
+      });
+    }
+  } catch { /* non-fatal */ }
+
   // Notify
   try {
     if (projectId) {

@@ -111,6 +111,15 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       const projectId = contract?.project_id ?? null;
       const contractId = contract?.id ?? null;
       if (projectId) {
+        await service.from("audit_events").insert({
+          project_id: projectId,
+          stage_id:   dispute.stage_id,
+          actor_id:   user.id,
+          action:     "dispute_resolved",
+          from_state: dispute.status,
+          to_state:   "resolved",
+          metadata:   { dispute_id: disputeId, notes: notes ?? null },
+        });
         await notifyDisputeResolved(service, projectId, dispute.stage_id, stg?.name ?? dispute.stage_id, contractId, disputeId);
       }
     } catch { /* non-fatal */ }

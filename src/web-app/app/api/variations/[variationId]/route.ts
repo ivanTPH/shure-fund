@@ -153,13 +153,32 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .eq("id", variation.stage_id);
   }
 
-  // Fire notifications
+  // Audit trail + notifications
   try {
     const stg = Array.isArray(variation.stage) ? variation.stage[0] : variation.stage;
     const contract = Array.isArray(stg?.contracts) ? stg.contracts[0] : stg?.contracts;
     const projectId = contract?.project_id ?? null;
     const contractId = contract?.id ?? null;
     const stageName = stg?.name ?? variationId;
+
+    const AUDIT_ACTION: Partial<Record<string, string>> = {
+      submitted: "variation_requested",
+      approved:  "variation_approved",
+      rejected:  "variation_rejected",
+      active:    "variation_activated",
+    };
+    const auditAction = AUDIT_ACTION[rule.to];
+    if (auditAction && projectId) {
+      await service.from("audit_events").insert({
+        project_id: projectId,
+        stage_id:   variation.stage_id,
+        actor_id:   user.id,
+        action:     auditAction,
+        from_state: variation.status,
+        to_state:   rule.to,
+        metadata:   { variation_id: variationId, value_change: Number(variation.value_change), reason: reason ?? null },
+      });
+    }
 
     if (rule.to === "submitted") {
       await notifyVariationSubmitted(service, projectId, variation.stage_id, stageName, contractId, variationId, Number(variation.value_change));
