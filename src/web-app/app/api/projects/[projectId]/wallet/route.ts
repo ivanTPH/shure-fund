@@ -129,6 +129,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
     created_by: user.id,
   });
 
+  // Audit trail — wallet_funded event so deposits appear in the global audit log
+  await service.from("audit_events").insert({
+    project_id: projectId,
+    actor_id:   user.id,
+    action:     "wallet_funded",
+    metadata:   { amount: deposit, reference: reference.trim(), wallet_transaction_id: provisionalTxId },
+  });
+
   // Return updated wallet
   const { data: updated } = await service
     .from("wallets")

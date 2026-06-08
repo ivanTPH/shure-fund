@@ -361,7 +361,20 @@ export async function POST(
         .single();
       const contract = Array.isArray(stageContract?.contracts) ? stageContract.contracts[0] : stageContract?.contracts;
       const projectId = contract?.project_id ?? null;
-      const releaseAmount = Number(stageContract?.value ?? 0);
+
+      // Use minimum certified amount from approvals (mirrors the release page UI logic).
+      // If no approver specified a certified amount, fall back to the full contracted value.
+      const { data: approvalCerts } = await serviceClient
+        .from("approvals")
+        .select("certified_amount")
+        .eq("stage_id", stageId)
+        .not("certified_amount", "is", null);
+      const certs = (approvalCerts ?? [])
+        .map((a) => Number(a.certified_amount))
+        .filter((n) => n > 0);
+      const releaseAmount = certs.length > 0
+        ? Math.min(...certs)
+        : Number(stageContract?.value ?? 0);
 
       if (projectId && releaseAmount > 0) {
         // Deduct from wallet
