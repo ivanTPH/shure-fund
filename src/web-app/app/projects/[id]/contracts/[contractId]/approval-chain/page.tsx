@@ -42,7 +42,6 @@ type Stage = {
   name: string;
   value: number;
   status: string;
-  sequence_order: number;
   approvals: ApprovalRecord[];
 };
 
