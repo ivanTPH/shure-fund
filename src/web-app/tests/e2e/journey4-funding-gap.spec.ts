@@ -43,9 +43,28 @@ test.describe("Journey 4 — Funding gap detection @critical", () => {
       if (stageId) break;
     }
 
-    // If no suitable stage, skip — the test is informational
+    // No suitable stage — create a fresh one with a large value and advance to accepted.
+    // Use a value well above any realistic wallet balance so the gap test actually fires.
     if (!stageId) {
-      console.log("No accepted-state stage found — skipping funding gap journey");
+      const firstContract = contracts.contracts?.[0];
+      expect(firstContract, "No contracts on test project").toBeTruthy();
+
+      const createRes = await page.request.post(
+        `${BASE}/api/projects/${PROJECT_ID}/contracts/${firstContract.id}/stages`,
+        {
+          headers: { "Content-Type": "application/json" },
+          data: { name: "J4 Funding Gap Test Stage", value: 999_999_999 },
+        },
+      );
+      expect(createRes.ok(), `Stage creation failed: ${await createRes.text()}`).toBe(true);
+      const created = await createRes.json() as { stageId: string };
+      stageId    = created.stageId;
+      stageValue = 999_999_999;
+
+      // Advance draft → sent → accepted (stop before allocate_funding)
+      await transitionStage(page, stageId, "submit");
+      await transitionStage(page, stageId, "accept");
+      console.log(`Created funding gap test stage: ${stageId} (value £${stageValue})`);
     }
   });
 
