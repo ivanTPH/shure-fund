@@ -45,10 +45,10 @@ export async function GET(_req: NextRequest) {
     service.from("disputes").select("id, status, stage_id, disputed_value"),
     service.from("variations").select("id, status, stage_id, value_change"),
     service.from("aml_flags").select("id, status").in("status", ["pending", "flagged"]),
-    service.from("kyc_submissions").select("id, kyc_status").eq("kyc_status", "pending_review"),
+    service.from("kyc_submissions").select("id, status").eq("status", "pending"),
     service
       .from("audit_events")
-      .select("id, event_type, description, created_at, project_id")
+      .select("id, action, created_at, project_id")
       .order("created_at", { ascending: false })
       .limit(15),
   ]);
@@ -150,8 +150,8 @@ export async function GET(_req: NextRequest) {
 
   const recentActivity = (recentEvents ?? []).map(e => ({
     id:          e.id,
-    eventType:   e.event_type,
-    description: e.description,
+    eventType:   e.action,
+    description: null,
     createdAt:   e.created_at,
     projectId:   e.project_id,
     projectName: e.project_id ? (projectNameMap.get(e.project_id) ?? null) : null,
