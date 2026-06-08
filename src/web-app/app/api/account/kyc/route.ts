@@ -111,11 +111,11 @@ export async function POST(req: NextRequest) {
 
   // Write audit event
   await supabase.from("audit_events").insert({
-    entity_type:  "kyc_submission",
-    entity_id:    submission.id,
-    action:       "submitted",
-    user_id:      user.id,
-    after_state:  { kyc_status: "pending_review" },
+    actor_id:   user.id,
+    action:     "kyc_submitted",
+    from_state: "not_started",
+    to_state:   "pending_review",
+    metadata:   { submission_id: submission.id },
   });
 
   return NextResponse.json({ submissionId: submission.id }, { status: 201 });
