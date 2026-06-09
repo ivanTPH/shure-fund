@@ -79,6 +79,8 @@ export async function signIn(page: Page, role: UserRole): Promise<void> {
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/login"), {
     timeout: 20_000,
   });
+  // Ensure all auth cookies are fully written before the caller makes API requests
+  await page.waitForLoadState("networkidle");
 }
 
 /**
