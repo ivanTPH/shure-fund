@@ -30,6 +30,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
+import { transitionLimit } from "@/lib/rateLimit";
 import {
   validateTransition,
   isValidStatus,
@@ -247,6 +248,14 @@ export async function POST(
     return NextResponse.json(
       { error: "Your account has no role assigned. Contact your administrator." },
       { status: 403 },
+    );
+  }
+
+  const rl = transitionLimit(user.id);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many transition requests. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
     );
   }
 

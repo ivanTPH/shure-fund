@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { kycSubmitLimit } from "@/lib/rateLimit";
 
 // ---------------------------------------------------------------------------
 // GET /api/account/kyc — return current user's KYC status + latest submission
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
   const userClient = await createClient();
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = kycSubmitLimit(user.id);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many KYC submissions. Please wait before trying again." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
 
   const body = await req.json();
 

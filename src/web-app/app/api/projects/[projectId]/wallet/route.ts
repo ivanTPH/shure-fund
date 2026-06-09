@@ -11,6 +11,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
 import { assertProjectAccess } from "@/lib/auth-server";
 import { runDepositAmlChecks } from "@/lib/compliance/amlRules";
+import { walletDepositLimit } from "@/lib/rateLimit";
 
 type RouteContext = { params: Promise<{ projectId: string }> };
 
@@ -51,6 +52,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
   const role = getRole(user);
   if (role !== "funder" && role !== "admin") {
     return NextResponse.json({ error: "Only funders can add funds to the wallet." }, { status: 403 });
+  }
+
+  const rl = walletDepositLimit(user.id);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many deposit attempts. Please wait before trying again." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
   }
 
   let body: { amount: number; reference: string; idempotencyKey?: string };

@@ -54,6 +54,13 @@ type TokenPayment = {
   userId: string;
 };
 
+type TokenHolder = {
+  id: string;
+  share_pct: number;
+  label: string | null;
+  user: { id: string; full_name: string; email: string; role: string } | null;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -97,9 +104,20 @@ export default function WalletPage() {
   const [transactions, setTransactions]   = useState<WalletTx[]>([]);
   const [retention, setRetention]         = useState<RetentionRow[]>([]);
   const [tokenPayments, setTokenPayments] = useState<TokenPayment[]>([]);
+  const [holders, setHolders]             = useState<TokenHolder[]>([]);
+  const [holdersTotal, setHoldersTotal]   = useState(0);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState<string | null>(null);
   const [canDeposit, setCanDeposit]       = useState(false);
+  const [canManageHolders, setCanManageHolders] = useState(false);
+
+  // Add token holder form
+  const [showAddHolder, setShowAddHolder]   = useState(false);
+  const [newHolderEmail, setNewHolderEmail] = useState("");
+  const [newHolderShare, setNewHolderShare] = useState("");
+  const [newHolderLabel, setNewHolderLabel] = useState("");
+  const [addingHolder, setAddingHolder]     = useState(false);
+  const [addHolderError, setAddHolderError] = useState<string | null>(null);
 
   // Top-up form
   const [showTopUp, setShowTopUp]             = useState(false);
@@ -115,21 +133,26 @@ export default function WalletPage() {
         const { data: { user } } = await createClient().auth.getUser();
         const role = user ? getRole(user) : null;
         setCanDeposit(role === "funder" || role === "admin");
+        setCanManageHolders(role === "admin" || role === "developer");
 
-        const [walletRes, txRes, dashRes, tokenRes] = await Promise.all([
+        const [walletRes, txRes, dashRes, tokenRes, holdersRes] = await Promise.all([
           fetch(`/api/projects/${projectId}/wallet`),
           fetch(`/api/projects/${projectId}/wallet/transactions`),
           fetch(`/api/projects/${projectId}/dashboard`),
           fetch(`/api/token-payments?projectId=${projectId}`),
+          fetch(`/api/projects/${projectId}/token-holders`),
         ]);
-        const [walletData, txData, dashData, tokenData] = await Promise.all([
+        const [walletData, txData, dashData, tokenData, holdersData] = await Promise.all([
           walletRes.json(), txRes.json(), dashRes.json(), tokenRes.json(),
+          holdersRes.ok ? holdersRes.json() : { holders: [], totalSharePct: 0 },
         ]);
 
         if (walletRes.ok) setWallet(walletData.wallet ?? null);
         else setError(walletData.error ?? "Failed to load wallet.");
         if (txRes.ok) setTransactions(txData.transactions ?? []);
         if (tokenRes.ok) setTokenPayments(tokenData.payments ?? []);
+        setHolders(holdersData.holders ?? []);
+        setHoldersTotal(holdersData.totalSharePct ?? 0);
 
         // Build retention rows from released stages in dashboard
         if (dashRes.ok) {
@@ -158,6 +181,47 @@ export default function WalletPage() {
     }
     load();
   }, [projectId]);
+
+  async function handleAddHolder(e: React.FormEvent) {
+    e.preventDefault();
+    setAddHolderError(null);
+    const share = parseFloat(newHolderShare);
+    if (isNaN(share) || share <= 0 || share > 100) { setAddHolderError("Share must be between 0 and 100."); return; }
+    if (!newHolderEmail.trim()) { setAddHolderError("Email is required."); return; }
+
+    setAddingHolder(true);
+    try {
+      // Resolve user by email via a search endpoint (use admin API)
+      const lookupRes = await fetch(`/api/users?email=${encodeURIComponent(newHolderEmail.trim())}`);
+      if (!lookupRes.ok) { setAddHolderError("User not found with that email."); return; }
+      const { user: foundUser } = await lookupRes.json() as { user: { id: string } };
+
+      const res = await fetch(`/api/projects/${projectId}/token-holders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: foundUser.id, sharePct: share, label: newHolderLabel.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAddHolderError(data.error ?? "Failed to add holder."); return; }
+
+      setHolders((prev) => [...prev, data.holder as TokenHolder]);
+      setHoldersTotal((prev) => prev + share);
+      setNewHolderEmail(""); setNewHolderShare(""); setNewHolderLabel("");
+      setShowAddHolder(false);
+    } catch {
+      setAddHolderError("Network error — please try again.");
+    } finally {
+      setAddingHolder(false);
+    }
+  }
+
+  async function handleRemoveHolder(holderId: string, sharePct: number) {
+    const res = await fetch(`/api/projects/${projectId}/token-holders/${holderId}`, { method: "DELETE" });
+    if (res.ok) {
+      setHolders((prev) => prev.filter((h) => h.id !== holderId));
+      setHoldersTotal((prev) => prev - sharePct);
+    }
+  }
 
   async function handleDeposit(e: React.FormEvent) {
     e.preventDefault();
@@ -252,6 +316,83 @@ export default function WalletPage() {
                   <p className="mt-1.5 text-lg font-bold" style={{ color }}>{gbp.format(Number(value))}</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* 1b. Token holders */}
+          {(holders.length > 0 || canManageHolders) && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
+                  Trust token holders — {holdersTotal.toFixed(2)}% allocated
+                </p>
+                {canManageHolders && (
+                  <button
+                    onClick={() => setShowAddHolder((v) => !v)}
+                    className="text-xs font-semibold px-3 py-1 rounded-xl transition hover:opacity-80"
+                    style={{ backgroundColor: "rgba(13,17,68,0.06)", color: "var(--brand-navy, #0D1144)" }}
+                  >
+                    {showAddHolder ? "Cancel" : "+ Add holder"}
+                  </button>
+                )}
+              </div>
+
+              {showAddHolder && canManageHolders && (
+                <form
+                  onSubmit={handleAddHolder}
+                  className="mb-3 rounded-[20px] p-4 space-y-3"
+                  style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+                >
+                  <div className="grid md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>User email</label>
+                      <input type="email" value={newHolderEmail} onChange={(e) => setNewHolderEmail(e.target.value)} required placeholder="holder@email.com" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Share %</label>
+                      <input type="number" min="0.01" max="100" step="0.01" value={newHolderShare} onChange={(e) => setNewHolderShare(e.target.value)} required placeholder="e.g. 25" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Label (optional)</label>
+                      <input type="text" value={newHolderLabel} onChange={(e) => setNewHolderLabel(e.target.value)} placeholder="e.g. Series A investor" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#f7f8fc", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                  </div>
+                  {addHolderError && <p className="text-xs text-red-500">{addHolderError}</p>}
+                  <button type="submit" disabled={addingHolder} className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50" style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}>
+                    {addingHolder ? "Adding…" : "Add token holder"}
+                  </button>
+                </form>
+              )}
+
+              {holders.length > 0 ? (
+                <div className="rounded-[20px] overflow-hidden" style={{ border: "1px solid var(--surface-border, #e4e7f0)" }}>
+                  {holders.map((h, i) => (
+                    <div key={h.id} className="flex items-center justify-between px-4 py-3" style={{ borderTop: i > 0 ? "1px solid var(--surface-border, #e4e7f0)" : undefined }}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>
+                          {h.user?.full_name ?? h.user?.email ?? "Unknown user"}
+                          {h.label && <span className="ml-2 text-xs font-normal" style={{ color: "rgba(13,17,68,0.45)" }}>{h.label}</span>}
+                        </p>
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>{h.user?.email} · {h.user?.role}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-3">
+                        <span className="text-sm font-bold" style={{ color: "#2563eb" }}>{Number(h.share_pct).toFixed(2)}%</span>
+                        {canManageHolders && (
+                          <button onClick={() => handleRemoveHolder(h.id, Number(h.share_pct))} className="text-xs px-2 py-1 rounded-lg transition hover:opacity-70" style={{ color: "#dc2626", backgroundColor: "rgba(220,38,38,0.07)" }}>
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "rgba(13,17,68,0.02)" }}>
+                    <p className="text-xs font-semibold" style={{ color: "rgba(13,17,68,0.45)" }}>Total allocated</p>
+                    <p className="text-sm font-bold" style={{ color: holdersTotal >= 100 ? "#059669" : "#2563eb" }}>{holdersTotal.toFixed(2)}%</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No token holders registered yet.</p>
+              )}
             </div>
           )}
 
