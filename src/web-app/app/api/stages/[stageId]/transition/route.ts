@@ -408,32 +408,54 @@ export async function POST(
           });
         }
 
-        // Simultaneous token holder payments
-        // All funder-role members of the project are co-beneficiaries in the trust.
-        // Every one must receive a payment record at the identical paid_at timestamp.
-        const { data: tokenHolders } = await serviceClient
-          .from("project_members")
-          .select("user_id")
-          .eq("project_id", projectId)
-          .eq("role", "funder");
+        // Simultaneous token holder payments.
+        // Prefer explicit project_token_holders (with per-holder share_pct).
+        // Fall back to equal shares across all funder-role project_members if none are registered.
+        const { data: explicitHolders } = await serviceClient
+          .from("project_token_holders")
+          .select("user_id, share_pct")
+          .eq("project_id", projectId);
 
-        if (tokenHolders && tokenHolders.length > 0) {
-          const paidAt = new Date().toISOString();
-          const shareAmount = Number((releaseAmount / tokenHolders.length).toFixed(2));
-          const sharePct    = Number((1 / tokenHolders.length).toFixed(4));
-          const stageName   = stageContract?.name ?? stageId;
+        const stageName = stageContract?.name ?? stageId;
+        const paidAt    = new Date().toISOString();
 
+        if (explicitHolders && explicitHolders.length > 0) {
+          // Use explicit share percentages — amounts are proportional
           await serviceClient.from("token_payments").insert(
-            tokenHolders.map((th) => ({
+            explicitHolders.map((th) => ({
               stage_id:   stageId,
               project_id: projectId,
               user_id:    th.user_id,
-              amount:     shareAmount,
-              share_pct:  sharePct,
+              amount:     Number((releaseAmount * Number(th.share_pct) / 100).toFixed(2)),
+              share_pct:  Number(th.share_pct),
               reference:  `${stageName} — Stage Released`,
               paid_at:    paidAt,
             }))
           );
+        } else {
+          // Fall back: equal shares for all funder-role project members
+          const { data: funderMembers } = await serviceClient
+            .from("project_members")
+            .select("user_id")
+            .eq("project_id", projectId)
+            .eq("role", "funder");
+
+          if (funderMembers && funderMembers.length > 0) {
+            const shareAmount = Number((releaseAmount / funderMembers.length).toFixed(2));
+            const sharePct    = Number((100 / funderMembers.length).toFixed(4));
+
+            await serviceClient.from("token_payments").insert(
+              funderMembers.map((th) => ({
+                stage_id:   stageId,
+                project_id: projectId,
+                user_id:    th.user_id,
+                amount:     shareAmount,
+                share_pct:  sharePct,
+                reference:  `${stageName} — Stage Released`,
+                paid_at:    paidAt,
+              }))
+            );
+          }
         }
       }
     } catch { /* non-fatal — transition must never fail due to payment record errors */ }

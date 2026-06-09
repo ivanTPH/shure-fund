@@ -1192,11 +1192,13 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
 // ---------------------------------------------------------------------------
 
 export default function ProjectSummaryClient({ projectId }: { projectId: string }) {
-  const [role, setRole]         = useState<AppRole | null>(null);
-  const [userId, setUserId]     = useState<string | null>(null);
-  const [data, setData]         = useState<DashboardData | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState<string | null>(null);
+  const [role, setRole]             = useState<AppRole | null>(null);
+  const [userId, setUserId]         = useState<string | null>(null);
+  const [data, setData]             = useState<DashboardData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [projectStatus, setProjectStatus] = useState<string | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   // 1. Load user role
   useEffect(() => {
@@ -1220,12 +1222,30 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
       }
       const d = await res.json();
       setData(d);
+      setProjectStatus(d.project?.status ?? null);
     } catch {
       setError("Network error loading project dashboard.");
     } finally {
       setLoading(false);
     }
   }, [projectId]);
+
+  async function handleStatusChange(newStatus: string) {
+    setStatusUpdating(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setProjectStatus(d.project.status);
+      }
+    } finally {
+      setStatusUpdating(false);
+    }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -1261,10 +1281,39 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
       <div className="flex items-start justify-between gap-3">
         <div>
           <ProjectSwitcher currentProjectId={projectId} currentProjectName={data.project.name} />
-          <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{data.project.name}</h1>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>{data.project.name}</h1>
+            {projectStatus && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={{
+                  backgroundColor: projectStatus === "active" ? "#05966918" : projectStatus === "completed" ? "#2563eb18" : "#94a3b818",
+                  color: projectStatus === "active" ? "#059669" : projectStatus === "completed" ? "#2563eb" : "#64748b",
+                }}
+              >
+                {projectStatus.replace(/_/g, " ")}
+              </span>
+            )}
+          </div>
           <p className="text-sm" style={{ color: "rgba(13,17,68,0.55)" }}>{data.project.address}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Project status control — admin/developer only */}
+          {(role === "admin" || role === "developer") && projectStatus && (
+            <select
+              value={projectStatus}
+              disabled={statusUpdating}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className="rounded-xl px-3 py-1.5 text-xs font-medium outline-none transition disabled:opacity-50"
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff", color: "var(--brand-navy, #0D1144)" }}
+              title="Change project status"
+            >
+              <option value="active">Active</option>
+              <option value="on_hold">On Hold</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          )}
           {/* Role badge */}
           {role && (
             <span

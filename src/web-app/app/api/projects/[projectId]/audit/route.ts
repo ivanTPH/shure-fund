@@ -78,5 +78,29 @@ export async function GET(
     actor: Array.isArray(row.actor) ? row.actor[0] : row.actor,
   }));
 
+  // CSV export
+  if (params.get("format") === "csv") {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["Date", "Actor", "Role", "Action", "Stage", "From", "To"],
+      ...events.map((e) => [
+        esc(e.createdAt),
+        esc(e.actor?.full_name ?? ""),
+        esc(e.actor?.role ?? ""),
+        esc(e.action),
+        esc(e.stageName ?? ""),
+        esc(e.fromState ?? ""),
+        esc(e.toState ?? ""),
+      ]),
+    ];
+    const csv = rows.map((r) => r.join(",")).join("\r\n");
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="audit-${projectId}.csv"`,
+      },
+    });
+  }
+
   return NextResponse.json({ events, total: events.length });
 }

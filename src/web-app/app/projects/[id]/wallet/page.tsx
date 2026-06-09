@@ -574,7 +574,19 @@ export default function WalletPage() {
 
           {/* 5. Transaction history — bank statement format */}
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Transaction history</p>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>Transaction history</p>
+              {transactions.length > 0 && (
+                <a
+                  href={`/api/projects/${projectId}/wallet/transactions?format=csv`}
+                  download
+                  className="text-xs font-semibold px-3 py-1 rounded-xl transition hover:opacity-80"
+                  style={{ backgroundColor: "rgba(13,17,68,0.06)", color: "var(--brand-navy, #0D1144)" }}
+                >
+                  Export CSV
+                </a>
+              )}
+            </div>
             {transactions.length === 0 ? (
               <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No transactions yet.</p>
             ) : (
