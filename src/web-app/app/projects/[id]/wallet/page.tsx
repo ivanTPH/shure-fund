@@ -102,11 +102,12 @@ export default function WalletPage() {
   const [canDeposit, setCanDeposit]       = useState(false);
 
   // Top-up form
-  const [showTopUp, setShowTopUp]         = useState(false);
-  const [depositAmount, setDepositAmount] = useState("");
-  const [depositRef, setDepositRef]       = useState("");
-  const [depositing, setDepositing]       = useState(false);
-  const [depositError, setDepositError]   = useState<string | null>(null);
+  const [showTopUp, setShowTopUp]             = useState(false);
+  const [depositAmount, setDepositAmount]     = useState("");
+  const [depositRef, setDepositRef]           = useState("");
+  const [depositing, setDepositing]           = useState(false);
+  const [depositError, setDepositError]       = useState<string | null>(null);
+  const [depositIdempotencyKey, setDepositIdempotencyKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     async function load() {
@@ -170,7 +171,7 @@ export default function WalletPage() {
       const res = await fetch(`/api/projects/${projectId}/wallet`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ amount, reference: depositRef.trim() }),
+        body:    JSON.stringify({ amount, reference: depositRef.trim(), idempotencyKey: depositIdempotencyKey }),
       });
       const data = await res.json();
       if (!res.ok) { setDepositError(data.error ?? "Deposit failed."); return; }
@@ -185,6 +186,7 @@ export default function WalletPage() {
       }, ...prev]);
       setDepositAmount("");
       setDepositRef("");
+      setDepositIdempotencyKey(crypto.randomUUID()); // rotate key for next deposit
       setShowTopUp(false);
     } catch {
       setDepositError("Network error — please try again.");

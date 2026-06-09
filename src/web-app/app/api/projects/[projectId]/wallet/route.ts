@@ -53,12 +53,12 @@ export async function POST(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Only funders can add funds to the wallet." }, { status: 403 });
   }
 
-  let body: { amount: number; reference: string };
+  let body: { amount: number; reference: string; idempotencyKey?: string };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { amount, reference } = body;
+  const { amount, reference, idempotencyKey } = body;
   if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
     return NextResponse.json({ error: "Amount must be a positive number." }, { status: 400 });
   }
@@ -71,6 +71,25 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
   const denied = await assertProjectAccess(service, user, projectId);
   if (denied) return denied;
+
+  // Idempotency check — if the client supplied a key and we've already processed it,
+  // return the current wallet state without creating a duplicate transaction.
+  if (idempotencyKey?.trim()) {
+    const { data: existing } = await service
+      .from("wallet_transactions")
+      .select("wallet_id")
+      .eq("idempotency_key", idempotencyKey.trim())
+      .maybeSingle();
+
+    if (existing) {
+      const { data: currentWallet } = await service
+        .from("wallets")
+        .select("id, balance, available_amount, ringfenced_amount, updated_at")
+        .eq("id", existing.wallet_id)
+        .single();
+      return NextResponse.json({ wallet: currentWallet, deduplicated: true }, { status: 200 });
+    }
+  }
 
   // Fetch current wallet
   const { data: wallet, error: walletErr } = await service
@@ -121,12 +140,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
   // Record transaction (use provisional ID so compliance_reviews entity_id matches)
   await service.from("wallet_transactions").insert({
-    id:         provisionalTxId,
-    wallet_id:  wallet.id,
-    type:       "deposit",
-    amount:     deposit,
-    reference:  reference.trim(),
-    created_by: user.id,
+    id:               provisionalTxId,
+    wallet_id:        wallet.id,
+    type:             "deposit",
+    amount:           deposit,
+    reference:        reference.trim(),
+    created_by:       user.id,
+    ...(idempotencyKey?.trim() ? { idempotency_key: idempotencyKey.trim() } : {}),
   });
 
   // Audit trail — wallet_funded event so deposits appear in the global audit log
