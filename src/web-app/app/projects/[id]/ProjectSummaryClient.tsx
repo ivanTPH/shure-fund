@@ -1159,27 +1159,35 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
   funder: [
     { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Wallet", href: (id) => `/projects/${id}/wallet` },
+    { label: "Budget", href: (id) => `/projects/${id}/budget` },
+    { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
   ],
   developer: [
     { label: "Funding", href: (id) => `/projects/${id}/funding` },
+    { label: "Budget", href: (id) => `/projects/${id}/budget` },
+    { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
     { label: "Add contract", href: (id) => `/projects/${id}/contracts/new` },
   ],
   commercial: [
+    { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
   ],
   consultant: [
+    { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
   ],
   contractor: [],   // no extra nav for contractor
   admin: [
     { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Wallet", href: (id) => `/projects/${id}/wallet` },
+    { label: "Budget", href: (id) => `/projects/${id}/budget` },
+    { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
