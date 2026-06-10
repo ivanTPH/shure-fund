@@ -14,18 +14,33 @@ export default async function ProjectsPage() {
   const role = (getRole(user) ?? null) as AppRole | null;
   const service = createServiceClient();
 
-  // Fetch projects with stage counts and wallet balance in one shot
-  const { data: rawProjects } = await service
-    .from("projects")
-    .select(`
-      id, name, address, status, created_at, funder_id,
-      wallets ( available_amount, balance ),
-      contracts (
-        id, total_value,
-        contract_stages ( id, name, status, value )
-      )
-    `)
-    .order("created_at", { ascending: false });
+  // Fetch projects with stage counts, wallet balance, and PoF in parallel
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [{ data: rawProjects }, { data: rawPof }] = await Promise.all([
+    service
+      .from("projects")
+      .select(`
+        id, name, address, status, created_at, funder_id,
+        wallets ( available_amount, balance ),
+        contracts (
+          id, total_value,
+          contract_stages ( id, name, status, value )
+        )
+      `)
+      .order("created_at", { ascending: false }),
+    service
+      .from("proof_of_funds")
+      .select("project_id, amount")
+      .eq("status", "active")
+      .gte("valid_until", today),
+  ]);
+
+  // Build PoF total per project (active, not expired)
+  const pofByProject = new Map<string, number>();
+  for (const row of rawPof ?? []) {
+    pofByProject.set(row.project_id, (pofByProject.get(row.project_id) ?? 0) + Number(row.amount));
+  }
 
   const projects = (rawProjects ?? []).map((p) => {
     const walletRow = Array.isArray(p.wallets) ? p.wallets[0] : p.wallets;
@@ -37,7 +52,19 @@ export default async function ProjectsPage() {
     const allStages = contracts.flatMap((c) => c.contract_stages ?? []);
     const totalStages = allStages.length;
     const completedStages = allStages.filter((s) => s.status === "released").length;
+    const activeStages = allStages.filter((s) =>
+      ["in_progress", "awaiting_approval", "available_to_release", "disputed", "returned", "sent", "accepted"].includes(s.status),
+    ).length;
     const totalValue = contracts.reduce((sum, c) => sum + Number(c.total_value ?? 0), 0);
+    const walletBalance = Number(walletRow?.balance ?? 0);
+    const walletAvailable = Number(walletRow?.available_amount ?? 0);
+    const pofTotal = pofByProject.get(p.id) ?? 0;
+
+    // Funding gap: available wallet < 30-day projected draw (active stage values)
+    const activeStageValue = allStages
+      .filter((s) => ["in_progress", "available_to_release", "awaiting_approval"].includes(s.status))
+      .reduce((sum, s) => sum + Number(s.value), 0);
+    const hasFundingGap = activeStageValue > 0 && walletAvailable < activeStageValue;
 
     return {
       id: p.id,
@@ -47,9 +74,12 @@ export default async function ProjectsPage() {
       createdAt: p.created_at,
       totalStages,
       completedStages,
+      activeStages,
       totalValue,
-      walletBalance: Number(walletRow?.balance ?? 0),
-      walletAvailable: Number(walletRow?.available_amount ?? 0),
+      walletBalance,
+      walletAvailable,
+      pofTotal,
+      hasFundingGap,
     };
   });
 

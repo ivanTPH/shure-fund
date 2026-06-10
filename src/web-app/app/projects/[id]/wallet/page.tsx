@@ -62,6 +62,17 @@ type TokenHolder = {
   user: { id: string; full_name: string; email: string; role: string } | null;
 };
 
+type PofDeclaration = {
+  id: string;
+  amount: number;
+  bank_name: string | null;
+  bank_reference: string | null;
+  valid_from: string;
+  valid_until: string;
+  status: "active" | "expired" | "withdrawn";
+  withdrawn_at: string | null;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -116,6 +127,20 @@ export default function WalletPage() {
   const [canReleaseRetention, setCanReleaseRetention] = useState(false);
   const [releasingRetention, setReleasingRetention]   = useState<string | null>(null); // stageId
 
+  // Proof-of-funds (Tier 2)
+  const [pofDeclarations, setPofDeclarations]       = useState<PofDeclaration[]>([]);
+  const [pofActiveTotal, setPofActiveTotal]         = useState(0);
+  const [canManagePof, setCanManagePof]             = useState(false);
+  const [showPofForm, setShowPofForm]               = useState(false);
+  const [pofAmount, setPofAmount]                   = useState("");
+  const [pofBankName, setPofBankName]               = useState("");
+  const [pofBankRef, setPofBankRef]                 = useState("");
+  const [pofValidFrom, setPofValidFrom]             = useState("");
+  const [pofValidUntil, setPofValidUntil]           = useState("");
+  const [submittingPof, setSubmittingPof]           = useState(false);
+  const [pofError, setPofError]                     = useState<string | null>(null);
+  const [withdrawingPof, setWithdrawingPof]         = useState<string | null>(null);
+
   // Add token holder form
   const [showAddHolder, setShowAddHolder]   = useState(false);
   const [newHolderEmail, setNewHolderEmail] = useState("");
@@ -140,23 +165,28 @@ export default function WalletPage() {
         setCanDeposit(role === "funder" || role === "admin");
         setCanManageHolders(role === "admin" || role === "developer");
         setCanReleaseRetention(role === "admin" || role === "developer" || role === "funder");
+        setCanManagePof(role === "funder" || role === "admin");
 
-        const [walletRes, txRes, dashRes, tokenRes, holdersRes] = await Promise.all([
+        const [walletRes, txRes, dashRes, tokenRes, holdersRes, pofRes] = await Promise.all([
           fetch(`/api/projects/${projectId}/wallet`),
           fetch(`/api/projects/${projectId}/wallet/transactions`),
           fetch(`/api/projects/${projectId}/dashboard`),
           fetch(`/api/token-payments?projectId=${projectId}`),
           fetch(`/api/projects/${projectId}/token-holders`),
+          fetch(`/api/projects/${projectId}/proof-of-funds`),
         ]);
-        const [walletData, txData, dashData, tokenData, holdersData] = await Promise.all([
+        const [walletData, txData, dashData, tokenData, holdersData, pofData] = await Promise.all([
           walletRes.json(), txRes.json(), dashRes.json(), tokenRes.json(),
           holdersRes.ok ? holdersRes.json() : { holders: [], totalSharePct: 0 },
+          pofRes.ok ? pofRes.json() : { declarations: [], totalActive: 0 },
         ]);
 
         if (walletRes.ok) setWallet(walletData.wallet ?? null);
         else setError(walletData.error ?? "Failed to load wallet.");
         if (txRes.ok) setTransactions(txData.transactions ?? []);
         if (tokenRes.ok) setTokenPayments(tokenData.payments ?? []);
+        setPofDeclarations(pofData.declarations ?? []);
+        setPofActiveTotal(pofData.totalActive ?? 0);
         setHolders(holdersData.holders ?? []);
         setHoldersTotal(holdersData.totalSharePct ?? 0);
 
@@ -227,6 +257,62 @@ export default function WalletPage() {
     if (res.ok) {
       setHolders((prev) => prev.filter((h) => h.id !== holderId));
       setHoldersTotal((prev) => prev - sharePct);
+    }
+  }
+
+  async function handleDeclarePof(e: React.FormEvent) {
+    e.preventDefault();
+    setPofError(null);
+    const amount = parseFloat(pofAmount);
+    if (isNaN(amount) || amount <= 0) { setPofError("Enter a valid amount."); return; }
+    if (!pofValidFrom) { setPofError("Valid from date is required."); return; }
+    if (!pofValidUntil) { setPofError("Valid until date is required."); return; }
+    if (new Date(pofValidUntil) <= new Date(pofValidFrom)) {
+      setPofError("Valid until must be after valid from."); return;
+    }
+    setSubmittingPof(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/proof-of-funds`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          amount,
+          validFrom:     pofValidFrom,
+          validUntil:    pofValidUntil,
+          bankName:      pofBankName.trim() || undefined,
+          bankReference: pofBankRef.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setPofError((data as { error?: string }).error ?? "Failed to declare."); return; }
+      setPofDeclarations((prev) => [data.declaration as PofDeclaration, ...prev]);
+      setPofActiveTotal((prev) => prev + amount);
+      setPofAmount(""); setPofBankName(""); setPofBankRef("");
+      setPofValidFrom(""); setPofValidUntil("");
+      setShowPofForm(false);
+    } catch {
+      setPofError("Network error — please try again.");
+    } finally {
+      setSubmittingPof(false);
+    }
+  }
+
+  async function handleWithdrawPof(pofId: string, amount: number) {
+    setWithdrawingPof(pofId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/proof-of-funds/${pofId}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({}),
+      });
+      if (res.ok) {
+        setPofDeclarations((prev) =>
+          prev.map((p) => p.id === pofId ? { ...p, status: "withdrawn" as const, withdrawn_at: new Date().toISOString() } : p),
+        );
+        setPofActiveTotal((prev) => Math.max(0, prev - amount));
+      }
+    } finally {
+      setWithdrawingPof(null);
     }
   }
 
@@ -344,7 +430,152 @@ export default function WalletPage() {
             </div>
           )}
 
-          {/* 1b. Token holders */}
+          {/* 1b. Trust tier coverage */}
+          {(wallet || pofDeclarations.length > 0 || canManagePof) && (
+            <div
+              className="rounded-[20px] overflow-hidden"
+              style={{ border: "1px solid rgba(37,99,235,0.2)", backgroundColor: "rgba(37,99,235,0.03)" }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid rgba(37,99,235,0.12)" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#2563eb" }}>
+                  Trust coverage
+                </p>
+                {canManagePof && (
+                  <button
+                    onClick={() => setShowPofForm((v) => !v)}
+                    className="text-xs font-semibold px-3 py-1 rounded-xl transition hover:opacity-80"
+                    style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563eb" }}
+                  >
+                    {showPofForm ? "Cancel" : "+ Declare Tier 2"}
+                  </button>
+                )}
+              </div>
+
+              {/* Declare PoF form */}
+              {showPofForm && canManagePof && (
+                <form
+                  onSubmit={handleDeclarePof}
+                  className="px-5 py-4 space-y-3"
+                  style={{ borderBottom: "1px solid rgba(37,99,235,0.12)" }}
+                >
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Amount (£)</label>
+                      <input type="number" min="1" step="0.01" value={pofAmount} onChange={(e) => setPofAmount(e.target.value)} required placeholder="e.g. 100000" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Bank name (optional)</label>
+                      <input type="text" value={pofBankName} onChange={(e) => setPofBankName(e.target.value)} placeholder="e.g. Barclays" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Bank reference (optional)</label>
+                      <input type="text" value={pofBankRef} onChange={(e) => setPofBankRef(e.target.value)} placeholder="e.g. REF-20240614" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Valid from</label>
+                      <input type="date" value={pofValidFrom} onChange={(e) => setPofValidFrom(e.target.value)} required className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: "rgba(13,17,68,0.55)" }}>Valid until</label>
+                      <input type="date" value={pofValidUntil} onChange={(e) => setPofValidUntil(e.target.value)} required className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)", color: "var(--brand-navy, #0D1144)" }} />
+                    </div>
+                  </div>
+                  {pofError && <p className="text-xs text-red-500">{pofError}</p>}
+                  <button type="submit" disabled={submittingPof} className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50 transition hover:opacity-90" style={{ backgroundColor: "#2563eb" }}>
+                    {submittingPof ? "Declaring…" : "Declare proof of funds"}
+                  </button>
+                </form>
+              )}
+
+              {/* Tier summary rows */}
+              <div className="divide-y" style={{ borderColor: "rgba(37,99,235,0.1)" }}>
+                {/* Tier 1 */}
+                <div className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>Tier 1 — Trust account</p>
+                    <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>Committed, locked — 30 days of work payments</p>
+                  </div>
+                  <p className="text-sm font-bold" style={{ color: "#2563eb" }}>{gbp.format(Number(wallet?.balance ?? 0))}</p>
+                </div>
+
+                {/* Tier 2 active declarations */}
+                {pofDeclarations.filter((p) => p.status === "active").map((p) => {
+                  const expiresIn = Math.ceil((new Date(p.valid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const nearExpiry = expiresIn <= 7;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>
+                          Tier 2 — Bank proof of funds
+                          {p.bank_name && <span className="ml-2 text-xs font-normal" style={{ color: "rgba(13,17,68,0.45)" }}>{p.bank_name}</span>}
+                        </p>
+                        <p className="text-xs" style={{ color: nearExpiry ? "#d97706" : "rgba(13,17,68,0.45)" }}>
+                          Uncommitted — valid until {new Date(p.valid_until).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          {nearExpiry && ` (${expiresIn}d left)`}
+                          {p.bank_reference && ` · Ref: ${p.bank_reference}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-3">
+                        <p className="text-sm font-bold" style={{ color: "#64748b" }}>{gbp.format(Number(p.amount))}</p>
+                        {canManagePof && (
+                          <button
+                            onClick={() => handleWithdrawPof(p.id, Number(p.amount))}
+                            disabled={withdrawingPof === p.id}
+                            className="text-xs px-2 py-1 rounded-lg transition hover:opacity-70 disabled:opacity-50"
+                            style={{ color: "#dc2626", backgroundColor: "rgba(220,38,38,0.07)" }}
+                          >
+                            {withdrawingPof === p.id ? "…" : "Withdraw"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* No Tier 2 */}
+                {pofDeclarations.filter((p) => p.status === "active").length === 0 && (
+                  <div className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>Tier 2 — Bank proof of funds</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.45)" }}>No active declarations — uncommitted bank buffer</p>
+                    </div>
+                    <p className="text-sm font-bold" style={{ color: "rgba(13,17,68,0.3)" }}>{gbp.format(0)}</p>
+                  </div>
+                )}
+
+                {/* Total coverage */}
+                <div className="flex items-center justify-between px-5 py-3" style={{ backgroundColor: "rgba(37,99,235,0.04)" }}>
+                  <p className="text-sm font-bold" style={{ color: "var(--brand-navy, #0D1144)" }}>Total coverage</p>
+                  <p className="text-base font-bold" style={{ color: "#2563eb" }}>
+                    {gbp.format(Number(wallet?.balance ?? 0) + pofActiveTotal)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Expired / withdrawn history */}
+              {pofDeclarations.filter((p) => p.status !== "active").length > 0 && (
+                <div className="px-5 py-3" style={{ borderTop: "1px solid rgba(37,99,235,0.1)" }}>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.4)" }}>Past declarations</p>
+                  <div className="space-y-1.5">
+                    {pofDeclarations.filter((p) => p.status !== "active").map((p) => (
+                      <div key={p.id} className="flex items-center justify-between">
+                        <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
+                          {p.status === "withdrawn" ? "Withdrawn" : "Expired"} · valid until {new Date(p.valid_until).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          {p.bank_name && ` · ${p.bank_name}`}
+                        </p>
+                        <p className="text-xs font-semibold" style={{ color: "rgba(13,17,68,0.35)" }}>{gbp.format(Number(p.amount))}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 1c. Token holders */}
           {(holders.length > 0 || canManageHolders) && (
             <div>
               <div className="mb-3 flex items-center justify-between">

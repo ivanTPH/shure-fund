@@ -224,6 +224,31 @@ export async function checkKycExpiry(
   return null;
 }
 
+/**
+ * Rule: Tier 2 proof-of-funds withdrawn before valid_until date.
+ * Indicates uncommitted funds are no longer available ahead of schedule.
+ * Medium risk — advisory, does not block the withdrawal.
+ */
+export function checkPofEarlyWithdrawal(
+  userId: string,
+  pofId: string,
+  projectId: string,
+  validUntil: string, // ISO date string
+): ComplianceHit | null {
+  if (new Date(validUntil) > new Date()) {
+    return {
+      rule_id:      "TIER2_POF_WITHDRAWAL",
+      rule_label:   "Tier 2 proof-of-funds withdrawn before expiry",
+      risk_level:   "medium",
+      entity_type:  "proof_of_funds",
+      entity_id:    pofId,
+      triggered_by: userId,
+      context:      { project_id: projectId, valid_until: validUntil },
+    };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Persistence helper
 // ---------------------------------------------------------------------------
