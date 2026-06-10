@@ -78,7 +78,7 @@ export default async function ContractDetailPage({ params }: { params: Params })
       project:projects!project_id ( id, name ),
       contract_stages (
         id, name, description, value, status,
-        start_date, end_date, created_at
+        start_date, end_date, created_at, retention_released_at
       )
     `)
     .eq("id", contractId)
@@ -238,9 +238,21 @@ export default async function ContractDetailPage({ params }: { params: Params })
                 stage.status !== "released" &&
                 new Date(stage.end_date) < new Date();
 
+              const canEdit = canManage && ["draft", "sent"].includes(stage.status);
+
               return (
+                <div key={stage.id} className="relative">
+                {canEdit && (
+                  <Link
+                    href={`/projects/${projectId}/contracts/${contractId}/stages/${stage.id}/edit`}
+                    className="absolute top-3 right-3 z-10 text-[10px] font-semibold px-2 py-1 rounded-lg transition hover:opacity-70"
+                    style={{ backgroundColor: "rgba(13,17,68,0.06)", color: "rgba(13,17,68,0.55)" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Edit
+                  </Link>
+                )}
                 <Link
-                  key={stage.id}
                   href={`/projects/${projectId}/stages/${stage.id}`}
                   className="block rounded-[20px] p-4 transition hover:bg-neutral-50"
                   style={{
@@ -296,6 +308,7 @@ export default async function ContractDetailPage({ params }: { params: Params })
                     </div>
                   </div>
                 </Link>
+                </div>
               );
             })}
           </div>

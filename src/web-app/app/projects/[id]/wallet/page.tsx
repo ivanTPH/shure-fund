@@ -42,6 +42,7 @@ type RetentionRow = {
   contractorName: string;
   certified: number;
   retention: number;
+  released: boolean;
 };
 
 type TokenPayment = {
@@ -80,6 +81,7 @@ const TX_TYPE_COLOR: Record<string, string> = {
   release:           "#dc2626",
   reversal:          "#7c3aed",
   buffer_adjustment: "#64748b",
+  retention_release: "#d97706",
 };
 
 const TX_TYPE_LABEL: Record<string, string> = {
@@ -89,9 +91,10 @@ const TX_TYPE_LABEL: Record<string, string> = {
   release:           "Stage payment",
   reversal:          "Payment reversed",
   buffer_adjustment: "Buffer adjustment",
+  retention_release: "Retention released",
 };
 
-const TX_OUTBOUND = new Set(["release", "allocation_out"]);
+const TX_OUTBOUND = new Set(["release", "allocation_out", "retention_release"]);
 
 // ---------------------------------------------------------------------------
 // Component
@@ -108,8 +111,10 @@ export default function WalletPage() {
   const [holdersTotal, setHoldersTotal]   = useState(0);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState<string | null>(null);
-  const [canDeposit, setCanDeposit]       = useState(false);
-  const [canManageHolders, setCanManageHolders] = useState(false);
+  const [canDeposit, setCanDeposit]               = useState(false);
+  const [canManageHolders, setCanManageHolders]   = useState(false);
+  const [canReleaseRetention, setCanReleaseRetention] = useState(false);
+  const [releasingRetention, setReleasingRetention]   = useState<string | null>(null); // stageId
 
   // Add token holder form
   const [showAddHolder, setShowAddHolder]   = useState(false);
@@ -134,6 +139,7 @@ export default function WalletPage() {
         const role = user ? getRole(user) : null;
         setCanDeposit(role === "funder" || role === "admin");
         setCanManageHolders(role === "admin" || role === "developer");
+        setCanReleaseRetention(role === "admin" || role === "developer" || role === "funder");
 
         const [walletRes, txRes, dashRes, tokenRes, holdersRes] = await Promise.all([
           fetch(`/api/projects/${projectId}/wallet`),
@@ -162,11 +168,12 @@ export default function WalletPage() {
               if (s.status === "released") {
                 const certified = s.certifiedAmount ?? s.value;
                 rows.push({
-                  stageId:       s.id,
-                  stageName:     s.name,
+                  stageId:        s.id,
+                  stageName:      s.name,
                   contractorName: c.contractorName,
                   certified,
-                  retention:     certified * RETENTION_PCT,
+                  retention:      certified * RETENTION_PCT,
+                  released:       !!s.retentionReleasedAt,
                 });
               }
             }
@@ -220,6 +227,24 @@ export default function WalletPage() {
     if (res.ok) {
       setHolders((prev) => prev.filter((h) => h.id !== holderId));
       setHoldersTotal((prev) => prev - sharePct);
+    }
+  }
+
+  async function handleReleaseRetention(stageId: string) {
+    setReleasingRetention(stageId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/retention/release`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ stageId }),
+      });
+      if (res.ok) {
+        setRetention((prev) =>
+          prev.map((r) => r.stageId === stageId ? { ...r, released: true } : r),
+        );
+      }
+    } finally {
+      setReleasingRetention(null);
     }
   }
 
@@ -477,6 +502,7 @@ export default function WalletPage() {
                         <th className="px-5 py-3 font-medium">Contractor</th>
                         <th className="px-5 py-3 font-medium text-right">Certified payment</th>
                         <th className="px-5 py-3 font-medium text-right">Retention ({(RETENTION_PCT * 100).toFixed(0)}%)</th>
+                        {canReleaseRetention && <th className="px-5 py-3 font-medium"></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -485,7 +511,23 @@ export default function WalletPage() {
                           <td className="px-5 py-3 font-medium" style={{ color: "var(--brand-navy, #0D1144)" }}>{r.stageName}</td>
                           <td className="px-5 py-3 text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{r.contractorName}</td>
                           <td className="px-5 py-3 text-right">{gbp.format(r.certified)}</td>
-                          <td className="px-5 py-3 text-right font-semibold" style={{ color: "#d97706" }}>{gbp.format(r.retention)}</td>
+                          <td className="px-5 py-3 text-right font-semibold" style={{ color: r.released ? "#16a34a" : "#d97706" }}>
+                            {r.released ? <span className="text-xs font-bold" style={{ color: "#16a34a" }}>Released</span> : gbp.format(r.retention)}
+                          </td>
+                          {canReleaseRetention && (
+                            <td className="px-5 py-3 text-right">
+                              {!r.released && (
+                                <button
+                                  onClick={() => handleReleaseRetention(r.stageId)}
+                                  disabled={releasingRetention === r.stageId}
+                                  className="text-xs font-semibold px-3 py-1 rounded-xl transition hover:opacity-80 disabled:opacity-50"
+                                  style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
+                                >
+                                  {releasingRetention === r.stageId ? "Releasing…" : "Release"}
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -502,11 +544,29 @@ export default function WalletPage() {
                 <div className="md:hidden divide-y" style={{ borderColor: "var(--surface-border, #e4e7f0)" }}>
                   {retention.map((r) => (
                     <div key={r.stageId} className="flex items-center justify-between px-4 py-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold truncate" style={{ color: "var(--brand-navy, #0D1144)" }}>{r.stageName}</p>
                         <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>{r.contractorName} · {gbp.format(r.certified)} certified</p>
                       </div>
-                      <p className="ml-3 shrink-0 font-bold" style={{ color: "#d97706" }}>{gbp.format(r.retention)}</p>
+                      <div className="ml-3 shrink-0 flex items-center gap-2">
+                        {r.released ? (
+                          <span className="text-xs font-bold" style={{ color: "#16a34a" }}>Released</span>
+                        ) : (
+                          <>
+                            <p className="font-bold" style={{ color: "#d97706" }}>{gbp.format(r.retention)}</p>
+                            {canReleaseRetention && (
+                              <button
+                                onClick={() => handleReleaseRetention(r.stageId)}
+                                disabled={releasingRetention === r.stageId}
+                                className="text-xs font-semibold px-2 py-1 rounded-xl transition hover:opacity-80 disabled:opacity-50"
+                                style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
+                              >
+                                {releasingRetention === r.stageId ? "…" : "Release"}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid var(--surface-border, #e4e7f0)" }}>

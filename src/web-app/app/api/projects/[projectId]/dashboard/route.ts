@@ -73,7 +73,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         id, contractor_id, total_value, status, created_at,
         contractor:users!contractor_id ( id, full_name, email ),
         contract_stages (
-          id, name, description, value, status, start_date, end_date, created_at
+          id, name, description, value, status, start_date, end_date, created_at, retention_released_at
         )
       `)
       .eq("project_id", projectId)
@@ -218,6 +218,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         pendingVariations,
         activeDisputes,
         activeDisputeId,
+        retentionReleasedAt: s.retention_released_at ?? null,
         nextAction: nextAction(s.status),
       };
     });
