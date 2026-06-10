@@ -1159,6 +1159,7 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
   funder: [
     { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Wallet", href: (id) => `/projects/${id}/wallet` },
+    { label: "Drawdown", href: (id) => `/projects/${id}/drawdown` },
     { label: "Budget", href: (id) => `/projects/${id}/budget` },
     { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Cash flow", href: (id) => `/projects/${id}/cashflow` },
@@ -1192,6 +1193,7 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
   admin: [
     { label: "Funding", href: (id) => `/projects/${id}/funding` },
     { label: "Wallet", href: (id) => `/projects/${id}/wallet` },
+    { label: "Drawdown", href: (id) => `/projects/${id}/drawdown` },
     { label: "Budget", href: (id) => `/projects/${id}/budget` },
     { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Cash flow", href: (id) => `/projects/${id}/cashflow` },
