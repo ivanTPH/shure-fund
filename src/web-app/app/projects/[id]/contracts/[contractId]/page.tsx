@@ -17,6 +17,7 @@ import AppShell from "../../../../components/AppShell";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRole } from "@/lib/auth";
+import ContractStatusActions from "./ContractStatusActions";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -161,6 +162,12 @@ export default async function ContractDetailPage({ params }: { params: Params })
           {createdDate && (
             <p className="mt-3 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Created {createdDate}</p>
           )}
+          <ContractStatusActions
+            projectId={projectId}
+            contractId={contractId}
+            status={contract.status as "draft" | "issued" | "accepted" | "active" | "completed" | "cancelled"}
+            role={role ?? null}
+          />
         </div>
 
         {/* Financial summary row */}

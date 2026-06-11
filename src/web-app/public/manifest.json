@@ -1,0 +1,37 @@
+{
+  "name": "Shure.Fund",
+  "short_name": "Shure.Fund",
+  "description": "Construction finance platform — track stages, payments, and approvals.",
+  "start_url": "/projects",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f8fc",
+  "theme_color": "#0D1144",
+  "icons": [
+    {
+      "src": "/brand/shure-fund-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/shure-fund-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "business"],
+  "shortcuts": [
+    {
+      "name": "Projects",
+      "url": "/projects",
+      "description": "View all projects"
+    },
+    {
+      "name": "Inbox",
+      "url": "/inbox",
+      "description": "View notifications"
+    }
+  ]
+}

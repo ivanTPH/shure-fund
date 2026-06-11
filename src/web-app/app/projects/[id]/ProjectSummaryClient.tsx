@@ -1181,11 +1181,13 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
     { label: "Settings", href: (id) => `/projects/${id}/settings` },
   ],
   commercial: [
+    { label: "Batch sign-off", href: (id) => `/projects/${id}/batch-approve` },
     { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Cash flow", href: (id) => `/projects/${id}/cashflow` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
   ],
   consultant: [
+    { label: "Batch sign-off", href: (id) => `/projects/${id}/batch-approve` },
     { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
     { label: "Cash flow", href: (id) => `/projects/${id}/cashflow` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
@@ -1201,6 +1203,7 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
     { label: "Token holders", href: (id) => `/projects/${id}/token-holders` },
     { label: "Reports", href: (id) => `/projects/${id}/reports` },
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
+    { label: "Batch sign-off", href: (id) => `/projects/${id}/batch-approve` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
     { label: "Add contract", href: (id) => `/projects/${id}/contracts/new` },
     { label: "Settings", href: (id) => `/projects/${id}/settings` },
