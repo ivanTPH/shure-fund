@@ -187,8 +187,10 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         .reduce((sum, v) => sum + Number(v.value_change), 0);
 
       // Accumulate summary totals
+      // totalDrawn uses the actual release amount (certifiedAmount if set, else stage.value)
+      // to match what was deducted from the wallet — NOT always stage.value.
       totalCommitted += Number(s.value);
-      if (s.status === "released") totalDrawn += Number(s.value);
+      if (s.status === "released") totalDrawn += (certifiedAmount !== null ? certifiedAmount : Number(s.value));
       pendingApprovalsTotal += pendingApprovals;
       activeDisputesTotal += activeDisputes;
       pendingVariationsTotal += pendingVariations;

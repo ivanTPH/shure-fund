@@ -73,6 +73,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Retention has already been released for this stage." }, { status: 409 });
   }
 
+  // retentionAmount is calculated on the certified/released value.
+  // The trust wallet already paid the full certified amount at stage release —
+  // retention is withheld by the employer from their onward payment to the contractor
+  // and does not constitute a separate trust account deduction.
+  // We compute the amount here for the audit record only.
   const retentionAmount = Math.round(Number(stage.value) * RETENTION_PCT * 100) / 100;
 
   // Mark stage retention as released
@@ -86,31 +91,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Fetch wallet for this project
-  const { data: wallet } = await service
-    .from("wallets")
-    .select("id, balance, available_amount")
-    .eq("project_id", projectId)
-    .maybeSingle();
-
-  // Record wallet transaction (retention_release = money out)
-  if (wallet) {
-    await service.from("wallet_transactions").insert({
-      wallet_id:  wallet.id,
-      type:       "retention_release",
-      amount:     retentionAmount,
-      reference:  `Retention released — ${stage.name}`,
-    });
-
-    // Update wallet balance
-    await service
-      .from("wallets")
-      .update({
-        balance:          Number(wallet.balance) - retentionAmount,
-        available_amount: Math.max(0, Number(wallet.available_amount) - retentionAmount),
-      })
-      .eq("id", wallet.id);
-  }
+  // No wallet balance change: the trust already disbursed the full certified amount
+  // at the original stage release. Retention release is an employer-to-contractor
+  // event recorded here for audit completeness only.
 
   // Audit log
   await service.from("audit_events").insert({
