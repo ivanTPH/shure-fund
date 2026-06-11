@@ -40,6 +40,13 @@ type StageDetail = {
   projectName: string;
 };
 
+type Comment = {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: { id: string; name: string; role: string | null };
+};
+
 type Evidence = {
   id: string;
   name: string;
@@ -193,9 +200,16 @@ export default function StageOverviewPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [disputes, setDisputes]   = useState<Dispute[]>([]);
+  const [comments, setComments]   = useState<Comment[]>([]);
+  const [userId, setUserId]       = useState<string | null>(null);
   const [userRole, setUserRole]   = useState<AppRole | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
+
+  // Comments form
+  const [commentDraft, setCommentDraft]   = useState("");
+  const [commentPosting, setCommentPosting] = useState(false);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Workflow transitions
   const [availableTransitions, setAvailableTransitions] = useState<string[]>([]);
@@ -212,13 +226,14 @@ export default function StageOverviewPage() {
 
   const load = useCallback(async () => {
     try {
-      const [stageRes, evidenceRes, approvalsRes, variationsRes, disputesRes, transitionRes] = await Promise.all([
+      const [stageRes, evidenceRes, approvalsRes, variationsRes, disputesRes, transitionRes, commentsRes] = await Promise.all([
         fetch(`/api/stages/${stageId}`),
         fetch(`/api/evidence?stageId=${stageId}`),
         fetch(`/api/stages/${stageId}/approvals`),
         fetch(`/api/variations?stageId=${stageId}`),
         fetch(`/api/disputes?stageId=${stageId}`),
         fetch(`/api/stages/${stageId}/transition`),
+        fetch(`/api/stages/${stageId}/comments`),
       ]);
 
       if (stageRes.status === 401) { setError("Sign in to view this stage."); return; }
@@ -284,6 +299,10 @@ export default function StageOverviewPage() {
           raiser: Array.isArray(d.raiser) ? d.raiser[0] : d.raiser,
         })));
       }
+      if (commentsRes.ok) {
+        const { comments: cm } = await commentsRes.json();
+        setComments(cm ?? []);
+      }
     } catch {
       setError("Network error loading stage.");
     } finally {
@@ -292,11 +311,41 @@ export default function StageOverviewPage() {
   }, [stageId, projectId]);
 
   useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) =>
-      setUserRole(user ? (getRole(user) as AppRole | null) : null)
-    );
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      setUserRole(user ? (getRole(user) as AppRole | null) : null);
+      setUserId(user?.id ?? null);
+    });
     load();
   }, [load]);
+
+  async function postComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!commentDraft.trim()) return;
+    setCommentPosting(true);
+    try {
+      const res = await fetch(`/api/stages/${stageId}/comments`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ content: commentDraft.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error ?? "Failed to post comment.", "error");
+        return;
+      }
+      setCommentDraft("");
+      setComments(prev => [...prev, data.comment]);
+    } catch {
+      toast("Network error.", "error");
+    } finally {
+      setCommentPosting(false);
+    }
+  }
+
+  async function deleteComment(commentId: string) {
+    setComments(prev => prev.filter(c => c.id !== commentId));
+    await fetch(`/api/stages/${stageId}/comments/${commentId}`, { method: "DELETE" });
+  }
 
   async function reviewEvidence(evidenceId: string, status: "accepted" | "rejected" | "requires_more") {
     setReviewSubmitting(evidenceId);
@@ -945,6 +994,105 @@ export default function StageOverviewPage() {
               })}
             </div>
           )}
+        </Section>
+
+        {/* ── Internal notes / comments ────────────────────────────────────── */}
+        <Section title="Internal notes" badge={comments.length || undefined}>
+          {/* Comment list */}
+          {comments.length > 0 && (
+            <div className="mb-4 space-y-3">
+              {comments.map((c) => {
+                const isOwn     = c.author.id === userId;
+                const canDelete = isOwn || userRole === "admin";
+                const roleColors: Record<string, string> = {
+                  admin:      "#dc2626", developer: "#2563eb", funder: "#059669",
+                  commercial: "#7c3aed", consultant: "#ea580c", contractor: "#d97706",
+                };
+                const rc = c.author.role ? (roleColors[c.author.role] ?? "#64748b") : "#64748b";
+                return (
+                  <div
+                    key={c.id}
+                    className="rounded-[18px] px-4 py-3.5"
+                    style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                        style={{ backgroundColor: rc + "22", color: rc }}
+                      >
+                        {c.author.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <p className="text-xs font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>
+                            {c.author.name}
+                          </p>
+                          {c.author.role && (
+                            <span
+                              className="inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                              style={{ backgroundColor: rc + "18", color: rc }}
+                            >
+                              {c.author.role}
+                            </span>
+                          )}
+                          <p className="text-[10px]" style={{ color: "rgba(13,17,68,0.35)" }}>
+                            {relativeTime(c.createdAt)}
+                          </p>
+                        </div>
+                        <p
+                          className="mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words"
+                          style={{ color: "var(--brand-navy, #0D1144)" }}
+                        >
+                          {c.content}
+                        </p>
+                      </div>
+                      {canDelete && (
+                        <button
+                          onClick={() => deleteComment(c.id)}
+                          className="shrink-0 text-[10px] font-semibold transition hover:opacity-60 mt-0.5"
+                          style={{ color: "rgba(13,17,68,0.3)" }}
+                          aria-label="Delete comment"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* New comment form */}
+          <form onSubmit={postComment} className="rounded-[18px] p-4" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+            <textarea
+              ref={commentTextareaRef}
+              value={commentDraft}
+              onChange={e => setCommentDraft(e.target.value)}
+              placeholder="Add an internal note visible to all project members…"
+              rows={3}
+              maxLength={2000}
+              className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none"
+              style={{
+                border: "1px solid var(--surface-border, #e4e7f0)",
+                backgroundColor: "#f7f8fc",
+                color: "var(--brand-navy, #0D1144)",
+              }}
+            />
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <p className="text-[10px]" style={{ color: "rgba(13,17,68,0.3)" }}>
+                {commentDraft.length}/2000 · visible to all project members
+              </p>
+              <button
+                type="submit"
+                disabled={commentPosting || !commentDraft.trim()}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+                style={{ backgroundColor: "var(--brand-navy, #0D1144)" }}
+              >
+                {commentPosting ? "Posting…" : "Post note"}
+              </button>
+            </div>
+          </form>
         </Section>
 
         {/* ── Audit link ───────────────────────────────────────────────────── */}

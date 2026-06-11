@@ -1178,6 +1178,7 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
     { label: "Add contract", href: (id) => `/projects/${id}/contracts/new` },
+    { label: "Settings", href: (id) => `/projects/${id}/settings` },
   ],
   commercial: [
     { label: "Schedule", href: (id) => `/projects/${id}/schedule` },
@@ -1202,6 +1203,7 @@ const NAV_LINKS: Record<AppRole, Array<{ label: string; href: (id: string) => st
     { label: "Audit", href: (id) => `/projects/${id}/audit` },
     { label: "Members", href: (id) => `/projects/${id}/members` },
     { label: "Add contract", href: (id) => `/projects/${id}/contracts/new` },
+    { label: "Settings", href: (id) => `/projects/${id}/settings` },
   ],
 };
 
