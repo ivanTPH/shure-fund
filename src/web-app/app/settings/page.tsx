@@ -12,11 +12,33 @@
  *   - supabase.from("users").update() for public.users (RLS: update own record)
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
 import { createClient } from "@/lib/supabase/browser";
+import type { NotificationPreference } from "@/app/api/notifications/preferences/route";
+
+// Friendly labels for notification event types
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  stage_status_changed:    "Stage status changes",
+  evidence_submitted:      "Evidence submitted",
+  evidence_reviewed:       "Evidence reviewed",
+  approval_given:          "Approval given",
+  approval_rejected:       "Approval rejected",
+  approval_returned:       "Approval returned for changes",
+  all_approvals_complete:  "All approvals complete",
+  release_completed:       "Payment released",
+  release_failed:          "Release failed",
+  wallet_funded:           "Wallet top-up",
+  dispute_opened:          "Dispute raised",
+  dispute_resolved:        "Dispute resolved",
+  variation_requested:     "Variation requested",
+  variation_approved:      "Variation approved",
+  kyc_submitted:           "KYC submitted",
+  kyc_approved:            "KYC approved",
+  kyc_rejected:            "KYC rejected",
+};
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -37,6 +59,20 @@ export default function SettingsPage() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwSaved, setPwSaved]   = useState(false);
 
+  // Notification preferences state
+  const [prefs, setPrefs]           = useState<NotificationPreference[]>([]);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsSaved, setPrefsSaved]   = useState(false);
+  const [prefsError, setPrefsError]   = useState<string | null>(null);
+
+  const loadPrefs = useCallback(async () => {
+    const res = await fetch("/api/notifications/preferences");
+    if (res.ok) {
+      const data = await res.json() as { preferences: NotificationPreference[] };
+      setPrefs(data.preferences ?? []);
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -45,8 +81,9 @@ export default function SettingsPage() {
       setEmail(user.email ?? "");
       setName(user.user_metadata?.full_name ?? "");
       setLoading(false);
+      loadPrefs();
     });
-  }, [router]);
+  }, [router, loadPrefs]);
 
   // ---------------------------------------------------------------------------
   // Save display name
@@ -79,6 +116,37 @@ export default function SettingsPage() {
       setTimeout(() => setNameSaved(false), 3000);
     } finally {
       setNameSaving(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Notification preferences
+  // ---------------------------------------------------------------------------
+  function togglePref(eventType: string, channel: "emailEnabled" | "pushEnabled") {
+    setPrefs((prev) =>
+      prev.map((p) =>
+        p.eventType === eventType ? { ...p, [channel]: !p[channel] } : p,
+      ),
+    );
+    setPrefsSaved(false);
+  }
+
+  async function handleSavePrefs(e: React.FormEvent) {
+    e.preventDefault();
+    setPrefsError(null);
+    setPrefsSaving(true);
+    try {
+      const res = await fetch("/api/notifications/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: prefs }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) { setPrefsError(data.error ?? "Failed to save preferences."); return; }
+      setPrefsSaved(true);
+      setTimeout(() => setPrefsSaved(false), 3000);
+    } finally {
+      setPrefsSaving(false);
     }
   }
 
@@ -268,6 +336,83 @@ export default function SettingsPage() {
               </button>
             </form>
           </section>
+
+          {/* ── Notification preferences ──────────────────────────────────── */}
+          {prefs.length > 0 && (
+            <section
+              className="rounded-[20px] p-6"
+              style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border,#e4e7f0)" }}
+            >
+              <h2 className="text-sm font-bold mb-1" style={{ color: "var(--brand-navy,#0D1144)" }}>
+                Notification preferences
+              </h2>
+              <p className="text-xs mb-4" style={{ color: "rgba(13,17,68,0.45)" }}>
+                Choose which events trigger email and push notifications.
+              </p>
+
+              <form onSubmit={handleSavePrefs}>
+                {/* Column headers */}
+                <div className="flex items-center justify-end gap-6 mb-2 pr-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest w-10 text-center" style={{ color: "rgba(13,17,68,0.4)" }}>Email</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest w-10 text-center" style={{ color: "rgba(13,17,68,0.4)" }}>Push</span>
+                </div>
+
+                <div className="space-y-1">
+                  {prefs.map((pref) => (
+                    <div
+                      key={pref.eventType}
+                      className="flex items-center justify-between rounded-[12px] px-3 py-2.5"
+                      style={{ border: "1px solid var(--surface-border,#e4e7f0)", backgroundColor: "#fafafa" }}
+                    >
+                      <span className="text-sm" style={{ color: "var(--brand-navy,#0D1144)" }}>
+                        {EVENT_TYPE_LABELS[pref.eventType] ?? pref.eventType}
+                      </span>
+                      <div className="flex items-center gap-6">
+                        {/* Email toggle */}
+                        <button
+                          type="button"
+                          onClick={() => togglePref(pref.eventType, "emailEnabled")}
+                          className="relative h-5 w-9 rounded-full transition-colors"
+                          style={{ backgroundColor: pref.emailEnabled ? "#0D1144" : "#d1d5db" }}
+                          aria-label={`${pref.emailEnabled ? "Disable" : "Enable"} email for ${pref.eventType}`}
+                        >
+                          <span
+                            className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform"
+                            style={{ transform: pref.emailEnabled ? "translateX(18px)" : "translateX(2px)" }}
+                          />
+                        </button>
+                        {/* Push toggle */}
+                        <button
+                          type="button"
+                          onClick={() => togglePref(pref.eventType, "pushEnabled")}
+                          className="relative h-5 w-9 rounded-full transition-colors"
+                          style={{ backgroundColor: pref.pushEnabled ? "#0D1144" : "#d1d5db" }}
+                          aria-label={`${pref.pushEnabled ? "Disable" : "Enable"} push for ${pref.eventType}`}
+                        >
+                          <span
+                            className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform"
+                            style={{ transform: pref.pushEnabled ? "translateX(18px)" : "translateX(2px)" }}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {prefsError && <p className="mt-3 text-xs" style={{ color: "#dc2626" }}>{prefsError}</p>}
+                {prefsSaved  && <p className="mt-3 text-xs font-semibold" style={{ color: "#059669" }}>✓ Preferences saved</p>}
+
+                <button
+                  type="submit"
+                  disabled={prefsSaving}
+                  className="mt-4 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
+                  style={{ backgroundColor: "var(--brand-navy,#0D1144)" }}
+                >
+                  {prefsSaving ? "Saving…" : "Save preferences"}
+                </button>
+              </form>
+            </section>
+          )}
 
         </div>
       </div>
