@@ -144,19 +144,20 @@ export default function ProjectReportsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [dashRes] = await Promise.all([
-          fetch(`/api/projects/${projectId}/dashboard`),
-        ]);
-        if (!dashRes.ok) { setError("Failed to load report data."); return; }
+        const dashRes = await fetch(`/api/projects/${projectId}/dashboard`);
+        if (!dashRes.ok) { setError("Failed to load report data."); setLoading(false); return; }
         const dashData: DashboardData = await dashRes.json();
+        // Render the page immediately once dashboard data arrives
         setData(dashData);
+        setLoading(false);
 
-        // Fetch variations for every stage in parallel
+        // Load secondary data in the background (variations + token payments)
         const allStageIds = dashData.contracts.flatMap((c) => c.stages.map((s) => s.id));
         const stageNames = new Map(
           dashData.contracts.flatMap((c) => c.stages.map((s) => [s.id, s.name])),
         );
-        const varResults = await Promise.all(
+
+        Promise.all(
           allStageIds.map((sid) =>
             fetch(`/api/variations?stageId=${sid}`)
               .then((r) => r.ok ? r.json() : { variations: [] })
@@ -170,30 +171,29 @@ export default function ProjectReportsPage() {
                   status: v.status,
                   createdAt: v.created_at,
                 })),
-              ),
+              )
+              .catch(() => [] as Variation[]),
           ),
-        );
-        setVariations(varResults.flat());
+        ).then((results) => setVariations(results.flat())).catch(() => {});
 
-        // Fetch token distributions for the project
-        const tpRes = await fetch(`/api/token-payments?projectId=${projectId}`);
-        if (tpRes.ok) {
-          const tpData = await tpRes.json();
-          const payments: TokenPayment[] = (tpData.payments ?? []).map((p: Record<string, unknown>) => ({
-            id:        p.id,
-            stageId:   p.stageId,
-            stageName: p.stageName,
-            userId:    p.userId,
-            amount:    Number(p.amount),
-            sharePct:  p.sharePct != null ? Number(p.sharePct) : null,
-            reference: p.reference,
-            paidAt:    p.paidAt,
-          }));
-          setTokenPayments(payments);
-        }
+        fetch(`/api/token-payments?projectId=${projectId}`)
+          .then((r) => r.ok ? r.json() : { payments: [] })
+          .then((tpData) => {
+            const payments: TokenPayment[] = (tpData.payments ?? []).map((p: Record<string, unknown>) => ({
+              id:        p.id,
+              stageId:   p.stageId,
+              stageName: p.stageName,
+              userId:    p.userId,
+              amount:    Number(p.amount),
+              sharePct:  p.sharePct != null ? Number(p.sharePct) : null,
+              reference: p.reference,
+              paidAt:    p.paidAt,
+            }));
+            setTokenPayments(payments);
+          })
+          .catch(() => {});
       } catch {
         setError("Network error loading report.");
-      } finally {
         setLoading(false);
       }
     }
