@@ -76,7 +76,6 @@ export default async function ContractDetailPage({ params }: { params: Params })
     .select(`
       id, project_id, total_value, status, created_at,
       contractor:users!contractor_id ( id, full_name, email ),
-      project:projects!project_id ( id, name ),
       contract_stages (
         id, name, description, value, status,
         start_date, end_date, created_at, retention_released_at
@@ -87,6 +86,13 @@ export default async function ContractDetailPage({ params }: { params: Params })
     .maybeSingle();
 
   if (!contract) redirect(`/projects/${projectId}`);
+
+  // Fetch project name separately (avoids ambiguous FK join in the contract query)
+  const { data: projectData } = await service
+    .from("projects")
+    .select("id, name")
+    .eq("id", projectId)
+    .maybeSingle();
 
   const role = getRole(user);
   const canManage = role === "admin" || role === "developer";
@@ -100,9 +106,7 @@ export default async function ContractDetailPage({ params }: { params: Params })
     ? contract.contractor[0]
     : contract.contractor;
 
-  const project = Array.isArray(contract.project)
-    ? contract.project[0]
-    : contract.project;
+  const project = projectData;
 
   // Financial summary buckets
   const released       = stages.filter(s => s.status === "released").reduce((sum, s) => sum + s.value, 0);
