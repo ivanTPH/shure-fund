@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import { Skeleton } from "../components/Skeleton";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -110,8 +111,8 @@ export default function ContractorPage() {
 
   if (loading) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading your work…</p>
+      <div className="min-h-screen px-4 md:px-8 py-8 max-w-4xl mx-auto">
+        <Skeleton.Dashboard />
       </div>
     </AppShell>
   );
@@ -128,6 +129,7 @@ export default function ContractorPage() {
     p.contracts.flatMap((c) => c.stages.map((s) => ({ ...s, projectId: p.id, contractId: c.id }))),
   );
   const actionStages = allStages.filter((s) => s.status === "in_progress" || s.status === "returned");
+  const reviewStages = allStages.filter((s) => s.status === "awaiting_approval");
 
   return (
     <AppShell>
@@ -180,6 +182,31 @@ export default function ContractorPage() {
                   </Link>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Under review */}
+        {reviewStages.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#7c3aed" }}>
+              Under review
+            </p>
+            <div className="space-y-2">
+              {reviewStages.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/projects/${s.projectId}/stages/${s.id}`}
+                  className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:opacity-80"
+                  style={{ backgroundColor: "rgba(124,58,237,0.05)", border: "1px solid rgba(124,58,237,0.18)" }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#7c3aed" }}>Awaiting approval — no action needed</p>
+                  </div>
+                  <p className="text-sm font-bold shrink-0" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(s.value)}</p>
+                </Link>
+              ))}
             </div>
           </div>
         )}

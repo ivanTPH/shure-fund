@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import FileViewerModal from "../FileViewerModal";
+import { useToast } from "../ToastContext";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,6 +145,7 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // Get current user role to gate upload UI
   useEffect(() => {
@@ -203,6 +205,7 @@ export default function EvidenceUpload({ stageId, canUpload = true }: Props) {
       }
 
       setItems((prev) => [...prev, data.evidence]);
+      toast(`${file.name} uploaded`, "success");
     } catch {
       setError("Network error — please try again.");
     } finally {

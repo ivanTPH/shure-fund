@@ -16,6 +16,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import AppShell from "../../../components/AppShell";
+import { useToast } from "../../../components/ToastContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function TokenHoldersPage() {
   const { id: projectId } = useParams<{ id: string }>();
+  const { toast } = useToast();
 
   const [holders, setHolders]         = useState<Holder[]>([]);
   const [totalSharePct, setTotal]     = useState(0);
@@ -124,6 +126,7 @@ export default function TokenHoldersPage() {
       });
       const data = await res.json();
       if (!res.ok) { setAddError(data.error ?? "Failed to add token holder."); return; }
+      toast("Token holder added", "success");
       setHolders((prev) => [...prev, data.holder]);
       setTotal((prev) => prev + parseFloat(addSharePct));
       setAddUserId("");
@@ -148,6 +151,7 @@ export default function TokenHoldersPage() {
       }
       setHolders((prev) => prev.filter((h) => h.id !== holderId));
       setTotal((prev) => Math.max(0, prev - sharePct));
+      toast("Token holder removed", "info");
     } finally {
       setDeletingId(null);
     }

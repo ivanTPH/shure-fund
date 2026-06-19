@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -83,6 +84,7 @@ function EvidenceRow({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function submit() {
     if (!decision) return;
@@ -96,6 +98,10 @@ function EvidenceRow({
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { setError(data.error ?? "Review failed."); return; }
+      toast(
+        decision === "accepted" ? "Evidence accepted" : decision === "rejected" ? "Evidence rejected" : "Requested more information",
+        decision === "accepted" ? "success" : "info",
+      );
       onReviewed(item.id);
     } finally {
       setSubmitting(false);

@@ -154,7 +154,51 @@ function NotificationList() {
   );
 }
 
-export const Skeleton = { Line, Card, Stage, NotificationList };
+function Dashboard() {
+  return (
+    <div className="space-y-6">
+      {/* Stat strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            style={{ border: "1px solid var(--surface-border, #e4e7f0)", borderRadius: 20, backgroundColor: "#fff", padding: "16px" }}
+          >
+            <Line width="60%" height={10} />
+            <div style={{ marginTop: 8 }}>
+              <Line width="80%" height={24} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Section header */}
+      <div className="space-y-1">
+        <Line width={120} height={11} />
+      </div>
+
+      {/* List items */}
+      {[1, 2, 3].map((i) => (
+        <Card key={i}>
+          <div className="flex items-start gap-3">
+            <Line width={48} height={48} />
+            <div className="flex-1 space-y-2">
+              <Line width="50%" height={14} />
+              <Line width="35%" height={11} />
+              <div className="flex gap-2">
+                <Line width={60} height={22} />
+                <Line width={80} height={22} />
+              </div>
+            </div>
+            <Line width={64} height={14} />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+export const Skeleton = { Line, Card, Stage, NotificationList, Dashboard };
 
 // Inject keyframe once — safe to call multiple times
 if (typeof document !== "undefined") {

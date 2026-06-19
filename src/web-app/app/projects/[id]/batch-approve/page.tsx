@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -65,6 +66,7 @@ export default function BatchApprovePage() {
   const params    = useParams<{ id: string }>();
   const projectId = params?.id ?? "";
   const router    = useRouter();
+  const { toast } = useToast();
 
   const [stages, setStages]         = useState<Stage[]>([]);
   const [role, setRole]             = useState<AppRole | null>(null);
@@ -187,6 +189,15 @@ export default function BatchApprovePage() {
         setSubmitError(data.error ?? "Submission failed.");
       } else {
         setResults(data.results);
+        const n = [...selected].length;
+        toast(
+          decision === "approved"
+            ? `${n} stage${n !== 1 ? "s" : ""} approved`
+            : decision === "returned"
+            ? `${n} stage${n !== 1 ? "s" : ""} returned`
+            : `${n} stage${n !== 1 ? "s" : ""} rejected`,
+          decision === "approved" ? "success" : "info",
+        );
         setSelected(new Set());
         setNotes("");
         setCertAmt("");

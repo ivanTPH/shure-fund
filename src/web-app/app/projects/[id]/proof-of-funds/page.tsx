@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -89,6 +90,7 @@ function StatusBadge({ status }: { status: Declaration["status"] }) {
 export default function ProofOfFundsPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [role, setRole] = useState<AppRole | null>(null);
   const [canWrite, setCanWrite] = useState(false);
@@ -165,6 +167,7 @@ export default function ProofOfFundsPage() {
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { setFormError(data.error ?? "Failed to declare."); return; }
+      toast("Proof of Funds declared", "success");
       setShowForm(false);
       setAmount("");
       setValidFrom(today());
@@ -196,7 +199,9 @@ export default function ProofOfFundsPage() {
       setWithdrawReason("");
       await load();
       if (data.amlFlagged) {
-        window.alert("Withdrawal recorded. An early-withdrawal AML flag has been raised and will be reviewed by compliance.");
+        toast("Withdrawal recorded — an AML compliance flag has been raised for review", "info");
+      } else {
+        toast("Proof of Funds withdrawn", "info");
       }
     } finally {
       setWithdrawing(false);

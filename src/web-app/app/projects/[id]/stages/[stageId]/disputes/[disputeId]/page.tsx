@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../../components/AppShell";
 import FileViewerModal from "../../../../../../components/FileViewerModal";
+import { useToast } from "../../../../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -136,6 +137,7 @@ function StatusTimeline({ current }: { current: string }) {
 
 export default function DisputeDetailPage() {
   const { id: projectId, stageId, disputeId } = useParams<{ id: string; stageId: string; disputeId: string }>();
+  const { toast } = useToast();
   const router = useRouter();
 
   const [dispute, setDispute]     = useState<Dispute | null>(null);
@@ -198,18 +200,21 @@ export default function DisputeDetailPage() {
           await load();
           return;
         }
+        toast("Dispute resolved", "success");
         // Dispute resolved — return to stage overview
         router.push(`/projects/${projectId}/stages/${stageId}`);
         return;
       }
 
       if (action === "escalate") {
+        toast("Dispute escalated", "info");
         // Escalated — no further actions here; return to stage
         router.push(`/projects/${projectId}/stages/${stageId}`);
         return;
       }
 
       // "respond" — stay on page, reload updated dispute state
+      toast("Response saved", "success");
       await load();
       setNotes("");
     } finally {

@@ -17,6 +17,7 @@ import { getRole, ROLE_LABELS } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 import NotificationBell from "../../components/notifications/NotificationBell";
 import AppShell from "../../components/AppShell";
+import { Skeleton } from "../../components/Skeleton";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -153,19 +154,68 @@ function dateStr(d: string | null) {
 // Role-specific views
 // ---------------------------------------------------------------------------
 
+const STAGE_PRIORITY: Record<string, number> = {
+  available_to_release: 0,
+  funding_gap:          1,
+  part_funded:          2,
+  awaiting_approval:    3,
+  disputed:             4,
+  returned:             5,
+  in_progress:          6,
+  accepted:             7,
+  sent:                 8,
+  draft:                9,
+  released:             10,
+};
+
 function FunderView({ data, projectId, role }: { data: DashboardData; projectId: string; role: AppRole }) {
   const { wallet, summary, contracts } = data;
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const allStages = contracts.flatMap((c) =>
     c.stages.map((s) => ({ ...s, contractorName: c.contractorName })),
-  );
+  ).sort((a, b) => (STAGE_PRIORITY[a.status] ?? 99) - (STAGE_PRIORITY[b.status] ?? 99));
   const firstAwaitingStage = allStages.find((s) => s.status === "awaiting_approval");
   const firstDisputedStage = allStages.find((s) => s.activeDisputes > 0);
+  const readyToReleaseStages = allStages.filter((s) => s.status === "available_to_release");
   const selectedStage = selectedStageId ? allStages.find((s) => s.id === selectedStageId) ?? null : null;
 
   return (
     <>
     <div className="space-y-6">
+      {/* Ready to release — high-priority call to action */}
+      {readyToReleaseStages.length > 0 && (
+        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(5,150,105,0.3)", backgroundColor: "rgba(5,150,105,0.06)" }}>
+          <div className="flex items-center gap-2.5 px-5 py-3" style={{ borderBottom: "1px solid rgba(5,150,105,0.15)", backgroundColor: "rgba(5,150,105,0.1)" }}>
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: "#059669" }}>
+              {readyToReleaseStages.length}
+            </span>
+            <p className="text-sm font-semibold" style={{ color: "#065f46" }}>
+              {readyToReleaseStages.length === 1
+                ? "1 payment cleared for release"
+                : `${readyToReleaseStages.length} payments cleared for release`}
+            </p>
+          </div>
+          <div className="divide-y" style={{ borderColor: "rgba(5,150,105,0.12)" }}>
+            {readyToReleaseStages.map((s) => (
+              <Link
+                key={s.id}
+                href={`/projects/${projectId}/stages/${s.id}/release`}
+                className="flex items-center gap-3 px-5 py-3 transition hover:bg-green-50/60"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white" style={{ backgroundColor: "#059669" }}>£</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium" style={{ color: "#0D1144" }}>{s.name}</p>
+                  <p className="text-xs" style={{ color: "rgba(13,17,68,0.5)" }}>
+                    {gbp.format(s.certifiedAmount ?? s.value)} · All sign-offs complete
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold" style={{ color: "#059669" }}>Release →</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Funding gap warning */}
       {summary.fundingGapWarning && (
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
@@ -194,6 +244,16 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
         <div>
           <SectionHeader title="Action required" />
           <div className="flex flex-wrap gap-2">
+            {readyToReleaseStages.length > 0 && (
+              <Link
+                href={`/projects/${projectId}/stages/${readyToReleaseStages[0].id}/release`}
+                className="inline-flex items-center rounded-2xl px-4 py-2 text-sm font-semibold"
+                style={{ backgroundColor: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.25)", color: "#059669" }}
+              >
+                Release payment
+                <Badge count={readyToReleaseStages.length} color="#059669" />
+              </Link>
+            )}
             {summary.pendingApprovals > 0 && (
               <Link
                 href={`/projects/${projectId}/stages/${firstAwaitingStage?.id ?? ""}/approve`}
@@ -386,8 +446,18 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
           </div>
 
           {/* Action buttons */}
-          {(summary.pendingApprovals > 0 || summary.activeDisputes > 0) && (
+          {(readyToReleaseStages.length > 0 || summary.pendingApprovals > 0 || summary.activeDisputes > 0) && (
             <div className="space-y-2">
+              {readyToReleaseStages.length > 0 && (
+                <Link
+                  href={`/projects/${projectId}/stages/${readyToReleaseStages[0].id}/release`}
+                  className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                  style={{ backgroundColor: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.25)", color: "#059669" }}
+                >
+                  <span>Release payment{readyToReleaseStages.length > 1 ? "s" : ""}</span>
+                  <Badge count={readyToReleaseStages.length} color="#059669" />
+                </Link>
+              )}
               {summary.pendingApprovals > 0 && (
                 <Link
                   href={`/projects/${projectId}/stages/${firstAwaitingStage?.id ?? ""}/approve`}
@@ -441,7 +511,8 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
   const { summary, contracts } = data;
   const router = useRouter();
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
-  const allStages = contracts.flatMap((c) => c.stages.map((s) => ({ ...s, contractorName: c.contractorName })));
+  const allStages = contracts.flatMap((c) => c.stages.map((s) => ({ ...s, contractorName: c.contractorName })))
+    .sort((a, b) => (STAGE_PRIORITY[a.status] ?? 99) - (STAGE_PRIORITY[b.status] ?? 99));
   const selectedStage = selectedStageId ? allStages.find((s) => s.id === selectedStageId) ?? null : null;
 
   function stageProgress(status: string): number {
@@ -925,7 +996,7 @@ function CommercialView({ data, projectId }: { data: DashboardData; projectId: s
   const { summary, contracts } = data;
   const allStages = contracts.flatMap((c) =>
     c.stages.map((s) => ({ ...s, contractorName: c.contractorName })),
-  );
+  ).sort((a, b) => (STAGE_PRIORITY[a.status] ?? 99) - (STAGE_PRIORITY[b.status] ?? 99));
   const approvalStages = allStages.filter((s) => s.status === "awaiting_approval" || s.pendingApprovals > 0);
   const selectedStage = selectedStageId ? allStages.find((s) => s.id === selectedStageId) ?? null : null;
 
@@ -1277,8 +1348,8 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading project…</p>
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <Skeleton.Dashboard />
         </div>
       </AppShell>
     );

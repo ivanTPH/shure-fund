@@ -120,10 +120,13 @@ test.describe("Journey 21 — Disputes detail & lifecycle @e2e", () => {
 
   // ── GET list ───────────────────────────────────────────────────────────────
 
-  test("GET list: missing stageId returns 400", async ({ page }) => {
+  test("GET list: missing stageId returns cross-project disputes (200)", async ({ page }) => {
     await signIn(page, "admin");
     const res = await page.request.get(`${BASE}/api/disputes`);
-    expect(res.status()).toBe(400);
+    // Cross-project mode: no stageId returns all disputes the user can access
+    expect(res.status()).toBe(200);
+    const data = await res.json() as { disputes: unknown[] };
+    expect(Array.isArray(data.disputes)).toBe(true);
   });
 
   test("GET list: returns disputes array for stage", async ({ page }) => {

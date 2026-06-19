@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
+import { useToast } from "../../components/ToastContext";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +71,7 @@ function KycPill({ status }: { status: string | null }) {
 // ---------------------------------------------------------------------------
 
 export default function AdminUsersPage() {
+  const { toast } = useToast();
   const [users, setUsers]       = useState<User[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
@@ -144,6 +146,7 @@ export default function AdminUsersPage() {
       const d = await r.json();
       if (r.ok) {
         setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, ...patch } : u));
+        toast("User updated", "success");
       } else {
         setSaveError(d.error ?? "Update failed — please try again.");
       }

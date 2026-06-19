@@ -18,6 +18,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../components/AppShell";
 import FileViewerModal from "../../../../../components/FileViewerModal";
+import { useToast } from "../../../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -107,6 +108,7 @@ function fileIcon(type: string): string {
 export default function ApproveStagePage() {
   const { id: projectId, stageId } = useParams<{ id: string; stageId: string }>();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [stage, setStage]         = useState<StageInfo | null>(null);
   const [evidence, setEvidence]   = useState<EvidenceItem[]>([]);
@@ -242,6 +244,14 @@ export default function ApproveStagePage() {
       const newStatus = await loadData();
       setNotes("");
       setCertifiedAmount("");
+      toast(
+        decision === "approved"
+          ? newStatus === "available_to_release"
+            ? "All sign-offs complete — stage cleared for payment release"
+            : "Approval recorded"
+          : "Stage returned for revision",
+        decision === "approved" ? "success" : "info",
+      );
       // Funder who just completed the final approval goes straight to release
       const funderReadyToRelease = userRole === "funder" && newStatus === "available_to_release";
       if (!funderReadyToRelease) {

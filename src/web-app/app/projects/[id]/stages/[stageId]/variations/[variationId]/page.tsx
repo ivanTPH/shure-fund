@@ -8,6 +8,7 @@ import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 import type { VariationAction } from "@/lib/workflow/variationStateMachine";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 
@@ -79,9 +80,20 @@ const ACTIONS_FOR_STATUS: Record<string, { action: VariationAction; label: strin
 
 const FUNDING_ACTIONS = new Set<VariationAction>(["confirm_funding", "retry_funding"]);
 
+const ACTION_TOAST: Partial<Record<VariationAction, string>> = {
+  approve:         "Variation approved",
+  reject:          "Variation rejected",
+  confirm_funding: "Funding confirmed — variation activated",
+  retry_funding:   "Funding confirmed — variation activated",
+  mark_pending:    "Marked as pending funding",
+  submit:          "Variation submitted for review",
+  cancel:          "Variation cancelled",
+};
+
 export default function VariationDetailPage() {
   const params = useParams<{ id: string; stageId: string; variationId: string }>();
   const { id: projectId, stageId, variationId } = params;
+  const { toast } = useToast();
 
   const [variation, setVariation] = useState<Variation | null>(null);
   const [wallet, setWallet] = useState<Wallet>(null);
@@ -158,6 +170,8 @@ export default function VariationDetailPage() {
     const d2 = await r2.json();
     setVariation(d2.variation);
     setWallet(d2.wallet ?? null);
+    const msg = ACTION_TOAST[action];
+    if (msg) toast(msg, action === "reject" || action === "cancel" ? "info" : "success");
   }
 
   if (loading) return (

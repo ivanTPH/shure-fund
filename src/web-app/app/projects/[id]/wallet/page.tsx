@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../components/AppShell";
+import { useToast } from "../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -113,6 +114,7 @@ const TX_OUTBOUND = new Set(["release", "allocation_out", "retention_release"]);
 
 export default function WalletPage() {
   const { id: projectId } = useParams<{ id: string }>();
+  const { toast } = useToast();
 
   const [wallet, setWallet]               = useState<Wallet | null>(null);
   const [transactions, setTransactions]   = useState<WalletTx[]>([]);
@@ -328,6 +330,9 @@ export default function WalletPage() {
         setRetention((prev) =>
           prev.map((r) => r.stageId === stageId ? { ...r, released: true } : r),
         );
+        toast("Retention released", "success");
+      } else {
+        toast("Failed to release retention", "error");
       }
     } finally {
       setReleasingRetention(null);
@@ -359,6 +364,8 @@ export default function WalletPage() {
         reference: depositRef.trim(),
         created_at: new Date().toISOString(),
       }, ...prev]);
+      const gbpFmt = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
+      toast(`Wallet topped up — ${gbpFmt.format(amount)} added`, "success");
       setDepositAmount("");
       setDepositRef("");
       setDepositIdempotencyKey(crypto.randomUUID()); // rotate key for next deposit

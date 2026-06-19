@@ -124,7 +124,7 @@ test.describe("Journey 80 — Account PATCH, Inbox page & Approvals hub @e2e", (
     ).toBeVisible({ timeout: 20_000 });
     // Either notifications are present or an empty state message
     await expect(
-      page.getByText(/notification|message|action|no notification|all caught up|empty/i).first()
+      page.getByText(/notification|message|action|attention|no notification|all caught up|empty/i).first()
     ).toBeVisible({ timeout: 5_000 });
   });
 

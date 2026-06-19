@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../components/AppShell";
+import { useToast } from "../../../../../components/ToastContext";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,6 +68,7 @@ const APPROVAL_COLOR: Record<string, string> = {
 export default function ReleasePaymentPage() {
   const { id: projectId, stageId } = useParams<{ id: string; stageId: string }>();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [stage, setStage]       = useState<StageInfo | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -153,6 +155,7 @@ export default function ReleasePaymentPage() {
         return;
       }
       setReleased(true);
+      toast(`Payment released — ${gbp.format(certifiedAmount)} authorised`, "success");
       setTimeout(() => router.push(`/projects/${projectId}`), 2500);
     } catch {
       setReleaseError("Network error — check your connection and try again.");

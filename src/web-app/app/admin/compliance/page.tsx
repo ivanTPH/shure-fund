@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,6 +98,7 @@ function ReviewModal({
   const [notes,  setNotes]   = useState("");
   const [saving, setSaving]  = useState(false);
   const [error,  setError]   = useState<string | null>(null);
+  const { toast } = useToast();
 
   const isKyc = "full_name" in review;
 
@@ -121,6 +123,8 @@ function ReviewModal({
       }
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Action failed."); setSaving(false); return; }
+      const actionLabel = action === "approved" ? "Approved" : action === "rejected" ? "Rejected" : "Escalated";
+      toast(`${isKyc ? "KYC" : "AML"} review ${actionLabel.toLowerCase()}`, action === "approved" ? "success" : "info");
       onSaved();
       onClose();
     } catch {
