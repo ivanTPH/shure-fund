@@ -9,6 +9,7 @@ export default async function InboxPage() {
   if (!user) redirect("/auth/login?redirectTo=/inbox");
 
   const service = createServiceClient();
+
   const { data } = await service
     .from("notifications")
     .select(`
@@ -21,5 +22,22 @@ export default async function InboxPage() {
     .order("created_at", { ascending: false })
     .limit(100);
 
-  return <InboxClient notifications={data ?? []} />;
+  const notifications = data ?? [];
+
+  // Resolve project names for grouping
+  const projectIds = [...new Set(notifications.map((n) => n.project_id).filter(Boolean))] as string[];
+  let projectNames: Record<string, string> = {};
+
+  if (projectIds.length > 0) {
+    const { data: projects } = await service
+      .from("projects")
+      .select("id, name")
+      .in("id", projectIds);
+
+    if (projects) {
+      projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+    }
+  }
+
+  return <InboxClient notifications={notifications} projectNames={projectNames} />;
 }

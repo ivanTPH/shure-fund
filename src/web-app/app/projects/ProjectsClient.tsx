@@ -335,7 +335,7 @@ export default function ProjectsClient({
                         <td className="px-5 py-3 text-right font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{gbp.format(p.totalValue)}</td>
                         <td className="px-5 py-3 text-right font-semibold" style={{ color: p.hasFundingGap ? "#dc2626" : p.walletAvailable > 0 ? "#059669" : "rgba(13,17,68,0.4)" }}>
                           {gbp.format(p.walletAvailable)}
-                          {p.hasFundingGap && <span className="ml-1 text-[9px] font-bold uppercase" style={{ color: "#dc2626" }}>gap</span>}
+                          {p.hasFundingGap && <span className="ml-1 text-[11px] font-bold uppercase" style={{ color: "#dc2626" }}>gap</span>}
                         </td>
                         <td className="px-5 py-3 text-right" style={{ color: p.pofTotal > 0 ? "#64748b" : "rgba(13,17,68,0.25)" }}>{p.pofTotal > 0 ? gbp.format(p.pofTotal) : "—"}</td>
                         <td className="px-5 py-3 text-center text-xs" style={{ color: "rgba(13,17,68,0.6)" }}>{p.completedStages}/{p.totalStages}</td>
@@ -392,7 +392,7 @@ export default function ProjectsClient({
                         )}
                       </div>
                       {project.hasFundingGap && (
-                        <span className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
+                        <span className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
                           Funding gap
                         </span>
                       )}

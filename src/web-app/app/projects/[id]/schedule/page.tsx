@@ -241,18 +241,18 @@ export default function SchedulePage() {
                           {s.name}
                         </Link>
                         <span
-                          className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                          className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider"
                           style={{ backgroundColor: color + "18", color }}
                         >
                           {s.status.replace(/_/g, " ")}
                         </span>
                         {s.isOverdue && (
-                          <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
+                          <span className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
                             {Math.abs(s.daysUntilDue!)}d overdue
                           </span>
                         )}
                         {!s.isOverdue && s.daysUntilDue !== null && s.daysUntilDue <= 7 && !isReleased && (
-                          <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: "rgba(217,119,6,0.1)", color: "#d97706" }}>
+                          <span className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider" style={{ backgroundColor: "rgba(217,119,6,0.1)", color: "#d97706" }}>
                             due in {s.daysUntilDue}d
                           </span>
                         )}
@@ -292,7 +292,7 @@ export default function SchedulePage() {
                           <Link href={`/projects/${projectId}/stages/${s.id}`} className="text-sm font-medium transition hover:opacity-70" style={{ color: "var(--brand-navy, #0D1144)" }}>
                             {s.name}
                           </Link>
-                          <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: color + "18", color }}>
+                          <span className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider" style={{ backgroundColor: color + "18", color }}>
                             {s.status.replace(/_/g, " ")}
                           </span>
                         </div>

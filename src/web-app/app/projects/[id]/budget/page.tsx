@@ -274,7 +274,7 @@ export default function BudgetPage() {
                                     {s.retentionWithheld > 0 ? (
                                       <span>
                                         {gbp.format(s.retentionWithheld)}
-                                        {s.retentionReleased && <span className="ml-1 text-[9px] font-bold" style={{ color: "#16a34a" }}>✓</span>}
+                                        {s.retentionReleased && <span className="ml-1 text-[11px] font-bold" style={{ color: "#16a34a" }}>✓</span>}
                                       </span>
                                     ) : "—"}
                                   </td>
@@ -316,7 +316,7 @@ export default function BudgetPage() {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <Link href={`/projects/${projectId}/stages/${s.id}`} className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>{s.name}</Link>
-                                  <span className="ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: color + "18", color }}>{s.status.replace(/_/g, " ")}</span>
+                                  <span className="ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider" style={{ backgroundColor: color + "18", color }}>{s.status.replace(/_/g, " ")}</span>
                                 </div>
                                 <VariancePill variance={s.variance} />
                               </div>

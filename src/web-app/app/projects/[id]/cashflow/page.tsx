@@ -189,7 +189,7 @@ export default function CashflowPage() {
                         {fmtMonth(m.month)}
                         {isCurrent && (
                           <span
-                            className="ml-2 text-[9px] font-bold uppercase tracking-wider rounded-full px-1.5 py-0.5"
+                            className="ml-2 text-[11px] font-bold uppercase tracking-wider rounded-full px-1.5 py-0.5"
                             style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563eb" }}
                           >
                             now

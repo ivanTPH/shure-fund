@@ -258,7 +258,7 @@ export default function TokenHoldersPage() {
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <span
-                          className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                          className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider"
                           style={{ backgroundColor: roleColor + "18", color: roleColor }}
                         >
                           {h.user?.role ?? "—"}

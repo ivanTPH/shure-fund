@@ -64,7 +64,7 @@ function StatusPill({ status }: { status: string }) {
   const color = STATUS_COLOR[status] ?? "#94a3b8";
   return (
     <span
-      className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+      className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider"
       style={{ backgroundColor: color + "18", color }}
     >
       {status.replace(/_/g, " ")}

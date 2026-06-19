@@ -49,7 +49,17 @@
       "Bash(chmod:*)",
       "Bash(mkdir:*)",
       "Bash(python3:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f /Users/ivan-imac/shure-fund/supabase/migrations/018_project_token_holders.sql 2>&1 && PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f /Users/ivan-imac/shure-fund/supabase/migrations/019_web_push_subscriptions.sql 2>&1)",
+      "Bash(which supabase:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase migration:*)",
+      "Bash(psql:*)",
+      "Bash(git diff:*)",
+      "Bash(for d:*)",
+      "Read(//Users/ivan-imac/shure-fund/src/web-app/$d/**)",
+      "Bash(source:*)",
+      "Bash(git log:*)"
     ]
   },
   "hooks": {

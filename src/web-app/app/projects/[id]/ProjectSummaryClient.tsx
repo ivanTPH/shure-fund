@@ -877,7 +877,7 @@ function StageDrawer({
             ].map(({ label, count, color }) => (
               <div key={label} className="rounded-xl px-3 py-2.5 text-center" style={{ backgroundColor: "#fff", border: "1px solid var(--surface-border, #e4e7f0)" }}>
                 <p className="text-xl font-bold" style={{ color: count > 0 ? color : "rgba(13,17,68,0.2)" }}>{count}</p>
-                <p className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: "rgba(13,17,68,0.35)" }}>{label}</p>
+                <p className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: "rgba(13,17,68,0.35)" }}>{label}</p>
               </div>
             ))}
           </div>

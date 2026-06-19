@@ -258,7 +258,7 @@ export default function ApprovalChainPage() {
                       {list.map((a) => (
                         <div key={a.memberId} className="flex items-center gap-2">
                           <div
-                            className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                            className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
                             style={{ backgroundColor: "#0D1144" }}
                           >
                             {(a.user?.full_name ?? "?")[0].toUpperCase()}

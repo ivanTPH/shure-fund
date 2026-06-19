@@ -63,7 +63,7 @@ export default function AuthUserBadge({
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-white">{name}</p>
           <span
-            className="inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+            className="inline-block rounded-full px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-widest"
             style={{ backgroundColor: pillColor + "22", color: pillColor, border: `1px solid ${pillColor}44` }}
           >
             {roleLabel}

@@ -140,7 +140,7 @@ function DevRoleSwitcher() {
 
   return (
     <div className="px-3 py-2.5 rounded-xl mt-1" style={{ backgroundColor: "rgba(13,17,68,0.05)", border: "1px dashed rgba(13,17,68,0.2)" }}>
-      <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(13,17,68,0.4)" }}>Dev — switch role</p>
+      <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(13,17,68,0.4)" }}>Dev — switch role</p>
       <div className="grid grid-cols-3 gap-1">
         {DEV_ROLES.map(({ role, email, color }) => (
           <button
@@ -321,7 +321,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Icon active={active} />
                 {label}
                 {badge > 0 && (
-                  <span className="absolute top-1.5 right-[calc(50%-18px)] flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black text-white">
+                  <span className="absolute top-1.5 right-[calc(50%-18px)] flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-0.5 text-[11px] font-black text-white">
                     {badge > 9 ? "9+" : badge}
                   </span>
                 )}

@@ -17,6 +17,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../components/AppShell";
 import FileViewerModal from "../../../../components/FileViewerModal";
+import { Skeleton } from "../../../../components/Skeleton";
 import { useToast } from "../../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
@@ -183,6 +184,108 @@ function Section({
         </span>
       </button>
       {open && children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stage stepper — visual progress indicator
+// ---------------------------------------------------------------------------
+
+const STAGE_STEPS: Array<{ key: string; label: string; sub: string }> = [
+  { key: "draft",                label: "Draft",      sub: "Not started" },
+  { key: "sent",                 label: "Sent",       sub: "Under review" },
+  { key: "in_progress",          label: "Active",     sub: "Work underway" },
+  { key: "awaiting_approval",    label: "Sign-offs",  sub: "Approval chain" },
+  { key: "available_to_release", label: "Ready",      sub: "For release" },
+  { key: "released",             label: "Released",   sub: "Complete" },
+];
+
+// Map side-states onto a main step for stepper positioning
+const STEP_ALIAS: Record<string, string> = {
+  accepted:      "sent",
+  returned:      "awaiting_approval",
+  disputed:      "awaiting_approval",
+  funding_gap:   "available_to_release",
+  part_funded:   "available_to_release",
+};
+
+function StageStepper({ status }: { status: string }) {
+  const resolved = STEP_ALIAS[status] ?? status;
+  const currentIdx = STAGE_STEPS.findIndex((s) => s.key === resolved);
+  const isWarning = ["disputed", "returned", "funding_gap"].includes(status);
+
+  return (
+    <div
+      className="rounded-[20px] px-4 py-4"
+      style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+    >
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.4)" }}>
+        Stage progress
+      </p>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 0, overflowX: "auto" }}>
+        {STAGE_STEPS.map((step, idx) => {
+          const isDone    = idx < currentIdx;
+          const isCurrent = idx === currentIdx;
+          const isFuture  = idx > currentIdx;
+
+          const dotColor = isDone ? "#059669" : isCurrent ? (isWarning ? "#ea580c" : "#0D1144") : "#e4e7f0";
+          const dotBg    = isDone ? "#059669" : isCurrent ? (isWarning ? "#ea580c" : "#0D1144") : "#f7f8fc";
+          const lineColor = isDone ? "#059669" : "#e4e7f0";
+
+          return (
+            <div key={step.key} style={{ flex: 1, minWidth: 44, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {/* Connector + dot row */}
+              <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+                {/* Left connector */}
+                <div style={{
+                  flex: 1, height: 2,
+                  backgroundColor: idx === 0 ? "transparent" : (isDone || isCurrent ? lineColor : "#e4e7f0"),
+                  transition: "background-color 0.3s",
+                }} />
+                {/* Dot */}
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                  backgroundColor: dotBg,
+                  border: `2px solid ${dotColor}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.3s",
+                }}>
+                  {isDone ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  ) : isCurrent ? (
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#fff" }} />
+                  ) : null}
+                </div>
+                {/* Right connector */}
+                <div style={{
+                  flex: 1, height: 2,
+                  backgroundColor: idx === STAGE_STEPS.length - 1 ? "transparent" : (isDone ? "#059669" : "#e4e7f0"),
+                  transition: "background-color 0.3s",
+                }} />
+              </div>
+
+              {/* Label */}
+              <p style={{
+                marginTop: 6, fontSize: 10, fontWeight: isCurrent ? 800 : 500,
+                textAlign: "center", lineHeight: 1.3,
+                color: isCurrent
+                  ? (isWarning ? "#ea580c" : "var(--brand-navy, #0D1144)")
+                  : isDone ? "#059669" : "rgba(13,17,68,0.35)",
+              }}>
+                {step.label}
+              </p>
+              {isCurrent && (
+                <p style={{ fontSize: 9, color: "rgba(13,17,68,0.4)", textAlign: "center", marginTop: 1 }}>
+                  {isWarning ? status.replace(/_/g, " ") : step.sub}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -402,8 +505,8 @@ export default function StageOverviewPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex min-h-screen items-center justify-center">
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading stage…</p>
+        <div className="px-4 md:px-8 py-6 max-w-2xl mx-auto">
+          <Skeleton.Stage />
         </div>
       </AppShell>
     );
@@ -508,24 +611,51 @@ export default function StageOverviewPage() {
         {/* ── Task banner — role-contextual guidance ────────────────────────── */}
         {taskBanner && (
           <div
-            className="rounded-[20px] px-5 py-4"
-            style={{ backgroundColor: taskBanner.bg, border: `1px solid ${taskBanner.border}` }}
+            className="rounded-[20px] px-5 py-5"
+            style={{
+              backgroundColor: taskBanner.bg,
+              border: `2px solid ${taskBanner.accent}55`,
+              boxShadow: `0 0 0 4px ${taskBanner.accent}0a`,
+            }}
           >
-            <p className="text-sm font-bold" style={{ color: taskBanner.accent }}>{taskBanner.message}</p>
-            {taskBanner.sub && (
-              <p className="mt-1 text-xs leading-relaxed" style={{ color: "rgba(13,17,68,0.6)" }}>{taskBanner.sub}</p>
-            )}
-            {taskBanner.href && taskBanner.cta && (
-              <Link
-                href={taskBanner.href}
-                className="mt-3 inline-block rounded-xl px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
-                style={{ backgroundColor: taskBanner.accent }}
+            <div className="flex items-start gap-3">
+              <div
+                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+                style={{ backgroundColor: taskBanner.accent, color: "#fff" }}
               >
-                {taskBanner.cta} →
-              </Link>
-            )}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  {taskBanner.href
+                    ? <><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></>
+                    : <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>
+                  }
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold leading-snug" style={{ color: taskBanner.accent }}>
+                  {taskBanner.message}
+                </p>
+                {taskBanner.sub && (
+                  <p className="mt-1 text-xs leading-relaxed" style={{ color: "rgba(13,17,68,0.6)" }}>
+                    {taskBanner.sub}
+                  </p>
+                )}
+                {taskBanner.href && taskBanner.cta && (
+                  <Link
+                    href={taskBanner.href}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 active:opacity-80"
+                    style={{ backgroundColor: taskBanner.accent }}
+                  >
+                    {taskBanner.cta} →
+                  </Link>
+                )}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* ── Stage stepper ────────────────────────────────────────────────── */}
+        <StageStepper status={stage.status} />
 
         {/* ── Stage header ─────────────────────────────────────────────────── */}
         <div
@@ -1029,7 +1159,7 @@ export default function StageOverviewPage() {
                           </p>
                           {c.author.role && (
                             <span
-                              className="inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                              className="inline-block rounded-full px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider"
                               style={{ backgroundColor: rc + "18", color: rc }}
                             >
                               {c.author.role}
