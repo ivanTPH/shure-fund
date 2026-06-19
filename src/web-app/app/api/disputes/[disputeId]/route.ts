@@ -121,6 +121,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           metadata:   { dispute_id: disputeId, notes: notes ?? null },
         });
         await notifyDisputeResolved(service, projectId, dispute.stage_id, stg?.name ?? dispute.stage_id, contractId, disputeId);
+        // Mark unread dispute_raised notifications for this stage as read so they
+        // no longer appear as pending action items in the inbox
+        await service
+          .from("notifications")
+          .update({ read: true })
+          .eq("type", "dispute_raised")
+          .eq("stage_id", dispute.stage_id)
+          .eq("read", false);
       }
     } catch { /* non-fatal */ }
   }
