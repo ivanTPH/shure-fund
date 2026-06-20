@@ -17,6 +17,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../components/AppShell";
 import { useToast } from "../../../components/ToastContext";
+import { Skeleton } from "../../../components/Skeleton";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -139,8 +140,8 @@ export default function DrawdownPage() {
 
   if (loading) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading drawdown requests…</p>
+      <div className="min-h-screen px-4 py-6 max-w-2xl mx-auto">
+        <Skeleton.CardList />
       </div>
     </AppShell>
   );

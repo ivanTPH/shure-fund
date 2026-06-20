@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -125,8 +126,8 @@ export default function ProjectSettingsPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--surface-muted, #f7f8fc)" }}>
-          <p className="text-sm" style={{ color: muted }}>Loading settings…</p>
+        <div className="min-h-screen px-4 py-8 max-w-lg mx-auto">
+          <Skeleton.Form />
         </div>
       </AppShell>
     );

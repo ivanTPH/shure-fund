@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../components/AppShell";
+import { Skeleton } from "../../../../../components/Skeleton";
 
 type Variation = {
   id: string;
@@ -90,11 +91,7 @@ export default function StageVariationsPage() {
           </Link>
         </div>
 
-        {loading && (
-          <p style={{ color: "rgba(13,17,68,0.45)", textAlign: "center", padding: "40px 0" }}>
-            Loading variations…
-          </p>
-        )}
+        {loading && <Skeleton.CardList rows={3} />}
 
         {error && (
           <div style={{ background: "#fee2e2", borderRadius: 12, padding: 16, color: "#dc2626" }}>

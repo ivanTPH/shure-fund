@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../components/AppShell";
+import { Skeleton } from "../../../components/Skeleton";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -139,8 +140,8 @@ export default function SchedulePage() {
 
   if (loading) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading schedule…</p>
+      <div className="min-h-screen px-4 md:px-8 py-8 max-w-3xl mx-auto">
+        <Skeleton.Dashboard />
       </div>
     </AppShell>
   );
