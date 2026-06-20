@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../../../components/AppShell";
+import { Skeleton } from "../../../../../../../components/Skeleton";
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 
@@ -107,8 +108,8 @@ export default function EditStagePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading stage…</p>
+        <div className="min-h-screen px-4 md:px-8 py-8 max-w-lg mx-auto">
+          <Skeleton.Form />
         </div>
       </AppShell>
     );

@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,9 +94,7 @@ export default function PaymentsPage() {
           </p>
         </div>
 
-        {loading && (
-          <p className="text-sm" style={{ color: muted }}>Loading payments…</p>
-        )}
+        {loading && <Skeleton.CardList rows={3} />}
 
         {error && (
           <div className="mb-4 rounded-2xl px-4 py-3" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>

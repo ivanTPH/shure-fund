@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../components/AppShell";
+import { Skeleton } from "../../../../../components/Skeleton";
 import FileViewerModal from "../../../../../components/FileViewerModal";
 import { useToast } from "../../../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
@@ -266,8 +267,8 @@ export default function ApproveStagePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading approval screen…</p>
+        <div className="min-h-screen px-4 md:px-8 py-8 max-w-2xl mx-auto">
+          <Skeleton.Stage />
         </div>
       </AppShell>
     );

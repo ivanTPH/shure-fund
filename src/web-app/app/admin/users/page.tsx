@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
+import { Skeleton } from "../../components/Skeleton";
 import { useToast } from "../../components/ToastContext";
 
 // ---------------------------------------------------------------------------
@@ -296,7 +297,7 @@ export default function AdminUsersPage() {
         )}
 
         {loading ? (
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading users…</p>
+          <Skeleton.CardList />
         ) : (
           <>
             {/* Desktop table */}

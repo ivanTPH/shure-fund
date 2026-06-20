@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -127,8 +128,8 @@ export default function AdminOverviewPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--surface-muted, #f7f8fc)" }}>
-          <p className="text-sm" style={{ color: muted }}>Loading platform overview…</p>
+        <div className="min-h-screen px-4 md:px-8 py-8 max-w-5xl mx-auto" style={{ backgroundColor: "var(--surface-muted, #f7f8fc)" }}>
+          <Skeleton.Dashboard />
         </div>
       </AppShell>
     );
