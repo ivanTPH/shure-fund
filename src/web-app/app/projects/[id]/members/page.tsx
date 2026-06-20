@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../components/AppShell";
+import { Skeleton } from "../../../components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -70,6 +71,9 @@ export default function ProjectMembersPage() {
   const [newNotes, setNewNotes]         = useState("");
   const [saving, setSaving]             = useState(false);
   const [saveError, setSaveError]       = useState<string | null>(null);
+
+  // Inline remove confirmation
+  const [confirmingMemberId, setConfirmingMemberId] = useState<string | null>(null);
 
   // Invite-new-user form
   const [inviting, setInviting]         = useState(false);
@@ -339,7 +343,7 @@ export default function ProjectMembersPage() {
 
         {/* Members — desktop table */}
         {loading ? (
-          <p className="mt-6 text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
+          <div className="mt-6"><Skeleton.CardList rows={3} /></div>
         ) : members.length === 0 ? (
           <p className="mt-6 text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No team members assigned yet.</p>
         ) : (
@@ -385,13 +389,32 @@ export default function ProjectMembersPage() {
                         <td className="px-5 py-3 text-xs italic" style={{ color: "rgba(13,17,68,0.4)" }}>{m.notes ?? "—"}</td>
                         {canManage && (
                           <td className="px-5 py-3 text-right">
-                            <button
-                              onClick={() => removeMember(m.member?.id ?? "")}
-                              className="text-xs transition hover:opacity-70"
-                              style={{ color: "rgba(13,17,68,0.35)" }}
-                            >
-                              Remove
-                            </button>
+                            {confirmingMemberId === m.member?.id ? (
+                              <span className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => { setConfirmingMemberId(null); removeMember(m.member?.id ?? ""); }}
+                                  className="text-xs font-semibold transition hover:opacity-70"
+                                  style={{ color: "#dc2626" }}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={() => setConfirmingMemberId(null)}
+                                  className="text-xs transition hover:opacity-70"
+                                  style={{ color: "rgba(13,17,68,0.35)" }}
+                                >
+                                  Cancel
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmingMemberId(m.member?.id ?? "")}
+                                className="text-xs transition hover:opacity-70"
+                                style={{ color: "rgba(13,17,68,0.35)" }}
+                              >
+                                Remove
+                              </button>
+                            )}
                           </td>
                         )}
                       </tr>
@@ -424,13 +447,32 @@ export default function ProjectMembersPage() {
                       {m.notes && <p className="mt-0.5 text-xs italic" style={{ color: "rgba(13,17,68,0.4)" }}>{m.notes}</p>}
                     </div>
                     {canManage && (
-                      <button
-                        onClick={() => removeMember(m.member?.id ?? "")}
-                        className="shrink-0 text-xs transition hover:opacity-70"
-                        style={{ color: "rgba(13,17,68,0.35)" }}
-                      >
-                        Remove
-                      </button>
+                      confirmingMemberId === m.member?.id ? (
+                        <div className="shrink-0 flex flex-col gap-1 items-end">
+                          <button
+                            onClick={() => { setConfirmingMemberId(null); removeMember(m.member?.id ?? ""); }}
+                            className="text-xs font-semibold transition hover:opacity-70"
+                            style={{ color: "#dc2626" }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setConfirmingMemberId(null)}
+                            className="text-xs transition hover:opacity-70"
+                            style={{ color: "rgba(13,17,68,0.35)" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmingMemberId(m.member?.id ?? "")}
+                          className="shrink-0 text-xs transition hover:opacity-70"
+                          style={{ color: "rgba(13,17,68,0.35)" }}
+                        >
+                          Remove
+                        </button>
+                      )
                     )}
                   </div>
                 );

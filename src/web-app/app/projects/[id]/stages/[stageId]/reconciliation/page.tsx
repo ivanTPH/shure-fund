@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 
 type StageInfo = { id: string; name: string; value: number; status: string };
 
@@ -101,8 +102,8 @@ export default function ReconciliationPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
+        <div className="min-h-screen px-4 md:px-8 py-8 max-w-2xl mx-auto">
+          <Skeleton.Stage />
         </div>
       </AppShell>
     );

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -199,9 +200,7 @@ export default function FundingPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
-          </div>
+          <Skeleton.Dashboard />
         ) : summary && (
           <>
             {/* Platform totals strip */}

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
@@ -220,8 +221,8 @@ export default function ProofOfFundsPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex min-h-screen items-center justify-center">
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>Loading…</p>
+        <div className="min-h-screen px-4 py-6 max-w-2xl mx-auto">
+          <Skeleton.CardList rows={3} />
         </div>
       </AppShell>
     );

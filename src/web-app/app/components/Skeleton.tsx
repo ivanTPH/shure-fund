@@ -198,7 +198,52 @@ function Dashboard() {
   );
 }
 
-export const Skeleton = { Line, Card, Stage, NotificationList, Dashboard };
+/** Compact list of card-shaped skeletons — contracts, packages, requests, etc. */
+function CardList({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Card key={i}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-2">
+              <Line width="55%" height={14} />
+              <Line width="38%" height={11} />
+            </div>
+            <div className="space-y-2 text-right">
+              <Line width={72} height={14} />
+              <Line width={52} height={11} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <Line width={64} height={20} />
+            <Line width={80} height={20} />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/** Form-shaped skeleton — account settings, company page, etc. */
+function Form() {
+  return (
+    <Card>
+      <div className="space-y-5">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="space-y-1.5">
+            <Line width={100} height={11} />
+            <Line height={36} />
+          </div>
+        ))}
+        <div className="pt-1">
+          <Line width={120} height={36} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export const Skeleton = { Line, Card, Stage, NotificationList, Dashboard, CardList, Form };
 
 // Inject keyframe once — safe to call multiple times
 if (typeof document !== "undefined") {

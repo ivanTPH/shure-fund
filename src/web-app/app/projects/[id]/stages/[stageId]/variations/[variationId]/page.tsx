@@ -8,6 +8,7 @@ import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
 import type { VariationAction } from "@/lib/workflow/variationStateMachine";
 import AppShell from "@/app/components/AppShell";
+import { Skeleton } from "@/app/components/Skeleton";
 import { useToast } from "@/app/components/ToastContext";
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
@@ -176,8 +177,8 @@ export default function VariationDetailPage() {
 
   if (loading) return (
     <AppShell>
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
+      <div className="min-h-screen px-4 md:px-8 py-8 max-w-2xl mx-auto">
+        <Skeleton.Stage />
       </div>
     </AppShell>
   );

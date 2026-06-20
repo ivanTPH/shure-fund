@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "../components/AppShell";
+import { Skeleton } from "../components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole, ROLE_LABELS } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -61,8 +62,8 @@ export default function AccountPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f7f8fc" }}>
-          <p className="text-sm text-neutral-400">Loading…</p>
+        <div className="min-h-screen px-4 py-8 max-w-xl mx-auto">
+          <Skeleton.Form />
         </div>
       </AppShell>
     );

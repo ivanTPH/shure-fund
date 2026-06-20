@@ -68,8 +68,9 @@ export default function TokenHoldersPage() {
   const [adding, setAdding]           = useState(false);
 
   // Delete
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingId, setDeletingId]     = useState<string | null>(null);
+  const [deleteError, setDeleteError]   = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -279,14 +280,33 @@ export default function TokenHoldersPage() {
                       </td>
                       {canManage && (
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => handleDelete(h.id, Number(h.share_pct))}
-                            disabled={deletingId === h.id}
-                            className="text-xs font-medium px-2 py-1 rounded-lg transition hover:opacity-70"
-                            style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#dc2626" }}
-                          >
-                            {deletingId === h.id ? "…" : "Remove"}
-                          </button>
+                          {confirmingId === h.id ? (
+                            <span className="inline-flex items-center gap-2">
+                              <button
+                                onClick={() => { setConfirmingId(null); handleDelete(h.id, Number(h.share_pct)); }}
+                                disabled={deletingId === h.id}
+                                className="text-xs font-semibold px-2 py-1 rounded-lg transition hover:opacity-70"
+                                style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#dc2626" }}
+                              >
+                                {deletingId === h.id ? "…" : "Confirm"}
+                              </button>
+                              <button
+                                onClick={() => setConfirmingId(null)}
+                                className="text-xs transition hover:opacity-70"
+                                style={{ color: "rgba(13,17,68,0.4)" }}
+                              >
+                                Cancel
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmingId(h.id)}
+                              className="text-xs font-medium px-2 py-1 rounded-lg transition hover:opacity-70"
+                              style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#dc2626" }}
+                            >
+                              Remove
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>

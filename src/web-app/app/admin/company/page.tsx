@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
+import { Skeleton } from "../../components/Skeleton";
 
 export default function AdminCompanyPage() {
   const [name, setName]       = useState("");
@@ -74,7 +75,7 @@ export default function AdminCompanyPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>Loading…</p>
+          <div className="max-w-lg"><Skeleton.Form /></div>
         ) : (
           <form onSubmit={handleSubmit} className="max-w-lg space-y-4">
             {FIELDS.map(({ label, value, set, placeholder, type }) => (

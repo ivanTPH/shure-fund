@@ -1439,6 +1439,32 @@ export default function ProjectSummaryClient({ projectId }: { projectId: string 
         </div>
       )}
 
+      {/* Project status warning banner */}
+      {projectStatus === "on_hold" && (
+        <div
+          className="rounded-2xl px-4 py-3 flex items-center gap-3"
+          style={{ backgroundColor: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)" }}
+        >
+          <span className="text-base">⏸</span>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "#92400e" }}>Project on hold</p>
+            <p className="text-xs" style={{ color: "#b45309" }}>All payments are suspended until this project is returned to active status.</p>
+          </div>
+        </div>
+      )}
+      {projectStatus === "cancelled" && (
+        <div
+          className="rounded-2xl px-4 py-3 flex items-center gap-3"
+          style={{ backgroundColor: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.25)" }}
+        >
+          <span className="text-base">✕</span>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "#991b1b" }}>Project cancelled</p>
+            <p className="text-xs" style={{ color: "#b91c1c" }}>No further payments or actions can be taken on this project.</p>
+          </div>
+        </div>
+      )}
+
       {/* Role-specific dashboard content */}
       {role === "funder" && <FunderView data={data} projectId={projectId} role={role} />}
       {role === "developer" && <DeveloperView data={data} projectId={projectId} role={role} />}

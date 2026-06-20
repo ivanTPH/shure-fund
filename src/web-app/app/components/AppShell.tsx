@@ -167,22 +167,23 @@ function DevRoleSwitcher() {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [unread, setUnread] = useState(0);
+  const [unread, setUnread]               = useState(0);
+  const [actionRequired, setActionRequired] = useState(0);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
-  // Initial load + Realtime subscription for unread badge
-  const fetchUnread = useCallback(async () => {
+  // Initial load + Realtime subscription for nav badges
+  const fetchSummary = useCallback(async () => {
     try {
-      const r = await fetch("/api/notifications");
+      const r = await fetch("/api/notifications/summary");
       if (!r.ok) return;
-      const d = await r.json();
-      const count = (d.notifications ?? []).filter((n: { read: boolean }) => !n.read).length;
-      setUnread(count);
+      const d = await r.json() as { unread?: number; actionRequired?: number };
+      setUnread(d.unread ?? 0);
+      setActionRequired(d.actionRequired ?? 0);
     } catch { /* non-fatal */ }
   }, []);
 
   useEffect(() => {
-    fetchUnread();
+    fetchSummary();
     let cancelled = false;
 
     (async () => {
@@ -196,14 +197,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           "postgres_changes" as any,
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-          () => setUnread((c) => c + 1),
+          () => fetchSummary(),
         )
         .on(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           "postgres_changes" as any,
           { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-          // Re-fetch to get accurate count after mark-read
-          () => fetchUnread(),
+          () => fetchSummary(),
         )
         .subscribe();
 
@@ -216,7 +216,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       channelRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchSummary]);
 
   function isActive(tab: ShellTab) {
     if (tab === "inbox")     return pathname.startsWith("/inbox") || pathname.startsWith("/activity");
@@ -258,7 +258,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {NAV.map(({ tab, label, href, Icon }) => {
             const active = isActive(tab);
-            const badge = tab === "inbox" ? unread : 0;
+            const badge = tab === "inbox" ? unread : tab === "approvals" ? actionRequired : 0;
             return (
               <Link
                 key={tab}
@@ -310,7 +310,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-stretch">
           {NAV.map(({ tab, label, href, Icon }) => {
             const active = isActive(tab);
-            const badge = tab === "inbox" ? unread : 0;
+            const badge = tab === "inbox" ? unread : tab === "approvals" ? actionRequired : 0;
             return (
               <Link
                 key={tab}

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import { Skeleton } from "../components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import type { NotificationPreference } from "@/app/api/notifications/preferences/route";
 
@@ -189,8 +190,8 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--surface-muted,#f7f8fc)" }}>
-          <p className="text-sm" style={{ color: "rgba(13,17,68,0.4)" }}>Loading…</p>
+        <div className="min-h-screen px-4 py-8 max-w-xl mx-auto">
+          <Skeleton.Form />
         </div>
       </AppShell>
     );
