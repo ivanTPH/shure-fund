@@ -10,6 +10,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "../../../../components/ToastContext";
 
 type ContractStatus = "draft" | "issued" | "accepted" | "active" | "completed" | "cancelled";
 
@@ -49,6 +50,7 @@ type Props = {
 
 export default function ContractStatusActions({ projectId, contractId, status, role }: Props) {
   const router   = useRouter();
+  const { toast } = useToast();
   const [busy, setBusy] = useState<ContractStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +72,7 @@ export default function ContractStatusActions({ projectId, contractId, status, r
         setError(data.error ?? "Failed to update contract.");
         return;
       }
+      toast(`Contract ${toStatus.replace(/_/g, " ")}`, toStatus === "cancelled" ? "info" : "success");
       router.refresh();
     } catch {
       setError("Network error.");

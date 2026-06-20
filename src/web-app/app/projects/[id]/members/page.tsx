@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../components/AppShell";
 import { Skeleton } from "../../../components/Skeleton";
+import { useToast } from "../../../components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -56,6 +57,7 @@ const CAN_MANAGE: AppRole[] = ["admin", "developer"];
 
 export default function ProjectMembersPage() {
   const { id: projectId } = useParams<{ id: string }>();
+  const { toast } = useToast();
 
   const [members, setMembers]   = useState<Member[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -128,6 +130,7 @@ export default function ProjectMembersPage() {
       if (res.ok) {
         setAdding(false);
         setNewUserId(""); setNewRole("commercial"); setNewDelegatedTo(""); setNewNotes("");
+        toast("Member added to project", "success");
         await loadMembers();
       } else {
         const d = await res.json();
@@ -137,7 +140,8 @@ export default function ProjectMembersPage() {
   }
 
   async function removeMember(userId: string) {
-    await fetch(`/api/projects/${projectId}/members?userId=${userId}`, { method: "DELETE" });
+    const res = await fetch(`/api/projects/${projectId}/members?userId=${userId}`, { method: "DELETE" });
+    if (res.ok) toast("Member removed", "info");
     await loadMembers();
   }
 
@@ -155,6 +159,7 @@ export default function ProjectMembersPage() {
       const d = await res.json();
       if (res.ok) {
         setInviteSuccess(`Invite sent to ${inviteEmail.trim()}. They will receive an email to set up their account.`);
+        toast(`Invite sent to ${inviteEmail.trim()}`, "success");
         setInviteEmail("");
         setInviteRole("contractor");
         await loadUsers();

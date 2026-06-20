@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
 import { Skeleton } from "@/app/components/Skeleton";
+import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import type { AppRole } from "@/lib/auth";
@@ -75,6 +76,7 @@ function StatusBadge({ status }: { status: DrawdownRequest["status"] }) {
 
 export default function RequestsPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<DrawdownRequest[]>([]);
@@ -119,6 +121,7 @@ export default function RequestsPage() {
     if (!res.ok) { setActionError(data.error ?? "Action failed."); return; }
     setActioning(null);
     setActionNotes("");
+    toast(action === "approve" ? "Request approved" : "Request rejected", action === "approve" ? "success" : "info");
     await load(statusFilter);
   }
 

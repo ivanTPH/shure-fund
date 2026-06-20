@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -95,6 +96,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function ApprovalChainPage() {
   const { id: projectId, contractId } = useParams<{ id: string; contractId: string }>();
+  const { toast } = useToast();
 
   const [data, setData]           = useState<ChainData | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -150,6 +152,7 @@ export default function ApprovalChainPage() {
       });
       const json = await res.json();
       if (!res.ok) { setSeedError(json.error ?? "Failed to assign approver."); return; }
+      toast("Approver assigned", "success");
       setData((prev) => {
         if (!prev) return prev;
         return {

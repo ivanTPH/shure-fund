@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../components/AppShell";
+import { useToast } from "../../../components/ToastContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 
 export default function DrawdownPage() {
   const { id: projectId } = useParams<{ id: string }>();
+  const { toast } = useToast();
 
   const [requests, setRequests]       = useState<DrawdownRequest[]>([]);
   const [totalApproved, setTotalApproved] = useState(0);
@@ -105,6 +107,7 @@ export default function DrawdownPage() {
       setRequests((prev) => [data.request, ...prev]);
       setAmount("");
       setDesc("");
+      toast("Drawdown request submitted", "success");
     } catch {
       setCreateErr("Network error.");
     } finally {
@@ -121,13 +124,14 @@ export default function DrawdownPage() {
         body: JSON.stringify({ action, reviewNotes: reviewNotes || undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error ?? "Action failed."); return; }
+      if (!res.ok) { toast(data.error ?? "Action failed.", "error"); return; }
       setRequests((prev) => prev.map((r) => r.id === reqId ? data.request : r));
       if (action === "approve") setTotalApproved((t) => t + Number(data.request.amount));
       setActionId(null);
       setReviewNotes("");
+      toast(action === "approve" ? "Request approved" : action === "reject" ? "Request rejected" : "Request withdrawn", action === "approve" ? "success" : "info");
     } catch {
-      alert("Network error.");
+      toast("Network error — please try again.", "error");
     } finally {
       setActioning(false);
     }
