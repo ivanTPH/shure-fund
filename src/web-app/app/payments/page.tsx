@@ -184,7 +184,7 @@ export default function PaymentsPage() {
                             >
                               <td className="px-4 py-3">
                                 <Link
-                                  href={`/projects/${r.projectId}/stages/${r.stageId}`}
+                                  href={`/projects/${r.projectId}/stages/${r.stageId}/release`}
                                   className="text-sm font-medium hover:underline"
                                   style={{ color: "#0D1144" }}
                                 >

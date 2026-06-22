@@ -214,6 +214,102 @@ export default function ReleasePaymentPage() {
     );
   }
 
+  // Already-released receipt — user navigated here from payment list or directly
+  if (stage?.status === "released") {
+    return (
+      <AppShell>
+        <div className="min-h-screen px-4 md:px-8 py-8 max-w-2xl mx-auto">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-xs mb-6" style={{ color: "rgba(13,17,68,0.45)" }}>
+            <Link href="/payments" className="hover:opacity-70 transition">← Payments</Link>
+            <span>/</span>
+            <Link href={`/projects/${projectId}/stages/${stageId}`} className="hover:opacity-70 transition">Stage detail</Link>
+          </div>
+
+          {/* Receipt header */}
+          <div
+            className="mb-6 rounded-[24px] p-6 text-center"
+            style={{ backgroundColor: "rgba(22,163,74,0.05)", border: "1px solid rgba(22,163,74,0.2)" }}
+          >
+            <div
+              className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+              style={{ backgroundColor: "rgba(22,163,74,0.1)", border: "2px solid #16a34a" }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#16a34a" }}>Payment confirmed</p>
+            <p className="text-2xl font-bold" style={{ color: "#0D1144" }}>{gbp.format(certifiedAmount)}</p>
+            <p className="mt-1 text-sm font-medium" style={{ color: "rgba(13,17,68,0.7)" }}>{stage.name}</p>
+            {stage.contractorName && (
+              <p className="text-xs mt-0.5" style={{ color: "rgba(13,17,68,0.45)" }}>{stage.contractorName}</p>
+            )}
+          </div>
+
+          {/* Sign-off chain */}
+          {approvals.length > 0 && (
+            <div
+              className="mb-5 rounded-[20px] p-5 space-y-2"
+              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+            >
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(13,17,68,0.45)" }}>
+                Sign-off chain
+              </p>
+              {approvals.map((ap) => {
+                const color = APPROVAL_COLOR[ap.decision] ?? "#64748b";
+                return (
+                  <div
+                    key={ap.id}
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                    style={{ border: `1px solid ${color}33`, backgroundColor: color + "0d" }}
+                  >
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                      style={{ backgroundColor: color + "22", color }}
+                    >
+                      {ap.decision === "approved" ? "✓" : ap.decision === "rejected" ? "✗" : "—"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold" style={{ color: "#0D1144" }}>{ROLE_LABEL[ap.role] ?? ap.role}</p>
+                      <p className="text-xs" style={{ color: "rgba(13,17,68,0.55)" }}>{ap.approver?.full_name ?? "—"}</p>
+                      {ap.certifiedAmount !== null && (
+                        <p className="text-xs mt-0.5" style={{ color: "rgba(13,17,68,0.65)" }}>
+                          Certified {gbp.format(ap.certifiedAmount)}
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs font-bold uppercase" style={{ color }}>
+                      {ap.decision}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Link
+              href={`/projects/${projectId}/stages/${stageId}`}
+              className="rounded-2xl px-4 py-2.5 text-sm font-semibold transition hover:opacity-80"
+              style={{ backgroundColor: "rgba(13,17,68,0.06)", color: "rgba(13,17,68,0.65)", border: "1px solid var(--surface-border, #e4e7f0)" }}
+            >
+              View stage
+            </Link>
+            <Link
+              href={`/projects/${projectId}`}
+              className="rounded-2xl px-4 py-2.5 text-sm font-semibold transition hover:opacity-80"
+              style={{ backgroundColor: "#0D1144", color: "#fff" }}
+            >
+              Back to project
+            </Link>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Main render
   // ---------------------------------------------------------------------------
