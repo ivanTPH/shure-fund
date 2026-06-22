@@ -134,11 +134,12 @@ test.describe("Journey 83 — Stage detail page UI @e2e", () => {
 
   // ── Stage release page ────────────────────────────────────────────────────
 
-  test("admin can load stage release page", async ({ page }) => {
+  test("admin can load stage release page (shows receipt for released stage)", async ({ page }) => {
     await signIn(page, "admin");
     await page.goto(stageUrl("release"));
+    // Stage 501 is already released → shows payment receipt view
     await expect(
-      page.getByRole("heading", { name: /release/i }).first()
+      page.getByText(/payment confirmed|payment released|release/i).first()
     ).toBeVisible({ timeout: 20_000 });
   });
 
