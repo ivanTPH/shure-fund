@@ -379,13 +379,25 @@ export default function ProofOfFundsPage() {
 
           {active.length === 0 && !showForm && (
             <div
-              className="rounded-[18px] px-5 py-6 text-center"
-              style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+              className="rounded-[18px] px-5 py-8 text-center"
+              style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
             >
-              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>
-                No active declarations.
-                {canWrite ? " Use the button above to declare Tier 2 proof of funds." : ""}
+              <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No active declarations.</p>
+              <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>
+                {canWrite
+                  ? "Declare your Tier 2 bank proof-of-funds to show 30-day coverage."
+                  : "Tier 2 proof-of-funds declarations will appear here once submitted."}
               </p>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(true); }}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                  style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
+                >
+                  Declare funds
+                </button>
+              )}
             </div>
           )}
 

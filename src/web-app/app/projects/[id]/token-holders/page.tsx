@@ -230,7 +230,8 @@ export default function TokenHoldersPage() {
         >
           {holders.length === 0 ? (
             <div className="px-5 py-10 text-center">
-              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No token holders registered yet.</p>
+              <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No token holders registered yet.</p>
+              <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Token holders become shareholders in the trust and receive payments at the point of release.</p>
             </div>
           ) : (
             <table className="w-full text-sm">

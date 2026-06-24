@@ -864,7 +864,21 @@ export default function StageOverviewPage() {
           )}
 
           {evidence.length === 0 ? (
-            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No evidence uploaded yet.</p>
+            isContractor && (stage.status === "in_progress" || stage.status === "returned") ? (
+              <div className="rounded-2xl px-5 py-6 text-center" style={{ border: "1px dashed rgba(37,99,235,0.3)", backgroundColor: "rgba(37,99,235,0.03)" }}>
+                <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No evidence uploaded yet.</p>
+                <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Submit photos, documents or a completion form to proceed.</p>
+                <Link
+                  href={`/projects/${projectId}/stages/${stageId}/action`}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                  style={{ backgroundColor: "#2563eb", color: "#fff" }}
+                >
+                  Upload evidence
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No evidence uploaded yet.</p>
+            )
           ) : (
             <div className="space-y-2">
               {evidence.map((item) => {
@@ -1012,7 +1026,14 @@ export default function StageOverviewPage() {
         {/* ── Approval chain ───────────────────────────────────────────────── */}
         <Section title="Approval chain" badge={pendingApprovals || undefined}>
           {approvals.length === 0 ? (
-            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No approval records yet.</p>
+            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>
+              No approval records yet.{" "}
+              {stage.status === "awaiting_approval"
+                ? "Approval chain members have been notified."
+                : stage.status === "in_progress" || stage.status === "sent" || stage.status === "accepted"
+                ? "Approvals will appear once the stage is submitted for review."
+                : ""}
+            </p>
           ) : (
             <div className="space-y-2">
               {approvals.map((ap) => {

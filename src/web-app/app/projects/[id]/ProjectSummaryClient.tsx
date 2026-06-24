@@ -297,6 +297,12 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
           <SectionHeader title="Stage register" sub="All stages · contracted value · certified · next action" />
 
           {/* Desktop table */}
+          {allStages.length === 0 ? (
+            <div className="hidden md:flex rounded-2xl px-6 py-10 flex-col items-center text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+              <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No stages on this project yet.</p>
+              <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Contracts and stages will appear here once added by the project team.</p>
+            </div>
+          ) : (
           <div className="hidden md:block overflow-x-auto rounded-2xl" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
             <table className="w-full text-sm">
               <thead>
@@ -365,10 +371,15 @@ function FunderView({ data, projectId, role }: { data: DashboardData; projectId:
               </tfoot>
             </table>
           </div>
+          )}
 
           {/* Mobile: card list */}
           <div className="space-y-2 md:hidden">
-            {allStages.map((s) => (
+            {allStages.length === 0 ? (
+              <div className="rounded-2xl px-5 py-8 text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+                <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No stages on this project yet.</p>
+              </div>
+            ) : allStages.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSelectedStageId(s.id)}
@@ -583,6 +594,19 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
         <SectionHeader title="Full programme" sub="All stages · spend vs budget" />
 
         {/* Desktop: programme table */}
+        {allStages.length === 0 ? (
+          <div className="hidden md:flex rounded-2xl px-6 py-10 flex-col items-center text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+            <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No stages on this project yet.</p>
+            <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Add a contract and stages to see your programme here.</p>
+            <Link
+              href={`/projects/${projectId}/contracts/new`}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
+            >
+              Add contract
+            </Link>
+          </div>
+        ) : (
         <div className="hidden md:block overflow-x-auto rounded-2xl" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
           <table className="w-full text-sm">
             <thead>
@@ -640,10 +664,22 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
             </tfoot>
           </table>
         </div>
+        )}
 
         {/* Mobile: progress bar cards */}
         <div className="md:hidden space-y-2">
-          {contracts.map((c) => (
+          {contracts.length === 0 ? (
+            <div className="rounded-2xl px-5 py-8 text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+              <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No stages yet.</p>
+              <Link
+                href={`/projects/${projectId}/contracts/new`}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
+              >
+                Add contract
+              </Link>
+            </div>
+          ) : contracts.map((c) => (
             <div key={c.id}>
               <div className="mb-1 flex items-center justify-between px-1">
                 <p className="text-xs font-semibold" style={{ color: "rgba(13,17,68,0.55)" }}>{c.contractorName}</p>
@@ -699,8 +735,9 @@ function ContractorView({ data, projectId, contractorId }: { data: DashboardData
 
   if (myContracts.length === 0) {
     return (
-      <div className="rounded-2xl px-4 py-8 text-center" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
-        <p style={{ color: "rgba(13,17,68,0.5)" }}>No stages assigned to you on this project.</p>
+      <div className="rounded-2xl px-4 py-10 text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+        <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No stages assigned to you on this project.</p>
+        <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Stages will appear here once a contract is set up and allocated to your account.</p>
       </div>
     );
   }

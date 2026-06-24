@@ -223,8 +223,9 @@ export default function DrawdownPage() {
 
         {/* Requests list */}
         {requests.length === 0 ? (
-          <div className="rounded-[20px] px-6 py-10 text-center" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
-            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No drawdown requests yet.</p>
+          <div className="rounded-[20px] px-6 py-10 text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+            <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No drawdown requests yet.</p>
+            <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Use the form above to request a transfer from your Tier 2 proof-of-funds into the Tier 1 trust wallet.</p>
           </div>
         ) : (
           <div className="rounded-[20px] overflow-hidden" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>

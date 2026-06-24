@@ -189,8 +189,16 @@ export default function BudgetPage() {
         )}
 
         {contracts.length === 0 ? (
-          <div className="rounded-[20px] px-6 py-10 text-center" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
-            <p className="text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No contracts on this project yet.</p>
+          <div className="rounded-[20px] px-6 py-10 text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+            <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No contracts on this project yet.</p>
+            <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Add a contract to start tracking budget vs actual spend.</p>
+            <Link
+              href={`/projects/${projectId}/contracts/new`}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+              style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
+            >
+              Add contract
+            </Link>
           </div>
         ) : (
           <div className="space-y-4">

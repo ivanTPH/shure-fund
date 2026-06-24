@@ -297,11 +297,25 @@ export default function ProjectsClient({
         {filtered.length === 0 ? (
           <div
             className="rounded-[20px] px-6 py-10 text-center"
-            style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+            style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
           >
-            <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>
-              No projects match the current filter.
-            </p>
+            {projects.length === 0 ? (
+              <>
+                <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No projects yet.</p>
+                <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Create your first project to get started.</p>
+                {canCreateProject && (
+                  <a
+                    href="/projects/new"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                    style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
+                  >
+                    New project
+                  </a>
+                )}
+              </>
+            ) : (
+              <p className="text-sm" style={{ color: "rgba(13,17,68,0.5)" }}>No projects match the current filter.</p>
+            )}
           </div>
         ) : tableView ? (
           /* ── Table view ─────────────────────────────────────────────── */

@@ -350,7 +350,19 @@ export default function ProjectMembersPage() {
         {loading ? (
           <div className="mt-6"><Skeleton.CardList rows={3} /></div>
         ) : members.length === 0 ? (
-          <p className="mt-6 text-sm" style={{ color: "rgba(13,17,68,0.45)" }}>No team members assigned yet.</p>
+          <div className="mt-6 rounded-[20px] px-6 py-10 text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+            <p className="text-sm font-medium" style={{ color: "rgba(13,17,68,0.6)" }}>No team members assigned yet.</p>
+            <p className="mt-0.5 text-xs" style={{ color: "rgba(13,17,68,0.4)" }}>Add contractors, consultants and other stakeholders to this project.</p>
+            {canManage && (
+              <Link
+                href="/admin/invite"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                style={{ backgroundColor: "var(--brand-navy, #0D1144)", color: "#fff" }}
+              >
+                Invite a member
+              </Link>
+            )}
+          </div>
         ) : (
           <div className="mt-6">
             {/* Desktop table */}
