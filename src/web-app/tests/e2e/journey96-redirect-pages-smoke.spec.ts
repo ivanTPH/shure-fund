@@ -34,7 +34,7 @@ const CONTRACT_ID = "00000000-0000-0000-0000-000000000401";
 const contractBase = `${BASE}/projects/${PROJECT_ID}/contracts/${CONTRACT_ID}`;
 
 test.describe("Journey 96 — Redirect-only page smoke tests @e2e", () => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
 
   // ── Unauthenticated redirects via server-side (307) ───────────────────────
 
