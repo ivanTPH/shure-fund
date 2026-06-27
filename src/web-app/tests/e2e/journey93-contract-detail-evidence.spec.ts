@@ -16,9 +16,10 @@ const BASE       = process.env.TEST_BASE_URL ?? "http://localhost:3001";
 const PROJECT_ID = "00000000-0000-0000-0000-000000000301";
 
 test.describe("Journey 93 — Contract detail + evidence pages @e2e", () => {
-  // Allow 2 minutes per test — Next.js SSR server components can take
-  // 60–90 s to compile on first access in dev mode.
-  test.setTimeout(120_000);
+  // Allow 3 minutes per test — Next.js SSR server components can take
+  // 60–90 s to compile, and when running late in the full suite (after 1h+),
+  // the admin form sign-in + networkidle wait can add another 60–90 s.
+  test.setTimeout(180_000);
 
   // ── Contract detail page ──────────────────────────────────────────────────
   // The contract detail page is a server component. We verify the page loads
