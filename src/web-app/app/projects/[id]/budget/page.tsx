@@ -211,7 +211,7 @@ export default function BudgetPage() {
                     onClick={() => toggleContract(contract.id)}
                     className="w-full flex items-center justify-between px-5 py-4 text-left transition hover:bg-neutral-50"
                   >
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold" style={{ color: "var(--brand-navy, #0D1144)" }}>
                         {contract.contractorName}
                       </p>
@@ -220,6 +220,25 @@ export default function BudgetPage() {
                         {" "}{gbp.format(contract.summary.currentTotal)} current ·
                         {" "}{gbp.format(contract.summary.paidTotal)} paid
                       </p>
+                      {/* Paid vs budget bar */}
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="h-1.5 w-32 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(13,17,68,0.08)" }}>
+                          {contract.summary.currentTotal > 0 && (
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, Math.round((contract.summary.paidTotal / contract.summary.currentTotal) * 100))}%`,
+                                backgroundColor: "#16a34a",
+                              }}
+                            />
+                          )}
+                        </div>
+                        <span className="text-[10px]" style={{ color: "rgba(13,17,68,0.4)" }}>
+                          {contract.summary.currentTotal > 0
+                            ? `${Math.round((contract.summary.paidTotal / contract.summary.currentTotal) * 100)}%`
+                            : "0%"} paid
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <VariancePill variance={

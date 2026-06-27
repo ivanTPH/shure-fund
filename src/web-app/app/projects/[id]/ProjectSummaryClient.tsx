@@ -593,6 +593,71 @@ function DeveloperView({ data, projectId, role }: { data: DashboardData; project
       <div>
         <SectionHeader title="Full programme" sub="All stages · spend vs budget" />
 
+        {/* Stage timeline — desktop only, only when stages have dates */}
+        {(() => {
+          const datedStages = allStages.filter((s) => s.startDate || s.endDate);
+          if (datedStages.length === 0) return null;
+          const now = new Date();
+          const timestamps = datedStages
+            .flatMap((s) => [s.startDate, s.endDate].filter((d): d is string => !!d))
+            .map((d) => new Date(d).getTime());
+          const minTs = Math.min(...timestamps, now.getTime());
+          const maxTs = Math.max(...timestamps, now.getTime());
+          const rangeMs = maxTs - minTs || 1;
+          const posOf = (d: string | null, fallback: number) =>
+            d ? ((new Date(d).getTime() - minTs) / rangeMs) * 100 : fallback;
+          const todayPct = ((now.getTime() - minTs) / rangeMs) * 100;
+          const fmt = (ts: number) =>
+            new Intl.DateTimeFormat("en-GB", { month: "short", year: "2-digit" }).format(new Date(ts));
+
+          return (
+            <div className="hidden md:block mb-4 rounded-2xl p-4" style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(13,17,68,0.45)" }}>
+                Stage timeline
+              </p>
+              <div className="space-y-2">
+                {datedStages.map((s) => {
+                  const left  = posOf(s.startDate, 0);
+                  const right = posOf(s.endDate, 100);
+                  const width = Math.max(right - left, 1);
+                  const color = STATUS_COLOR[s.status] ?? "#94a3b8";
+                  return (
+                    <div key={s.id} className="flex items-center gap-3">
+                      <div className="w-32 shrink-0 text-[11px] font-medium truncate text-right" style={{ color: "rgba(13,17,68,0.6)" }}>
+                        {s.name}
+                      </div>
+                      <div className="relative flex-1 h-5">
+                        {todayPct >= 0 && todayPct <= 100 && (
+                          <div className="absolute inset-y-0 w-px" style={{ left: `${todayPct}%`, backgroundColor: "rgba(37,99,235,0.35)" }} />
+                        )}
+                        <div
+                          className="absolute top-1 h-3 rounded-full"
+                          style={{
+                            left: `${left}%`,
+                            width: `${width}%`,
+                            backgroundColor: color + "33",
+                            border: `1px solid ${color}88`,
+                          }}
+                        />
+                      </div>
+                      <div className="w-20 shrink-0">
+                        <StatusPill status={s.status} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex justify-between text-[10px]" style={{ color: "rgba(13,17,68,0.35)" }}>
+                <span>{fmt(minTs)}</span>
+                {todayPct >= 20 && todayPct <= 80 && (
+                  <span style={{ color: "#2563eb" }}>Today</span>
+                )}
+                <span>{fmt(maxTs)}</span>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Desktop: programme table */}
         {allStages.length === 0 ? (
           <div className="hidden md:flex rounded-2xl px-6 py-10 flex-col items-center text-center" style={{ border: "1px dashed var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}>

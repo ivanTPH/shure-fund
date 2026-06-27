@@ -4,11 +4,14 @@ import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/app/components/AppShell";
+import { useToast } from "@/app/components/ToastContext";
 
 export default function NewVariationPage() {
   const router = useRouter();
   const params = useParams<{ id: string; stageId: string }>();
   const { id: projectId, stageId } = params;
+
+  const { toast } = useToast();
 
   const [description, setDescription] = useState("");
   const [valueChange, setValueChange] = useState("");
@@ -46,6 +49,7 @@ export default function NewVariationPage() {
         body: JSON.stringify({ action: "submit" }),
       });
 
+      toast("Variation submitted for review.", "success");
       router.push(`/projects/${projectId}/stages/${stageId}/variations/${varId}`);
     } catch {
       setError("Network error. Please try again.");

@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/app/components/AppShell";
 import { Skeleton } from "@/app/components/Skeleton";
+import { useToast } from "@/app/components/ToastContext";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 
@@ -51,6 +52,8 @@ export default function ProjectSettingsPage() {
   const [name,    setName]    = useState("");
   const [address, setAddress] = useState("");
   const [status,  setStatus]  = useState<ProjectStatus>("active");
+
+  const { toast } = useToast();
 
   // Auth guard
   useEffect(() => {
@@ -97,6 +100,7 @@ export default function ProjectSettingsPage() {
     if (Object.keys(body).length === 0) {
       setSaving(false);
       setSuccess(true);
+      toast("No changes to save.", "info");
       setTimeout(() => setSuccess(false), 2000);
       return;
     }
@@ -110,9 +114,11 @@ export default function ProjectSettingsPage() {
 
     if (!res.ok) {
       setError(data.error ?? "Failed to save changes.");
+      toast(data.error ?? "Failed to save changes.", "error");
     } else {
       setProject(data.project);
       setSuccess(true);
+      toast("Project settings saved.", "success");
       setTimeout(() => setSuccess(false), 2500);
     }
 

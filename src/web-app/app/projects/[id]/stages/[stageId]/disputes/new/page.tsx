@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../../../../../../components/AppShell";
+import { useToast } from "../../../../../../components/ToastContext";
 
 export default function NewDisputePage() {
   const router = useRouter();
   const { id: projectId, stageId } = useParams<{ id: string; stageId: string }>();
+
+  const { toast } = useToast();
 
   const [reason, setReason]               = useState("");
   const [disputedValue, setDisputedValue] = useState("");
@@ -36,6 +39,7 @@ export default function NewDisputePage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Failed to raise dispute."); return; }
+      toast("Dispute raised successfully.", "success");
       router.push(`/projects/${projectId}/stages/${stageId}/disputes/${data.dispute.id}`);
     } catch {
       setError("Network error. Please try again.");

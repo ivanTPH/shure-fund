@@ -16,6 +16,7 @@ import { Skeleton } from "../../../../../components/Skeleton";
 import { createClient } from "@/lib/supabase/browser";
 import { getRole } from "@/lib/auth";
 import { STAGE_STATUSES, type StageStatus } from "@/lib/workflow/stateMachine";
+import { useToast } from "@/app/components/ToastContext";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,6 +48,8 @@ export default function AdminOverridePage() {
   const [currentStatus, setCurrentStatus] = useState<string>("");
   const [loading, setLoading]           = useState(true);
   const [accessError, setAccessError]   = useState<string | null>(null);
+
+  const { toast } = useToast();
 
   const [targetStatus, setTargetStatus] = useState<StageStatus>("in_progress");
   const [reason, setReason]             = useState("");
@@ -96,6 +99,7 @@ export default function AdminOverridePage() {
       if (!res.ok) { setSubmitError(data.error ?? "Override failed."); return; }
       setResult({ from: data.from, to: data.to });
       setDone(true);
+      toast(`Stage overridden: ${data.from.replace(/_/g, " ")} → ${data.to.replace(/_/g, " ")}`, "success");
       setTimeout(() => router.push(`/projects/${projectId}/stages/${stageId}`), 3000);
     } catch {
       setSubmitError("Network error — please try again.");

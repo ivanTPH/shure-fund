@@ -148,6 +148,67 @@ export default function CashflowPage() {
             </p>
           </div>
         ) : (
+          <>
+          {/* Bar chart overview */}
+          {(() => {
+            const maxVal = Math.max(...months.map((m) => Math.max(m.projectedValue, m.actualPaid)), 1);
+            return (
+              <div
+                className="rounded-[20px] p-5 mb-6"
+                style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: "rgba(13,17,68,0.45)" }}>
+                  Projected vs released — monthly overview
+                </p>
+                <div className="space-y-2">
+                  {months.map((m) => {
+                    const projPct = Math.round((m.projectedValue / maxVal) * 100);
+                    const actPct  = Math.round((m.actualPaid   / maxVal) * 100);
+                    const isCurrent = m.month === thisMonth;
+                    return (
+                      <div key={m.month} className="flex items-center gap-3">
+                        <div
+                          className="w-14 shrink-0 text-right text-[10px] font-medium"
+                          style={{ color: isCurrent ? "#2563eb" : "rgba(13,17,68,0.5)" }}
+                        >
+                          {fmtMonth(m.month).replace(/ \d{4}$/, "")}
+                        </div>
+                        <div className="flex-1 space-y-0.5">
+                          <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: "rgba(37,99,235,0.08)" }}>
+                            {m.projectedValue > 0 && (
+                              <div className="h-full rounded-full" style={{ width: `${projPct}%`, backgroundColor: "rgba(37,99,235,0.55)" }} />
+                            )}
+                          </div>
+                          <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: "rgba(5,150,105,0.08)" }}>
+                            {m.actualPaid > 0 && (
+                              <div className="h-full rounded-full" style={{ width: `${actPct}%`, backgroundColor: "#059669" }} />
+                            )}
+                          </div>
+                        </div>
+                        <div className="w-20 shrink-0 text-[10px] text-right" style={{ color: "rgba(13,17,68,0.45)" }}>
+                          {m.actualPaid > 0
+                            ? gbp.format(m.actualPaid)
+                            : m.projectedValue > 0
+                            ? gbp.format(m.projectedValue)
+                            : "—"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex items-center gap-5 text-[10px]" style={{ color: "rgba(13,17,68,0.45)" }}>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2 w-6 rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.55)" }} />
+                    Projected
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2 w-6 rounded-full" style={{ backgroundColor: "#059669" }} />
+                    Released
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <div
             className="rounded-[20px] overflow-hidden"
             style={{ border: "1px solid var(--surface-border, #e4e7f0)", backgroundColor: "#fff" }}
@@ -273,6 +334,7 @@ export default function CashflowPage() {
               })}
             </div>
           </div>
+          </>
         )}
       </div>
     </AppShell>
